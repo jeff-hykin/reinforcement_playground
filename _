@@ -12,17 +12,7 @@ then
 # otherwise run the respective project command
 # 
 else
-    # 
-    # init the manual env
-    #
-    for file in "$PROJECTR_FOLDER/settings/setup_manually/"*
-    do
-        # make sure its a file
-        if [[ -f "$file" ]]; then
-            source "$file"
-        fi
-    done
-    
+    source "$PROJECTR_FOLDER/settings/setup_manually/main.sh"
     # enable globbing
     shopt -s globstar &>/dev/null
     shopt -s dotglob &>/dev/null

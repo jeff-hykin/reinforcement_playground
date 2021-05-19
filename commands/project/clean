@@ -4,15 +4,16 @@
 #   this just removes all of the can-be deleted files
 #   can be useful for fixing corrupted setups
 
-#!/usr/bin/env bash
 
-# summary
-#   this just removes all of the can-be deleted files like cache's
-#   devs should never have to worry about running the cleaning file
-#   
-#   this can be useful for fixing corrupted setups
+# enable globbing for zsh
+setopt extended_glob &>/dev/null
+# enable globbing for bash
+shopt -s globstar &>/dev/null
+shopt -s dotglob &>/dev/null
 
-unlink "$PROJECTR_FOLDER/home/.cache/nix"
+
+# detach this (behaves like unlink)
+rm "$PROJECTR_FOLDER/home/.cache/nix"
 
 # the usual things
 rm -rfv "$PROJECTR_FOLDER/.cache" "$PROJECTR_FOLDER/"**/*.cleanable "$PROJECTR_FOLDER/"**/*.cleanable.*
