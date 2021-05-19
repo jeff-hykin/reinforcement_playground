@@ -6,13 +6,11 @@ export PROJECTR_ARGS="$@"
 # the comments above^ are special
 #   they tell the system to process this using nix-shell
 #   specifically using the exact version of bash to use
-export PROJECTR_FOLDER="$PWD"
-export PROJECTR_HOME="$PROJECTR_FOLDER/settings/home/"
-export PROJECTR_COMMANDS_FOLDER="$PROJECTR_FOLDER/settings/commands/"
+
 #
 # find and run all the startup scripts in alphabetical order
 #
-for file in "$PROJECTR_FOLDER/settings/shell_startup/#pre_changing_home/"*
+for file in "$PROJECTR_FOLDER/settings/setup_automatically/#pre_changing_home/"*
 do
     # make sure its a file
     if [[ -f "$file" ]]; then
@@ -34,5 +32,8 @@ then
     # run single command
     HOME="$__dummy_home" nix-shell --pure --run "zsh -c '$PROJECTR_ARGS'" "$PROJECTR_FOLDER/settings/requirements/shell.nix"
 else
+    echo "=============================="
+    echo " Setting up your Environment!"
+    echo "=============================="
     HOME="$__dummy_home" nix-shell --pure --command "zsh" "$PROJECTR_FOLDER/settings/requirements/shell.nix"
 fi
