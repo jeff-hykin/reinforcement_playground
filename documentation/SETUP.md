@@ -37,4 +37,4 @@ The managed environment is very reliable way to setup.<br>
 * Actually run some code
     * run `./shell` to get into the project environment
         * Note: this will almost certainly take a while the first time because it will auto-install exact versions of everything: `node`, `python`, `ruby`, all modules for them, etc
-    * run `commands` to see all of the project commands
+    * run `project commands` to list the project commands

@@ -1,11 +1,11 @@
 # make sure commands are executable
-chmod -R ugo+x "$PROJECTR_FOLDER/settings/commands" &>/dev/null || sudo chmod -R ugo+x "$PROJECTR_FOLDER/settings/commands" &>/dev/null
+chmod -R ugo+x "$PROJECTR_COMMANDS_FOLDER" &>/dev/null || sudo chmod -R ugo+x "$PROJECTR_COMMANDS_FOLDER" &>/dev/null
 
 # 
 # create aliases for all of the folders to allow recursive execution
 # 
 # yes its ugly, welcome to bash programming
-for each in "$PROJECTR_FOLDER/settings/commands/"*
+for each in "$PROJECTR_COMMANDS_FOLDER/"*
 do
     # if its a folder
     if [[ -d "$each" ]]

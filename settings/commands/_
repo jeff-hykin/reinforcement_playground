@@ -1,4 +1,54 @@
 #!/usr/bin/env bash
 
+
 # the commands command but for lazy people
-"$PROJECTR_COMMANDS_FOLDER/commands" "$@"
+# check if file exists
+
+if [[ -z "$@" ]]
+then
+    "$PROJECTR_COMMANDS_FOLDER/project/commands"
+else
+    # enable globbing
+    shopt -s globstar &>/dev/null
+    shopt -s dotglob &>/dev/null
+    search_path="$PROJECTR_COMMANDS_FOLDER/project"
+    argument_combination="$search_path/$1"
+    while [[ -n "$@" ]]
+    do
+        shift 1
+        for each in "$search_path/"**/*
+        do
+            echo 'argument_combination: '"$argument_combination"
+            echo 'each: '"$each"
+            if [[ "$argument_combination" = "$each" ]]
+            then
+                # if its a folder, then we need to go deeper
+                if [[ -d "$each" ]]
+                then
+                    search_path="$each"
+                    argument_combination="$argument_combination/$1"
+                    
+                    # if there is no next argument
+                    if [[ -z "$1" ]]
+                    then
+                        printf "\nThat is a sub folder, not a command\nValid sub-options are\n" 1>&2
+                        ls -1 --color -F "$each" | sed 's/^/    /' 1>&2
+                        exit 1 # error, no command
+                    fi
+                    
+                    break
+                # if its a file, run it with the remaining arguments
+                elif [[ -f "$each" ]]
+                then
+                    "$each" "$@"
+                    # make exit status identical to executed program
+                    exit $?
+                fi
+            fi
+        done
+    done
+    printf "\nI could not find that sub command\n" 1>&2
+    printf "Valid options are:\n" 1>&2
+    ls -1 --color -F "$search_path" | sed 's/^/    /' 1>&2
+    exit 1 # error, no command
+fi
