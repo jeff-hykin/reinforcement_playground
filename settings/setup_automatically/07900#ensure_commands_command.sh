@@ -5,9 +5,9 @@ if ! [[ -f "$PROJECTR_COMMANDS_FOLDER/project/commands" ]]; then
     echo "project commands:"
     tree "$PROJECTR_COMMANDS_FOLDER/project" -C --dirsfirst -A -F --noreport | sed '"'"'s/^/    /'"'"' | sed "1d"
     echo 
-    echo "example use:"
-    echo     project clean
-    echo     _ clean
+    echo "examples:"
+    echo "    project clean"
+    echo "    _ clean"
     ' > "$PROJECTR_COMMANDS_FOLDER/project/commands"
 fi
 
