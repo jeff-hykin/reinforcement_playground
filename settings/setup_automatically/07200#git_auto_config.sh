@@ -1,1 +1,0 @@
-../../settings/setup_manually/07200#git_auto_config.sh

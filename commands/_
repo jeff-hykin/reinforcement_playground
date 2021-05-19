@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-
-# the commands command but for lazy people
-# check if file exists
-
 if [[ -z "$@" ]]
 then
     "$PROJECTR_COMMANDS_FOLDER/project/commands"
