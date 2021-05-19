@@ -3,4 +3,4 @@ cp "$HOME/.vsce" "$PROJECTR_HOME/.vsce" 2>/dev/null
 
 # make sure the user has this in their .vsce
 # (it could contain passwords/keys)
-"$PROJECTR_FOLDER/settings/commands/.add_to_gitignore" "$PROJECTR_HOME/.vsce"
+"$PROJECTR_COMMANDS_FOLDER/tools/add_to_gitignore" "$PROJECTR_HOME/.vsce"

@@ -7,4 +7,4 @@ if [[ -d "$__temp_var_path_to_keychain" ]]; then
 fi
 
 # Make sure the user doesn't accidentally commit their keys/passwords!!
-"$PROJECTR_FOLDER/settings/commands/.add_to_gitignore" "$PROJECTR_HOME/Library/Keychains"
+"$PROJECTR_COMMANDS_FOLDER/tools/add_to_gitignore" "$PROJECTR_HOME/Library/Keychains"

@@ -109,7 +109,7 @@ fi
 # 
 # find and run all the startup scripts in alphabetical order
 # 
-for file in $PROJECTR_FOLDER/settings/shell_startup/*
+for file in "$PROJECTR_FOLDER/settings/shell_startup"/*
 do
     # make sure its a file
     if [[ -f "$file" ]]; then

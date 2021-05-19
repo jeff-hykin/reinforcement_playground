@@ -9,6 +9,34 @@
         },
         "packages": [
             {
+                "load": "ncurses",
+                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+            },
+            {
+                "load": "openssh",
+                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+            },
+            {
+                "load": "sd",
+                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+            },
+            {
+                "load": "dua",
+                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+            },
+            {
+                "load": "tealdeer",
+                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+            },
+            {
+                "load": "ytop",
+                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+            },
+            {
+                "load": "exa",
+                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+            },
+            {
                 "load": "zsh",
                 "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
             },

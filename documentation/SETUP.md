@@ -37,11 +37,11 @@ The managed environment is very reliable way to setup.<br>
 * Actually run some code
     * run `./shell` to get into the project environment
         * Note: this will almost certainly take a while the first time because it will auto-install exact versions of everything: `node`, `python`, `ruby`, all modules for them, etc
-    * run `commands` to see all of the project commands
+    * run `project commands` to list the project commands
 
 
 # Manual project setup
 
 - Install python3
 - Install the python modules with `python3 -m pip install -r requirements.txt`
-- Run the script `./settings/commands/commands` to see avalible commands
+- Run the script `./settings/commands/project/commands` to see avalible commands
