@@ -90,9 +90,39 @@ let
             definitions.mainPackages.python37Packages.wheel
             definitions.mainPackages.python37Packages.opencv4
         ];
+        
+        # nixGLNvidia, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
+        nixGL = (definitions.mainPackages.callPackage (
+                builtins.fetchGit {
+                url = "https://github.com/guibou/nixGL";
+                rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e";
+            }
+        ) {}).nixGLNvidia;
     };
     
     subDepedencies = [] ++ majorCustomDependencies.python;
+    
+    
+    packagesForLinuxOnly = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isLinux) [
+        definitions.mainPackages.stdenv.cc
+        definitions.mainPackages.linuxPackages.nvidia_x11
+        definitions.mainPackages.cudatoolkit
+        definitions.mainPackages.libGLU
+        majorCustomDependencies.nixGL
+        # opencv4cuda, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
+        (definitions.mainPackages.opencv4.override {  
+            enableGtk3   = true; 
+            enableFfmpeg = true; 
+            enableCuda   = true;
+            enableUnfree = true; 
+        })
+    ];
+    
+    nativePackagesForLinuxOnly = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isLinux) [
+        definitions.mainPackages.pkgconfig
+        definitions.mainPackages.libconfig
+        definitions.mainPackages.cmake
+    ];
     
     # TODO: add support for the simple_nix.json to have OS-specific packages (if statement inside package inclusion)
     packagesForMacOnly = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isDarwin) [
@@ -104,10 +134,24 @@ in
     # create a shell
     definitions.mainPackages.mkShell {
         # inside that shell, make sure to use these packages
-        buildInputs = subDepedencies ++ nestedPackages ++ packagesForMacOnly ++ builtins.map (each: each.source) definitions.packagesWithSources;
+        buildInputs = subDepedencies ++ nestedPackages ++ packagesForMacOnly ++ packagesForLinuxOnly ++ builtins.map (each: each.source) definitions.packagesWithSources;
+        
+        nativeBuildInputs = [] ++ nativePackagesForLinuxOnly;
         
         # run some bash code before starting up the shell
         shellHook = ''
+        
+        # insert code for GPU/pytorch
+        if [[ "$OSTYPE" == "linux-gnu" ]] 
+        then
+            export CUDA_PATH="${definitions.mainPackages.cudatoolkit}"
+            export EXTRA_LDFLAGS="-L/lib -L${definitions.mainPackages.linuxPackages.nvidia_x11}/lib"
+            export EXTRA_CCFLAGS="-I/usr/include"
+            export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${definitions.mainPackages.linuxPackages.nvidia_x11}/lib:${definitions.mainPackages.ncurses5}/lib:/run/opengl-driver/lib"
+            export LD_LIBRARY_PATH="$(${majorCustomDependencies.nixGL}/bin/nixGLNvidia printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
+            export LD_LIBRARY_PATH="${definitions.mainPackages.lib.makeLibraryPath [ definitions.mainPackages.glib ] }:$LD_LIBRARY_PATH"
+        fi
+        
         source "$PWD/settings/project.config.sh"
         
         # we don't want to give nix or other apps our home folder
