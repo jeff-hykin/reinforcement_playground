@@ -10,7 +10,7 @@ do
     # if its a folder
     if [[ -d "$each" ]]
     then
-        local name="$(basename "$each")"
+        name="$(basename "$each")"
         eval '
         function '"$name"' {
             # enable globbing

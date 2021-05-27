@@ -1,6 +1,5 @@
 # Setup
 
-<br>
 TLDR: install `nix`, run `./_ shell`, and everything will be auto installed
 <br>
 
@@ -33,13 +32,6 @@ TLDR: install `nix`, run `./_ shell`, and everything will be auto installed
     * `git clone https://github.com/*this-repo-url*`
     * `cd *this-repo*`
 * Actually run some code
-    * run `./_ shell` to get into the project environment
+    * run `./@ shell` to get into the project environment
         * Note: this will almost certainly take a while the first time because it will auto-install exact versions of everything: `node`, `python`, `ruby`, all modules for them, etc
     * run `project commands` to list the project commands
-
-
-# Manual project setup
-
-- Install python3
-- Install the python modules with `python3 -m pip install -r requirements.txt`
-- Run `./_` to see avalible commands

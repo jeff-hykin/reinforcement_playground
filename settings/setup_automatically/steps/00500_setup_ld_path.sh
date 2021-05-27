@@ -3,7 +3,7 @@
 output="$(
     nix-instantiate --eval -E '"${
         (rec {
-            packageJson = builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER/settings/requirements/simple_nix.json"'");
+            packageJson = builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER/settings/requirements/nix.json"'");
             mainRepo = builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${packageJson.nix.mainRepo}.tar.gz";};
             mainPackages = builtins.import mainRepo {
                 config = packageJson.nix.config;

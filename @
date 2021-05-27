@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
+source ./settings/project.config.sh
 
 # 
 # summary
 # 
-#     this file is used to run project commands
+#     this file is used to run commands
 #     it loads the PROJECTR env variables first (./settings/project.config.sh)
-#     it then loads the manual project environment
-#     this means your external environment needs to be setup correctly for this to work
-#     use ./@ shell to automatically setup an external environment
-# 
-#     then this executable looks inside the commands folder -> project folder for commands to run
-
-source ./settings/project.config.sh
+#     then in looks inside the commands folder for commands to run
+#     (unlike the underscore, this does not load the manual environment)
 
 # 
 # no args
@@ -24,23 +20,21 @@ then
 # otherwise run the respective project command
 # 
 else
-    source "$PROJECTR_FOLDER/settings/setup_manually/main.sh"
-    # enable globbing
-    shopt -s globstar &>/dev/null
-    shopt -s dotglob &>/dev/null
-    
+    absolute_path () {
+        echo "$(builtin cd "$(dirname "$1")"; pwd)/$(basename "$1")"
+    }
     # 
     # recursively drill down
     # 
-    search_path="$PROJECTR_COMMANDS_FOLDER/project"
+    search_path="$PROJECTR_COMMANDS_FOLDER"
     argument_combination="$search_path/$1"
     while [[ -n "$@" ]]
     do
         # pop the first argument off
         shift 1
-        for each in "$search_path/"**/*
+        for each in $(find "$search_path" -maxdepth 1 ! -path .)
         do
-            if [[ "$argument_combination" = "$each" ]]
+            if [[ "$(absolute_path "$argument_combination")" = "$(absolute_path "$each")" ]]
             then
                 # if its a folder, then we need to go deeper
                 if [[ -d "$each" ]]
@@ -67,8 +61,8 @@ else
             fi
         done
     done
-    printf "\nI could not find that project command\n" 1>&2
+    printf "\nI could not find that command\n" 1>&2
     printf "Valid options are:\n" 1>&2
-    ls -1 --color -F "$search_path" | sed 's/^/    /' 1>&2
+    ls -1 "$search_path" | sed 's/^/    /' 1>&2
     exit 1 # error, no command
 fi

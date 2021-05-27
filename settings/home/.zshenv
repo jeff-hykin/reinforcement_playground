@@ -31,11 +31,11 @@ else
                                     builtins.import (
                                         builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";}
                                     ) {
-                                        config = (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/simple_nix.json")).nix.config;
+                                        config = (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json")).nix.config;
                                     }
                                 );
                             })
-                        ) (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/simple_nix.json")).nix.packages
+                        ) (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json")).nix.packages
                     )
                 ) 0
             ).source

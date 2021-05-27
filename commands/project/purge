@@ -15,14 +15,23 @@ then
     exit 0
 fi
 
+del () {
+    if [ -f "$1" ]
+    then
+        rm -fv "$1"
+    else
+        rm -rfv "$1"
+    fi
+}
+
 # clean all the small things
 "$PROJECTR_COMMANDS_FOLDER/project/clean"
-
-# all the virtual env pip modules (several minutes to rebuild these)
-rm -rfv .venv
 
 # the mac library cache
 if [[ -d "$PROJECTR_FOLDER" ]]
 then
-    rm -rfv "$PROJECTR_HOME/Library/Caches"
+    del "$PROJECTR_HOME/Library/Caches"
 fi
+
+# delete venv
+del "$PROJECTR_FOLDER/.venv"
