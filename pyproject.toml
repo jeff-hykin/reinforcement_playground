@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "reinforcement_playground"
+version = "0.1.0"
+description = ""
+authors = ["jeff.hykin <jeff.hykin@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.7,<3.10"
+pip = "20.1.1"
+python-include = "1.0.0"
+ez_yaml = "1.1.0"
+numpy = "1.20.2"
+PyYAML = "5.4.1"
+torch = "1.8.1"
+torchvision = "0.9.1"
+opencv-python = "4.5.1.48"
+gym = "0.18.0"
+regex = "^2021.4.4"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

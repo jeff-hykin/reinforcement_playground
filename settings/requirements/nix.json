@@ -10,23 +10,23 @@
         "packages": [
             {
                 "load": "ncurses",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "openssh",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "sd",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "dua",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "tealdeer",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "ytop",
@@ -34,75 +34,75 @@
             },
             {
                 "load": "exa",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "zsh",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "zsh-syntax-highlighting",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "oh-my-zsh",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "zsh-autosuggestions",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "spaceship-prompt",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "nnn",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "man",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "coreutils",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "ripgrep",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "which",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "git",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "colorls",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "tree",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "less",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "nano",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "findutils",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
                 "load": "nix",
-                "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             }
         ]
     }

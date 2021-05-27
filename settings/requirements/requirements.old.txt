@@ -1,12 +1,20 @@
-stable-baselines==2.7.0
+pip==20.1.1
+python-include==1.0.0
+ez_yaml==1.1.0
 numpy==1.20.2
+PyYAML==5.4.1
+torch==1.8.1
+torchvision==0.9.1
+opencv-python==4.5.1.48
+scipy==1.6.2
+gym==0.18.0
+
+stable-baselines==2.7.0
 tensorflow==1.15.5 # because of stable-baselines
 keras==1.2.2 # because of tensorflow
 pillow==7.2.0 # because of gym
-PyYAML==5.4.1 # this is probably flexible
 mpi4py==3.0.3 # this is probably flexible
 pytablewriter==0.58.0 # this is probably flexible
-opencv-python==4.5.1.48 # this is probably flexible
 cloudpickle==1.6.0 # this is probably flexible
 pygame==2.0.1 # this is probably flexible
 joblib==1.0.1 # this is probably flexible
@@ -27,32 +35,26 @@ future==0.18.2
 google-auth==1.29.0
 google-auth-oauthlib==0.4.4
 grpcio==1.37.0
-gym==0.18.0
 idna==2.10
 importlib-metadata==1.6.0
 Markdown==3.3.4
 more-itertools==8.3.0
 oauthlib==3.1.0
-pip==20.1.1
 protobuf==3.15.8
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pyglet==1.5.0
-python-include==1.0.0
-PyYAML==5.4.1
 requests==2.25.1
 requests-oauthlib==1.3.0
 rsa==4.7.2
-scipy==1.6.2
-setuptools==47.3.1
 six==1.15.0
 tensorboard==2.5.0
 tensorboard-data-server==0.6.0
 tensorboard-plugin-wit==1.8.0
-torch==1.8.1
 typing-extensions==3.7.4.3
 urllib3==1.26.4
-virtualenv==20.0.28
 Werkzeug==1.0.1
-wheel==0.34.2
 zipp==3.1.0
+setuptools==47.3.1
+wheel==0.34.2
+virtualenv==20.0.28
