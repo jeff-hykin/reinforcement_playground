@@ -38,3 +38,5 @@ def merge(old_value, new_value):
             old_value[key] = merge(old_value.get(key, {}), updated_value)
         
         return old_value
+import os
+here = "os.path.dirname(__file__)"
