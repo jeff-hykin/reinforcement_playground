@@ -148,6 +148,7 @@ let
     # 
         majorCustomDependencies = rec {
             python = [
+                definitions.mainPackages.poetry
                 definitions.mainPackages.python37
                 definitions.mainPackages.python37Packages.setuptools
                 definitions.mainPackages.python37Packages.pip
