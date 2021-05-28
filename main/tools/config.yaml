@@ -1,3 +1,7 @@
-environment: {}
-agent: {}
-runtime: {}
+paths:
+    cache_folder: ./settings/.cache
+
+parameters:
+    environment: {}
+    agent: {}
+    runtime: {}
