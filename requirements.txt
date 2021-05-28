@@ -10,6 +10,7 @@ opencv-python==4.5.1.48
 scipy==1.6.2
 gym==0.18.0
 regex==2021.4.4
+tqdm==4.61.0
 
 # auto/dependency installed
 cloudpickle==1.6.0
