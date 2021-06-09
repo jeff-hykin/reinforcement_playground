@@ -18,7 +18,7 @@ class Agent:
         
         # standard
     
-    def on_episode_start(self):
+    def on_episode_start(self, initial_observation):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints

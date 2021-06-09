@@ -10,8 +10,8 @@ def run(env, agent, **config):
         # 
         for each in config["number_of_episodes"]:
             is_over = False
-            agent.on_episode_start()
             observation = env.reset()
+            agent.on_episode_start(observation)
             raw_reward = 0
             timestep = 0
             while True:
