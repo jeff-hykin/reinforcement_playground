@@ -8,42 +8,62 @@ from gym.utils import seeding
 try:
     import atari_py
 except ImportError as e:
-    raise error.DependencyNotInstalled(
-            "{}. (HINT: you can install Atari dependencies by running "
-            "'pip install gym[atari]'.)".format(e))
-
-
-def to_ram(ale):
-    ram_size = ale.getRAMSize()
-    ram = np.zeros((ram_size), dtype=np.uint8)
-    ale.getRAM(ram)
-    return ram
-
+    raise error.DependencyNotInstalled("{}. (HINT: you can install Atari dependencies by running 'pip install gym[atari]'.)".format(e))
 
 class Environment(gym.Env, utils.EzPickle):
-    metadata = {'render.modes': ['human', 'rgb_array']}
+    """
+    The Atari Environment
+        (inherits from the openai gym environment: https://gym.openai.com/docs/)
+    
+    Environment(
+        game="pong",                   # use Environment.available_games to see available games
+        mode=None,                     # use Environment.available_modes_for(game) to see this list
+        difficulty=None,
+        obs_type="image",              # or "ram"
+        frameskip=(2, 5),              # random number between 2 and 5 
+        repeat_action_probability=0.0, # 0 means deterministic
+        full_action_space=False,
+    )
+    """
+    metadata = {"render.modes": ["human", "rgb_array"]}
+    available_games = atari_py.list_games()
+    
+    @classmethod
+    def available_modes_for(game):
+        ale = atari_py.ALEInterface()
+        # load up the game
+        ale.setInt(b"random_seed", 0)
+        ale.loadROM(atari_py.get_game_path(game))
+        return ale.getAvailableModes()
 
+    @classmethod
+    def _to_ram(ale):
+        ram_size = ale.getRAMSize()
+        ram = np.zeros((ram_size), dtype=np.uint8)
+        ale.getRAM(ram)
+        return ram
+        
     def __init__(
-            self,
-            game='pong',
-            mode=None,
-            difficulty=None,
-            obs_type='ram',
-            frameskip=(2, 5),
-            repeat_action_probability=0.,
-            full_action_space=False):
-        """Frameskip should be either a tuple (indicating a random range to
-        choose from, with the top value exclude), or an int."""
+        self,
+        game="pong",
+        mode=None,
+        difficulty=None,
+        obs_type="image",
+        frameskip=(2, 5),
+        repeat_action_probability=0.0,
+        full_action_space=False,
+    ):
+        """
+        Arguments:
+            game: the name of the game ("pong", "Enduro", etc) dont add the "-v0"
+            mode: different modes are available for different games.
+            frameskip should be either a tuple (indicating a random range to choose from, with the top value exclude), or an int.
+        """
 
         utils.EzPickle.__init__(
-                self,
-                game,
-                mode,
-                difficulty,
-                obs_type,
-                frameskip,
-                repeat_action_probability)
-        assert obs_type in ('ram', 'image')
+            self, game, mode, difficulty, obs_type, frameskip, repeat_action_probability
+        )
+        assert obs_type in ("ram", "image")
 
         self.game = game
         self.game_path = atari_py.get_game_path(game)
@@ -51,7 +71,7 @@ class Environment(gym.Env, utils.EzPickle):
         self.game_difficulty = difficulty
 
         if not os.path.exists(self.game_path):
-            msg = 'You asked for game %s but path %s does not exist'
+            msg = "You asked for game %s but path %s does not exist"
             raise IOError(msg % (game, self.game_path))
         self._obs_type = obs_type
         self.frameskip = frameskip
@@ -60,41 +80,51 @@ class Environment(gym.Env, utils.EzPickle):
 
         # Tune (or disable) ALE's action repeat:
         # https://github.com/openai/gym/issues/349
-        assert isinstance(repeat_action_probability, (float, int)), \
-                "Invalid repeat_action_probability: {!r}".format(repeat_action_probability)
+        assert isinstance(
+            repeat_action_probability, (float, int)
+        ), "Invalid repeat_action_probability: {!r}".format(repeat_action_probability)
         self.ale.setFloat(
-                'repeat_action_probability'.encode('utf-8'),
-                repeat_action_probability)
+            "repeat_action_probability".encode("utf-8"), repeat_action_probability
+        )
 
         self.seed()
 
-        self._action_set = (self.ale.getLegalActionSet() if full_action_space
-                            else self.ale.getMinimalActionSet())
+        self._action_set = (
+            self.ale.getLegalActionSet()
+            if full_action_space
+            else self.ale.getMinimalActionSet()
+        )
         self.action_space = spaces.Discrete(len(self._action_set))
 
         (screen_width, screen_height) = self.ale.getScreenDims()
-        if self._obs_type == 'ram':
-            self.observation_space = spaces.Box(low=0, high=255, dtype=np.uint8, shape=(128,))
-        elif self._obs_type == 'image':
-            self.observation_space = spaces.Box(low=0, high=255, shape=(screen_height, screen_width, 3), dtype=np.uint8)
+        if self._obs_type == "ram":
+            self.observation_space = spaces.Box(
+                low=0, high=255, dtype=np.uint8, shape=(128,)
+            )
+        elif self._obs_type == "image":
+            self.observation_space = spaces.Box(
+                low=0, high=255, shape=(screen_height, screen_width, 3), dtype=np.uint8
+            )
         else:
-            raise error.Error('Unrecognized observation type: {}'.format(self._obs_type))
+            raise error.Error(
+                "Unrecognized observation type: {}".format(self._obs_type)
+            )
 
     def seed(self, seed=None):
         self.np_random, seed1 = seeding.np_random(seed)
         # Derive a random seed. This gets passed as a uint, but gets
         # checked as an int elsewhere, so we need to keep it below
         # 2**31.
-        seed2 = seeding.hash_seed(seed1 + 1) % 2**31
+        seed2 = seeding.hash_seed(seed1 + 1) % 2 ** 31
         # Empirically, we need to seed before loading the ROM.
-        self.ale.setInt(b'random_seed', seed2)
+        self.ale.setInt(b"random_seed", seed2)
         self.ale.loadROM(self.game_path)
 
         if self.game_mode is not None:
             modes = self.ale.getAvailableModes()
 
             assert self.game_mode in modes, (
-                "Invalid game mode \"{}\" for game {}.\nAvailable modes are: {}"
+                'Invalid game mode "{}" for game {}.\nAvailable modes are: {}'
             ).format(self.game_mode, self.game, modes)
             self.ale.setMode(self.game_mode)
 
@@ -102,7 +132,7 @@ class Environment(gym.Env, utils.EzPickle):
             difficulties = self.ale.getAvailableDifficulties()
 
             assert self.game_difficulty in difficulties, (
-                "Invalid game difficulty \"{}\" for game {}.\nAvailable difficulties are: {}"
+                'Invalid game difficulty "{}" for game {}.\nAvailable difficulties are: {}'
             ).format(self.game_difficulty, self.game, difficulties)
             self.ale.setDifficulty(self.game_difficulty)
 
@@ -126,16 +156,16 @@ class Environment(gym.Env, utils.EzPickle):
         return self.ale.getScreenRGB2()
 
     def _get_ram(self):
-        return to_ram(self.ale)
+        return Environment._to_ram(self.ale)
 
     @property
     def _n_actions(self):
         return len(self._action_set)
 
     def _get_obs(self):
-        if self._obs_type == 'ram':
+        if self._obs_type == "ram":
             return self._get_ram()
-        elif self._obs_type == 'image':
+        elif self._obs_type == "image":
             img = self._get_image()
         return img
 
@@ -144,12 +174,13 @@ class Environment(gym.Env, utils.EzPickle):
         self.ale.reset_game()
         return self._get_obs()
 
-    def render(self, mode='human'):
+    def render(self, mode="human"):
         img = self._get_image()
-        if mode == 'rgb_array':
+        if mode == "rgb_array":
             return img
-        elif mode == 'human':
+        elif mode == "human":
             from gym.envs.classic_control import rendering
+
             if self.viewer is None:
                 self.viewer = rendering.SimpleImageViewer()
             self.viewer.imshow(img)
@@ -165,11 +196,11 @@ class Environment(gym.Env, utils.EzPickle):
 
     def get_keys_to_action(self):
         KEYWORD_TO_KEY = {
-            'UP':      ord('w'),
-            'DOWN':    ord('s'),
-            'LEFT':    ord('a'),
-            'RIGHT':   ord('d'),
-            'FIRE':    ord(' '),
+            "UP": ord("w"),
+            "DOWN": ord("s"),
+            "LEFT": ord("a"),
+            "RIGHT": ord("d"),
+            "FIRE": ord(" "),
         }
 
         keys_to_action = {}
