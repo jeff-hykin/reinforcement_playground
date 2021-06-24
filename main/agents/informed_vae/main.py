@@ -198,27 +198,74 @@ class ImageEncoder(nn.Module):
         # force the output to be the correct shape
         return torch.reshape(neuron_activations, output_shape)
     
-    def get_gradients(input_batch, ideal_outputs_batch, retain_graph=False):
-        loss = self.get_loss(input_batch, ideal_outputs_batch)
+    @property
+    def gradients(self):
         gradients = []
+        for each_layer in self.layers:
+            # if it has weights (e.g. not an activation function "layer")
+            if hasattr(each_layer, "weight"):
+                gradients.append(each_layer.weight.grad)
+        return gradients
+        
+    
+    def compute_gradients(self, input_batch, ideal_outputs_batch, retain_graph=False):
+        loss = self.get_loss(input_batch, ideal_outputs_batch)
         # compute the gradients
         loss.backward(retain_graph=retain_graph)
-        for each_layer in self.layers:
-            # if it has weights
-            if hasattr(each_layer, "weight"):
-                weights.append(each_layer.weight.grad)
-        return gradients
+        # return the gradients
+        return self.gradients
 
+    def update_weights(self, input_batch, ideal_outputs_batch, step_size=0.01, retain_graph=False):
+        self.compute_gradients(input_batch, ideal_outputs_batch, retain_graph=retain_graph)
+        # turn of tracking because things are about to be updated
+        with torch.no_grad():
+            for each_layer in self.layers:
+                # if it has weights (e.g. not an activation function "layer")
+                if hasattr(each_layer, "weight"):
+                    each_layer.weight = each_layer.weight - step_size * each_layer.weight.grad
+                each_layer.weight.requires_grad = True
+                
+                # if it has a bias layer
+                if hasattr(each_layer, "bias"):
+                    each_layer.bias = each_layer.bias - step_size * each_layer.bias.grad
+                each_layer.bias.requires_grad = True
+        
+        
+# Example of manual update:
+weights = torch.randn(1, requires_grad=True)
+biases = torch.randn(1, requires_grad=True)
+
+step_size = 0.01
+for i in range(500):
+    print(i)
+    # use new weight to calculate loss
+    y_pred = weights * x + biases
+    loss = torch.mean((y_pred - actual_observation) ** 2)
+
+    # backward
+    loss.backward()
+    print('weights:', weights)
+    print('biases:', biases)
+    print('weights.grad:', weights.grad)
+    print('biases.grad:', biases.grad)
+
+    # gradient descent, don't track
+    with torch.no_grad():
+        weights = weights - step_size * weights.grad
+        biases  = biases  - step_size * biases.grad
+    weights.requires_grad = True
+    biases.requires_grad = True
     
 # simple example:
 #   layer1 = nn.Linear(2, 2, accumulate_grad=False)
 #   layer2 = nn.ReLU()
-#   x = torch.randn(1, 2)
-#   target = torch.randn(1, 2)
-#   output = layer2(layer1(x))
-#   loss = my_loss(output, target)
-#   loss.backward(retain_graph=True)
-#   print(layer1.weight.grad)
+x = torch.randn(1, 2)
+target = torch.randn(1, 2)
+output = layer2(layer1(x))
+loss = my_loss(output, target)
+loss.backward()
+print(layer1.weight.grad)
+print(layer1.weight)
 
 
 # define a simple linear VAE
