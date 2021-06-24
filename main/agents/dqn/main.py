@@ -10,23 +10,40 @@ from lib import plotting
 import random
 from collections import defaultdict
 
+
+from agents.informed_vae.main import Agent as Vae
+
 class DQN:
-    def __init__(self, env, options):
-        assert str(env.action_space).startswith("Discrete") or str(
-            env.action_space
+    def __init__(self, action_space, observation_space, **config):
+        self.config = config
+        self.action_space = action_space
+        self.wants_to_quit = False
+        self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+        
+        assert str(self.action_space).startswith("Discrete") or str(
+            self.action_space
         ).startswith("Tuple(Discrete"), (
             str(self) + " cannot handle non-discrete action spaces"
         )
-        super().__init__(env, options)
-
+        self.alpha                         = self.config.get("alpha"             , None)
+        self.batch_size                    = self.config.get("batch_size"        , None)
+        self.epsilon                       = self.config.get("epsilon"           , None)
+        self.gamma                         = self.config.get("gamma"             , None)
+        self.layers                        = self.config.get("layers"            , None)
+        self.replay_memory_size            = self.config.get("replay_memory_size", None)
+        self.update_target_estimator_every = self.config.get("update_target_estimator_every", None)
+        
         self.replay_buffer = []
-        self.state_size = self.env.observation_space.shape[0]
-        self.action_size = self.env.action_space.n
+        self.observation_space = observation_space
+        self.state_size = self.observation_space.shape[0]
+        self.action_size = self.action_space.n
         self.actions = range(self.action_size)
         self.model = self._build_model()
         self.target_model = self._build_model()
         self.minibatch_size = 100
         self.index = 0
+        
+        self.vae = Vae(action_space=self.action_space)
     
     def on_episode_start(self):
         """
@@ -34,13 +51,13 @@ class DQN:
         called once per episode for any init/reset or saving of model checkpoints
         """
         
-        self.chance_of_random_action = self.options.epsilon
+        self.chance_of_random_action = self.epsilon
         self.actions = self.actions
         self.replay_buffer = self.replay_buffer
-        self.minibatch_size = self.options.batch_size
-        self.frequency_of_refreshing_weights = self.options.update_target_estimator_every
-        self.replay_memory_size = self.options.replay_memory_size
-        self.discount_of_future_rewards = self.options.gamma
+        self.minibatch_size = self.batch_size
+        self.frequency_of_refreshing_weights = self.update_target_estimator_every
+        self.replay_memory_size = self.replay_memory_size
+        self.discount_of_future_rewards = self.gamma
 
         self.inputs_at = defaultdict(lambda: None)
         self.action_taken_at = defaultdict(lambda: None)
@@ -52,7 +69,12 @@ class DQN:
         """
         returns an action
         """
-        
+        # compress the raw observation by running it through an autoencoder
+        observation = self.vae.decide(
+            (observation, self._decision_gradient(observation)), # how much does each input affect the decision at the moment
+            reward,
+            is_last_timestep
+        )
         #
         # record outcome of previous action
         #
@@ -147,9 +169,13 @@ class DQN:
         only called once, and should save checkpoints and cleanup any logging info
         """
         return
+    
+    def _decision_gradient(self, observation):
+        # FIXME: self.model.something(observation)
+        return 
         
     def _build_model(self):
-        layers = self.options.layers
+        layers = self.layers
         # Neural Net for Deep-Q learning Model
         model = Sequential()
 
@@ -158,7 +184,7 @@ class DQN:
             for l in layers[1:]:
                 model.add(Dense(l, activation="relu"))
         model.add(Dense(self.action_size, activation="linear"))
-        model.compile(loss=huber_loss, optimizer=Adam(lr=self.options.alpha))
+        model.compile(loss=huber_loss, optimizer=Adam(lr=self.alpha))
         return model
 
     def update_target_model(self):
@@ -173,14 +199,14 @@ class DQN:
             A function that takes a state as input and returns a vector
             of action probabilities.
         """
-        nA = self.env.action_space.n
+        nA = self.action_space.n
 
         def policy_fn(state):
             ε, 𝛾, 𝝰, A = (
-                self.options.epsilon,
-                self.options.gamma,
-                self.options.alpha,
-                list(range(self.env.action_space.n)),
+                self.epsilon,
+                self.gamma,
+                self.alpha,
+                list(range(self.action_space.n)),
             )
             greedy_action = self.model.predict(state)
             uniform_probability_value = ε / len(A)
@@ -207,14 +233,14 @@ class DQN:
             A function that takes an observation as input and returns a vector
             of action probabilities.
         """
-        nA = self.env.action_space.n
+        nA = self.action_space.n
 
         def policy_fn(state):
             ε, 𝛾, 𝝰, A = (
-                self.options.epsilon,
-                self.options.gamma,
-                self.options.alpha,
-                list(range(self.env.action_space.n)),
+                self.epsilon,
+                self.gamma,
+                self.alpha,
+                list(range(self.action_space.n)),
             )
             actions = self.model.predict(x=np.matrix(state))[0]
             greedy_action = np.argmax(self.model.predict(x=np.matrix(state))[0])

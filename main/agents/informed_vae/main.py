@@ -25,7 +25,12 @@ class Agent:
         self.latent_shape = config.get("latent_shape", (32)) # default shape of (3, 32, 32)
         self.path = config.get("checkpoint_path", eval(here)+"/previous_checkpoint.pth")
         
-        self.model = None
+        self.observations = []
+        self.value_gradients = []
+        self.model = LinearVAE(
+            latent_shape=self.latent_shape,
+            input_shape=self.input_shape
+        )
         
         # 
         # load from file
@@ -45,33 +50,32 @@ class Agent:
             self.should_save = True
         self.print(f"VAE: number of latent variables (z_size): {self.vae.z_size}")
     
-    # this may not be used
-    def decide(observation, reward, is_last_timestep):
-        """
-        returns (observation, reward, is_last_timestep)
-        but the observation is compressed
-        """
-        compressed_observation = self.enhace_observation(observation)
-        return compressed_observation
-    
-    def enhace_observation(observation):
-        return self.vae.encode_from_raw_image(observation)
-    
     def on_episode_start(self):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints
         """
-        return
+        if type(self.observations) == list:
+            # FIXME: train model here
+            pass
+        
+    # this may not be used
+    def decide(observation, reward, is_last_timestep):
+        """
+        returns the action, but in this case the action is a compressed state space
+        """
+        actual_observation, value_gradient = observation
+        self.value_gradients.append(value_gradient)
+        return self.model.encode(actual_observation)
+    
     
     def on_clean_up(self):
         """
         only called once, and should save checkpoints and cleanup any logging info
         """
+        # FIXME: save 
         return
         
-
-
 
 
 # define a simple linear VAE
