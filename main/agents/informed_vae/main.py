@@ -5,6 +5,20 @@ import torch.nn.functional as F
 # local 
 from tools.defaults import PATHS
 
+# 
+# Summary
+# 
+    # this agent has 3 parts
+    # 1. the encoder (from an auto-encoder)
+    # 2. the decoder (from an auto-encoder)
+    # 3. the "core" agent
+    # 
+    # the important/novel part is the encoder, the decoder just helps the encoder
+    # the "core" agent is arbitrary, however it does need to meet a few requirements
+    #     1. needs a value estimation function (estimate the value of a state or state-action pair)
+    #     2. a decision gradient (what input affects the action the most)
+    #     3. a way to continue backpropogation to update the encoder network
+
 class Agent:
     def __init__(self, action_space=None, **config):
         """
@@ -27,10 +41,16 @@ class Agent:
         
         self.observations = []
         self.value_gradients = []
-        self.model = LinearVAE(
+        
+        self.encoder = ImageEncoder(
+            input_shape=self.input_shape,
             latent_shape=self.latent_shape,
-            input_shape=self.input_shape
         )
+        # instead of the encoder updating weights based only on the decoding process,
+        # it will update according to the core_agent, while avoiding overwritting/forgetting old learned weights
+        
+        self.decoder = # FIXME
+        self.core_agent = # FIXME
         
         # 
         # load from file
@@ -78,10 +98,10 @@ class Agent:
         
 
 # 
-# Encoder
+# ImageEncoder
 # 
 class ImageEncoder(nn.Module):
-    def __init__(self, input_shape=None, latent_shape=None, loss=None **config):
+    def __init__(self, input_shape=None, latent_shape=None, loss=None, **config):
         """
         Arguments:
             input_shape:
@@ -112,7 +132,7 @@ class ImageEncoder(nn.Module):
         # 
         # basic setup
         # 
-        super(Encoder, self).__init__()
+        super(ImageEncoder, self).__init__()
         self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
@@ -127,7 +147,7 @@ class ImageEncoder(nn.Module):
         self.input_feature_count = product(self.input_shape)
         self.latent_feature_count = product(latent_shape)
         
-        # upgrade shape to 3D if 2D
+        # upgrade image input to 3D if 2D
         if len(input_shape) == 2: input_shape = (1, *input_shape)
         channels, height, width  = input_shape
         
@@ -257,8 +277,8 @@ for i in range(500):
     biases.requires_grad = True
     
 # simple example:
-#   layer1 = nn.Linear(2, 2, accumulate_grad=False)
-#   layer2 = nn.ReLU()
+layer1 = nn.Linear(2, 2, accumulate_grad=False)
+layer2 = nn.ReLU()
 x = torch.randn(1, 2)
 target = torch.randn(1, 2)
 output = layer2(layer1(x))
