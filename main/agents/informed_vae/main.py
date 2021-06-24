@@ -77,6 +77,149 @@ class Agent:
         return
         
 
+# 
+# Encoder
+# 
+class ImageEncoder(nn.Module):
+    def __init__(self, input_shape=None, latent_shape=None, loss=None **config):
+        """
+        Arguments:
+            input_shape:
+                a tuple that expected to be (image_channels, image_height, image_width)
+                where image_channels, image_height, and image_width are all integers
+                
+            latent_shape:
+                a tuple, probably with only one large number, e.g. (32, 1) or (32, 1, 1)
+                which lets you pick the shape of your output
+                more dynamic output shapes are allowed too, e.g (32, 32)
+            
+            loss:
+                a function, that is by default squared error loss
+                function Arguments:
+                    input_batch:
+                        a torch tensor of images with shape (batch_size, channels, height, width)
+                    ideal_output_batch:
+                        a vector of latent spaces with shape (batch_size, *latent_shape) 
+                        for example if the latent_shape was (32, 16) then this would be (batch_size, 32, 16)
+                function Content:
+                    must perform only pytorch tensor operations on the input_batch
+                    (see here for vaild pytorch tensor operations: https://towardsdatascience.com/how-to-train-your-neural-net-tensors-and-autograd-941f2c4cc77c)
+                    otherwise pytorch won't be able to keep track of computing the gradient
+                    
+                function Ouput:
+                    should return a torch tensor that is the result of an operation with the input_batch
+        """
+        # 
+        # basic setup
+        # 
+        super(Encoder, self).__init__()
+        self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # 
+        # model setup
+        # 
+        self.input_shape = input_shape or (1, 28, 28)
+        self.latent_shape = latent_shape or (16, 1)
+        # squared error loss
+        self.get_loss = loss or lambda input_batch, ideal_output_batch: torch.mean((self.forward(input_batch) - ideal_output_batch)**2)
+        from itertools import product
+        self.input_feature_count = product(self.input_shape)
+        self.latent_feature_count = product(latent_shape)
+        
+        # upgrade shape to 3D if 2D
+        if len(input_shape) == 2: input_shape = (1, *input_shape)
+        channels, height, width  = input_shape
+        
+        # 
+        # Layers
+        # 
+        self.layer1 = nn.Linear(self.input_feature_count, self.input_feature_count/2)
+        self.layer2 = nn.Linear(self.layer1.out_features, self.latent_feature_count)
+        # this var is just so other parts of the code can be automated
+        self.layers = [
+            self.layer1,
+            nn.Relu(),
+            self.layer2
+            nn.Sigmoid(),
+        ]
+ 
+    # Called with either one element to determine next action, or a batch
+    # during optimization. Returns tensor([[left0exp,right0exp]...]).
+    def forward(self, input_data):
+        """
+        Arguments:
+            input_data:
+                either an input image or batch of images
+                should be a torch tensor with a shape of (batch_size, channels, height, width)
+        Ouptut:
+            a torch tensor the shape of the latent space
+        Examples:
+            obj.forward(torch.tensor([
+                # first image in batch
+                [
+                    # red layer
+                    [
+                        [ 1, 2, 3 ],
+                        [ 4, 5, 6] 
+                    ], 
+                    # blue layer
+                    [
+                        [ 1, 2, 3 ],
+                        [ 4, 5, 6] 
+                    ], 
+                    # green layer
+                    [
+                        [ 1, 2, 3 ],
+                        [ 4, 5, 6] 
+                    ],
+                ] 
+            ]))
+        
+        """
+        # converts to torch if needed
+        input_data = torch.tensor(input_data)
+        # 
+        # batch or not?
+        # 
+        if len(input_data.shape) == 3: 
+            batch_size = None
+            output_shape = self.latent_shape
+            # convert images into batches of 1
+            input_data = torch.reshape(input_data, (1, input_data.shape))
+        else:
+            batch_size = input_data.shape[0]
+            output_shape = (batch_size, *self.latent_shape)
+            
+        neuron_activations = input_data.to(device)
+        for each_layer in self.layers:
+            neuron_activations = each_layer(neuron_activations)
+        
+        # force the output to be the correct shape
+        return torch.reshape(neuron_activations, output_shape)
+    
+    def get_gradients(input_batch, ideal_outputs_batch, retain_graph=False):
+        loss = self.get_loss(input_batch, ideal_outputs_batch)
+        gradients = []
+        # compute the gradients
+        loss.backward(retain_graph=retain_graph)
+        for each_layer in self.layers:
+            # if it has weights
+            if hasattr(each_layer, "weight"):
+                weights.append(each_layer.weight.grad)
+        return gradients
+
+    
+# simple example:
+#   layer1 = nn.Linear(2, 2, accumulate_grad=False)
+#   layer2 = nn.ReLU()
+#   x = torch.randn(1, 2)
+#   target = torch.randn(1, 2)
+#   output = layer2(layer1(x))
+#   loss = my_loss(output, target)
+#   loss.backward(retain_graph=True)
+#   print(layer1.weight.grad)
+
 
 # define a simple linear VAE
 class LinearVAE(nn.Module):

@@ -75,7 +75,7 @@ class Model():
 
     class DQN(nn.Module):
 
-        def __init__(self, input_shape, outputs):
+        def __init__(self, input_shape, output_shape):
             """
             input_shape = (channels, height, width)
             """
@@ -94,7 +94,7 @@ class Model():
             
             layers = [ self.conv1, self.bn1, self.conv2, self.bn2, self.conv3, self.bn3, ]
             shape_of_last_layer = layer_output_shapes(input_shape, layers)[-1]
-            self.head = nn.Linear(product(*shape_of_last_layer), outputs)
+            self.head = nn.Linear(product(*shape_of_last_layer), product(output_shape))
 
         # Called with either one element to determine next action, or a batch
         # during optimization. Returns tensor([[left0exp,right0exp]...]).
