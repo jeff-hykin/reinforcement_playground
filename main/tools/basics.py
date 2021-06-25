@@ -16,7 +16,6 @@ def flatten(value):
     flattener = lambda *m: (i for n in m for i in (flattener(*n) if is_iterable(n) else (n,)))
     return list(flattener(value))
 
-
 import collections.abc
 def merge(old_value, new_value):
     # if not dict, see if it is iterable
