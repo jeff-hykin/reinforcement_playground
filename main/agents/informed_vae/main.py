@@ -102,6 +102,14 @@ class Agent:
 # ImageEncoder
 # 
 class ImageEncoder(ImageModelSequential):
+    '''
+    examples:
+        an_encoder = ImageEncoder()
+        from tools.defaults import *
+        # img is just a torch tensor
+        img = read_image(get_path_to_mnist()+"/img_0/data.jpg")
+        an_encoder.forward(img)
+    '''
     def __init__(self, input_shape=(1, 28, 28), latent_shape=(16, 1), loss=None, **config):
         # 
         # basic setup
@@ -126,6 +134,7 @@ class ImageEncoder(ImageModelSequential):
         self.layers.add_module("layer1_activation", nn.ReLU())
         self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, self.output_feature_count))
         self.layers.add_module("layer2_activation", nn.Sigmoid())
+        self.to(self.device)
     
     def update_weights(self, input_batch, ideal_outputs_batch, step_size=0.01, retain_graph=False):
         self.update_gradients(input_batch, ideal_outputs_batch, retain_graph=retain_graph)

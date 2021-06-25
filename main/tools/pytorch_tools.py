@@ -187,7 +187,7 @@ class ImageModelSequential(nn.Module):
         
         """
         # converts to torch if needed
-        input_data = torch.tensor(input_data)
+        input_data = to_tensor(input_data)
         
         # 
         # batch or not?
@@ -195,12 +195,18 @@ class ImageModelSequential(nn.Module):
         if len(input_data.shape) == 3: 
             batch_size = None
             output_shape = self.output_shape
-            # convert images into batches of 1
-            input_data = torch.reshape(input_data, (1, input_data.shape))
+            # convert images into batches
+            input_data = torch.reshape(input_data, (1, *input_data.shape))
         else:
             batch_size = input_data.shape[0]
             output_shape = (batch_size, *self.output_shape)
         # TODO: add print statements, and consider the possibility of being givent a single 2D image
+        
+        # force into batches of vectors
+        batch_length = 1 if batch_size == None else batch_size
+        print('batch_length = ', batch_length)
+        input_data = torch.reshape(input_data, (batch_length, -1))
+        print('input_data.shape = ', input_data.shape)
         
         neuron_activations = input_data.to(self.device)
         for each_layer in self.layers:
@@ -215,8 +221,7 @@ class ImageModelSequential(nn.Module):
         if len(self.layers) == 0:
             return self.input_feature_count
         else:
-            print('self.layers = ', self.layers)
-            return product(layer_output_shapes((self.input_feature_count), self.layers)[0])
+            return product(layer_output_shapes((self.input_feature_count,), self.layers)[0])
     
     @property
     def gradients(self):
