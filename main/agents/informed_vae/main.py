@@ -23,7 +23,7 @@ from tools.pytorch_tools import ImageModelSequential
     # core_agent
     #    the weights are updated based on whatever arbitrary RL method is chosen
     #    however, when the gradient is computed, it (automatically) goes all the way back through the encoder
-    #    (it doesn't update the encoder weights but it computes the gradient)
+    #    (it doesn't update the encoder weights but it computes the gradient, as the encoder will use those gradients inside its update function)
     # decoder
     #    the weights are updated in a somewhat strange way, there are two parts that are combined
     #    the first part is simply the squared error loss
@@ -41,6 +41,15 @@ from tools.pytorch_tools import ImageModelSequential
     #        by running the forward pass throught the decoder, then encoder, then the value function of the agent
     #        we can propogate the loss all the way back to the decoder, while keeping the weights of the encoder and 
     #        value function frozen.
+    #    when these two parts of the loss function agree, that is fine, the larger of the two will be chosen
+    #    however when they disagree on the direction of a neuron weight, recreating the latent space is the most important
+    #    and it will generally win. However, so long as recreating the latent space is unaffected, the other half of the
+    #    loss function is free to make changes to the weights
+    # encoder
+    #    the job of the encoder is 3 ways 
+    #    1. dont forget features that were useful for other core_agent's doing other tasks
+    #    2. provide features that are useful to the current core_agent
+    #    3. try to help the decompression function with the image-recreation task
 
 class Agent:
     def __init__(self, action_space=None, **config):
