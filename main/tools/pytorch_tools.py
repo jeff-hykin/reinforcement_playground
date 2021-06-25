@@ -26,6 +26,82 @@ def layer_output_shapes(input_shape, network):
     
     return Model().forward(torch.ones((1, *input_shape)))
 
+def read_image(file_path):
+    from PIL import Image
+    import torchvision.transforms.functional as TF
+    image = Image.open(file_path)
+    return TF.to_tensor(image)
+
+def to_tensor(an_object):
+    from tools.basics import is_iterable
+    
+    # if already a tensor, just return
+    if isinstance(an_object, torch.Tensor):
+        return an_object
+        
+    # if scalar, wrap it with a tensor
+    if not is_iterable(an_object):
+        return torch.tensor(an_object)
+    else:
+        as_list = tuple([ each for each in an_object ])
+        
+        # # check for all-scalar container
+        # is_all_scalar = True
+        # for each in as_list:
+        #     if is_iterable(each):
+        #         is_all_scalar = False
+        #         break
+        # if is_all_scalar:
+        #     return torch.tensor(as_list)
+        
+        size_mismatch = False
+        biggest_number_of_dimensions = 0
+        non_one_dimensions = None
+        converted_data = []
+        # check the shapes of everything
+        for each in as_list:
+            tensor = to_tensor(each)
+            converted_data.append(tensor)
+            skipping = True
+            each_non_one_dimensions = []
+            for index, each_dimension in enumerate(tensor.shape):
+                # keep track of number of dimensions
+                if index+1 > biggest_number_of_dimensions:
+                    biggest_number_of_dimensions += 1
+                    
+                if each_dimension != 1:
+                    skipping = False
+                if skipping and each_dimension == 1:
+                    continue
+                else:
+                    each_non_one_dimensions.append(each_dimension)
+            
+            # if uninitilized
+            if non_one_dimensions is None:
+                non_one_dimensions = list(each_non_one_dimensions)
+            # if dimension already exists
+            else:
+                # make sure its the correct shape
+                if non_one_dimensions != each_non_one_dimensions:
+                    size_mismatch = True
+                    break
+        
+        if size_mismatch:
+            sizes = "\n".join([ f"    {tuple(to_tensor(each).shape)}" for each in as_list])
+            raise Exception(f'When converting an object to a torch tensor, there was an issue with the shapes not being uniform. All shapes need to be the same, but instead the shapes were:\n {sizes}')
+        
+        # make all the sizes the same by filling in the dimensions with a size of one
+        reshaped_list = []
+        for each in converted_data:
+            shape = tuple(each.shape)
+            number_of_dimensions = len(shape)
+            number_of_missing_dimensions = biggest_number_of_dimensions - number_of_dimensions 
+            missing_dimensions_tuple = (1,)*number_of_missing_dimensions
+            reshaped_list.append(torch.reshape(each, (*missing_dimensions_tuple, *shape)))
+        
+        return torch.stack(reshaped_list)    
+            
+    
 
 class ImageModelSequential(nn.Module):
     def setup(self, input_shape=None, output_shape=None, loss=None, layers=None, **config):
