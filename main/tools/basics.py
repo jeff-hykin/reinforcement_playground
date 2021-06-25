@@ -1,4 +1,7 @@
-from itertools import product
+def product(iterable):
+    from functools import reduce
+    import operator
+    return reduce(operator.mul, iterable, 1)
 
 def is_iterable(thing):
     # https://stackoverflow.com/questions/1952464/in-python-how-do-i-determine-if-an-object-is-iterable

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 # local 
 from tools.defaults import PATHS
+from tools.pytorch_tools import ImageModelSequential
 
 # 
 # Summary
@@ -100,18 +101,63 @@ class Agent:
 # 
 # ImageEncoder
 # 
-class ImageEncoder(nn.Module):
-    def __init__(self, input_shape=None, latent_shape=None, loss=None, **config):
+class ImageEncoder(ImageModelSequential):
+    def __init__(self, input_shape=(1, 28, 28), latent_shape=(16, 1), loss=None, **config):
+        # 
+        # basic setup
+        # 
+        self.setup(input_shape=input_shape, output_shape=latent_shape, loss=loss)
+        # gives us access to
+        #     self.print()
+        #     self.input_feature_count
+        #     self.output_feature_count
+        #     self.layers
+        #     self.loss()
+        #     self.gradients
+        #     self.update_gradients()  # using self.loss
+        
+        # default to squared error loss
+        self.loss = loss or (lambda input_batch, ideal_output_batch: torch.mean((self.forward(input_batch) - ideal_output_batch)**2))
+        
+        # 
+        # Layers
+        # 
+        self.layers.add_module("layer1", nn.Linear(self.size_of_last_layer, int(self.input_feature_count/2)))
+        self.layers.add_module("layer1_activation", nn.ReLU())
+        self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, self.output_feature_count))
+        self.layers.add_module("layer2_activation", nn.Sigmoid())
+    
+    def update_weights(self, input_batch, ideal_outputs_batch, step_size=0.01, retain_graph=False):
+        self.update_gradients(input_batch, ideal_outputs_batch, retain_graph=retain_graph)
+        # turn off tracking because things are about to be updated
+        with torch.no_grad():
+            for each_layer in self.layers:
+                # if it has weights (e.g. not an activation function "layer")
+                if hasattr(each_layer, "weight"):
+                    each_layer.weight = each_layer.weight - step_size * each_layer.weight.grad
+                each_layer.weight.requires_grad = True
+                # if it has a bias layer
+                if hasattr(each_layer, "bias"):
+                    each_layer.bias = each_layer.bias - step_size * each_layer.bias.grad
+                each_layer.bias.requires_grad = True
+
+        
+
+# 
+# ImageDecoder
+# 
+class ImageDecoder(nn.Module):
+    def __init__(self, latent_shape=None, output_shape=None, loss=None, **config):
         """
         Arguments:
-            input_shape:
+            latent_shape:
+                basically the shape of the input
+                a tuple, probably with only one large number, e.g. (32, 1) or (32, 1, 1)
+                more dynamic shapes are allowed too, e.g (32, 32)
+                
+            output_shape:
                 a tuple that expected to be (image_channels, image_height, image_width)
                 where image_channels, image_height, and image_width are all integers
-                
-            latent_shape:
-                a tuple, probably with only one large number, e.g. (32, 1) or (32, 1, 1)
-                which lets you pick the shape of your output
-                more dynamic output shapes are allowed too, e.g (32, 32)
             
             loss:
                 a function, that is by default squared error loss
@@ -125,31 +171,30 @@ class ImageEncoder(nn.Module):
                     must perform only pytorch tensor operations on the input_batch
                     (see here for vaild pytorch tensor operations: https://towardsdatascience.com/how-to-train-your-neural-net-tensors-and-autograd-941f2c4cc77c)
                     otherwise pytorch won't be able to keep track of computing the gradient
-                    
                 function Ouput:
                     should return a torch tensor that is the result of an operation with the input_batch
         """
         # 
         # basic setup
         # 
-        super(ImageEncoder, self).__init__()
+        super(ImageDecoder, self).__init__()
         self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # 
         # model setup
         # 
-        self.input_shape = input_shape or (1, 28, 28)
+        self.output_shape = output_shape or (1, 28, 28)
         self.latent_shape = latent_shape or (16, 1)
         # squared error loss
         self.get_loss = loss or lambda input_batch, ideal_output_batch: torch.mean((self.forward(input_batch) - ideal_output_batch)**2)
         from itertools import product
-        self.input_feature_count = product(self.input_shape)
-        self.latent_feature_count = product(latent_shape)
+        self.input_feature_count = product(self.output_shape)
+        self.latent_feature_count = product(self.latent_shape)
         
         # upgrade image input to 3D if 2D
-        if len(input_shape) == 2: input_shape = (1, *input_shape)
-        channels, height, width  = input_shape
+        if len(output_shape) == 2: output_shape = (1, *output_shape)
+        channels, height, width  = output_shape
         
         # 
         # Layers
@@ -228,7 +273,7 @@ class ImageEncoder(nn.Module):
         return gradients
         
     
-    def compute_gradients(self, input_batch, ideal_outputs_batch, retain_graph=False):
+    def update_gradients(self, input_batch, ideal_outputs_batch, retain_graph=False):
         loss = self.get_loss(input_batch, ideal_outputs_batch)
         # compute the gradients
         loss.backward(retain_graph=retain_graph)
@@ -236,8 +281,11 @@ class ImageEncoder(nn.Module):
         return self.gradients
 
     def update_weights(self, input_batch, ideal_outputs_batch, step_size=0.01, retain_graph=False):
-        self.compute_gradients(input_batch, ideal_outputs_batch, retain_graph=retain_graph)
-        # turn of tracking because things are about to be updated
+        self.update_gradients(input_batch, ideal_outputs_batch, retain_graph=retain_graph)
+        
+        # Note: this is normally where an optimizer would be called
+        
+        # turn off tracking because things are about to be updated
         with torch.no_grad():
             for each_layer in self.layers:
                 # if it has weights (e.g. not an activation function "layer")
@@ -250,43 +298,8 @@ class ImageEncoder(nn.Module):
                     each_layer.bias = each_layer.bias - step_size * each_layer.bias.grad
                 each_layer.bias.requires_grad = True
         
+
         
-# Example of manual update:
-weights = torch.randn(1, requires_grad=True)
-biases = torch.randn(1, requires_grad=True)
-
-step_size = 0.01
-for i in range(500):
-    print(i)
-    # use new weight to calculate loss
-    y_pred = weights * x + biases
-    loss = torch.mean((y_pred - actual_observation) ** 2)
-
-    # backward
-    loss.backward()
-    print('weights:', weights)
-    print('biases:', biases)
-    print('weights.grad:', weights.grad)
-    print('biases.grad:', biases.grad)
-
-    # gradient descent, don't track
-    with torch.no_grad():
-        weights = weights - step_size * weights.grad
-        biases  = biases  - step_size * biases.grad
-    weights.requires_grad = True
-    biases.requires_grad = True
-    
-# simple example:
-layer1 = nn.Linear(2, 2, accumulate_grad=False)
-layer2 = nn.ReLU()
-x = torch.randn(1, 2)
-target = torch.randn(1, 2)
-output = layer2(layer1(x))
-loss = my_loss(output, target)
-loss.backward()
-print(layer1.weight.grad)
-print(layer1.weight)
-
 
 # define a simple linear VAE
 class LinearVAE(nn.Module):
