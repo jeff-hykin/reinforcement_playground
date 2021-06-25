@@ -19,6 +19,28 @@ from tools.pytorch_tools import ImageModelSequential
     #     1. needs a value estimation function (estimate the value of a state or state-action pair)
     #     2. a decision gradient (what input affects the action the most)
     #     3. a way to continue backpropogation to update the encoder network
+    # 
+    # core_agent
+    #    the weights are updated based on whatever arbitrary RL method is chosen
+    #    however, when the gradient is computed, it (automatically) goes all the way back through the encoder
+    #    (it doesn't update the encoder weights but it computes the gradient)
+    # decoder
+    #    the weights are updated in a somewhat strange way, there are two parts that are combined
+    #    the first part is simply the squared error loss
+    #    the second part is based on either the value estimation function, or decision function of the core_agent
+    #        if we encode (compress), decode, and encode-again
+    #        then, for the sake of the core_agent, we would want essential features to survive the decoding process
+    #        basically decoding should not irreversibly destroy any of the information being heavily utilized by the agent 
+    # 
+    #        thankfully this isn't too difficult to compute, because we can simply attach a copy of the encoder to 
+    #        the end of the decoder to generate a decoded-then-encoded latent space. 
+    #        If the core_agent makes the same decision, and has the same value estimation for both 
+    #        (e.g. value_of(latent space) ~= value_of(decoded-then-encoded latent space))
+    #        then effectively the loss from this is 0, the decoder perfectly preserves information vital to the agent
+    #        
+    #        by running the forward pass throught the decoder, then encoder, then the value function of the agent
+    #        we can propogate the loss all the way back to the decoder, while keeping the weights of the encoder and 
+    #        value function frozen.
 
 class Agent:
     def __init__(self, action_space=None, **config):
@@ -109,6 +131,11 @@ class ImageEncoder(ImageModelSequential):
         # img is just a torch tensor
         img = read_image(get_path_to_mnist()+"/img_0/data.jpg")
         an_encoder.forward(img)
+    notes:
+        an external network is going to be the one updating the gradients
+        traditionally it would be the decoder, figuring out the best way to decode
+        however it can also be the core_agent, figuring out what features would help with its decision process
+        Ideally it will be both those things combined, or something more advanced
     '''
     def __init__(self, input_shape=(1, 28, 28), latent_shape=(16, 1), loss=None, **config):
         # 
