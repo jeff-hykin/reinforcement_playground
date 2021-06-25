@@ -20,6 +20,8 @@ from tools.pytorch_tools import ImageModelSequential
     #     2. a decision gradient (what input affects the action the most)
     #     3. a way to continue backpropogation to update the encoder network
     # 
+    # TODO: research prioritized loss functions (get __ correct, if ___ is correct then focus on getting __ correct)
+    # 
     # core_agent
     #    the weights are updated based on whatever arbitrary RL method is chosen
     #    however, when the gradient is computed, it (automatically) goes all the way back through the encoder
@@ -44,7 +46,10 @@ from tools.pytorch_tools import ImageModelSequential
     #    when these two parts of the loss function agree, that is fine, the larger of the two will be chosen
     #    however when they disagree on the direction of a neuron weight, recreating the latent space is the most important
     #    and it will generally win. However, so long as recreating the latent space is unaffected, the other half of the
-    #    loss function is free to make changes to the weights
+    #    loss function is free to make changes to the weights. This is effectively done by making recreation of the latent space
+    #    have a really high reward/loss and image decompression a relatively low reward/loss
+    #    TODO: consider how this will vary from task to task
+    # 
     # encoder
     #    the job of the encoder is 3 ways 
     #    1. dont forget features that were useful for other core_agent's doing other tasks
