@@ -20,21 +20,21 @@ class FileSys():
             the_file.write(str(data))
     
     @classmethod
-    def read(self, filepath):
+    def read(self, file_path):
         try:
-            with open(filepath,'r') as f:
+            with open(file_path,'r') as f:
                 output = f.read()
         except:
             output = None
         return output    
         
     @classmethod
-    def delete(self, filepath):
-        if isdir(filepath):
-            shutil.rmtree(filepath)
+    def delete(self, file_path):
+        if isdir(file_path):
+            shutil.rmtree(file_path)
         else:
             try:
-                os.remove(filepath)
+                os.remove(file_path)
             except:
                 pass
     
@@ -110,11 +110,11 @@ class FileSys():
         return [ x for x in FileSys.ls(path) if FileSys.is_folder(x) ]
     
     @classmethod
-    def ls(self, filepath="."):
-        glob_val = filepath
-        if os.path.isdir(filepath):
-            glob_val = os.path.join(filepath, "*")
-        return glob.glob(glob_val)
+    def ls(self, file_path="."):
+        if os.path.isdir(file_path):
+            return listdir(file_path)
+        else:
+            return []
 
     @classmethod
     def touch(self, path):
@@ -143,7 +143,7 @@ class FileSys():
     def path_pieces(self, path):
         """
         example:
-            *folders, file_name, file_extension = FileSys.path_pieces("/this/is/a/filepath.txt")
+            *folders, file_name, file_extension = FileSys.path_pieces("/this/is/a/file_path.txt")
         """
         folders = []
         while 1:

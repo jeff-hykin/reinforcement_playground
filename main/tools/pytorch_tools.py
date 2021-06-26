@@ -101,11 +101,22 @@ def to_tensor(an_object):
         
         return torch.stack(reshaped_list)    
             
-    
 
 class ImageModelSequential(nn.Module):
-    def setup(self, input_shape=None, output_shape=None, loss=None, layers=None, **config):
+    @property
+    def setup(self):
         """
+        Example:
+            with self.setup(input_shape=None, output_shape=None, loss_function=None, layers=None, **config):
+                # normal setup stuff
+                self.layers.add_module("layer1", nn.Linear(self.size_of_last_layer, int(self.input_feature_count/2)))
+                self.layers.add_module("layer1_activation", nn.ReLU())
+                self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, self.output_feature_count))
+                self.layers.add_module("layer2_activation", nn.Sigmoid())
+                
+                # default to squared error loss_function
+                self.loss_function = loss_function or (lambda input_batch, ideal_output_batch: torch.mean((self.forward(input_batch) - ideal_output_batch)**2))
+                
         Arguments:
             input_shape:
                 a tuple that expected to be (image_channels, image_height, image_width)
@@ -116,41 +127,55 @@ class ImageModelSequential(nn.Module):
                 which lets you pick the shape of your output
                 more dynamic output shapes are allowed too, e.g (32, 32)
             
-            loss:
-                a function, that is by default squared error loss
-                function Arguments:
+            loss_function:
+                Arguments:
                     input_batch:
                         a torch tensor of images with shape (batch_size, channels, height, width)
                     ideal_output_batch:
                         a vector of latent spaces with shape (batch_size, *output_shape) 
                         for example if the output_shape was (32, 16) then this would be (batch_size, 32, 16)
-                function Content:
+                Note:
                     must perform only pytorch tensor operations on the input_batch
                     (see here for vaild pytorch tensor operations: https://towardsdatascience.com/how-to-train-your-neural-net-tensors-and-autograd-941f2c4cc77c)
-                    otherwise pytorch won't be able to keep track of computing the gradient
-                    
-                function Ouput:
+                    otherwise pytorch won't be able to perform backpropogation
+                Ouput:
                     should return a torch tensor that is the result of an operation with the input_batch
+                    
         """
-        # 
-        # basic setup
-        # 
-        super(ImageModelSequential, self).__init__()
-        self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # the reason this is kind of janky is so that we can perform checks/code at the end of the init 
+        # like sending the model to the device, and making sure the input/output shape is right
+        real_super = super
+        class Setup(object):
+            def __init__(_, input_shape=None, output_shape=None, loss=None, layers=None, **config):
+                # 
+                # basic setup
+                # 
+                real_super(ImageModelSequential, self).__init__()
+                self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+                self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                
+                self.layers = layers or nn.Sequential()
+                self.loss = loss
+                # 
+                # upgrade image input to 3D if 2D
+                # 
+                if len(input_shape) == 2: input_shape = (1, *input_shape)
+                # channels, height, width  = input_shape
+                self.input_shape = input_shape
+                self.output_shape = output_shape
+                
+                self.input_feature_count = product(self.input_shape)
+                self.output_feature_count = product(self.output_shape)
+            
+            def __enter__(_, *args, **kwargs):
+                pass
         
-        self.layers = layers or nn.Sequential()
-        self.loss = loss
-        # 
-        # upgrade image input to 3D if 2D
-        # 
-        if len(input_shape) == 2: input_shape = (1, *input_shape)
-        # channels, height, width  = input_shape
-        self.input_shape = input_shape
-        self.output_shape = output_shape
+            def __exit__(_, *args, **kwargs):
+                # TODO: check that there is at least one layer
+                # TODO: check that the input/output layer have the right input/output sizes/shapes
+                self.to(self.device)
         
-        self.input_feature_count = product(self.input_shape)
-        self.output_feature_count = product(self.output_shape)
+        return Setup
         
  
     # Called with either one element to determine next action, or a batch
@@ -224,17 +249,36 @@ class ImageModelSequential(nn.Module):
             return product(layer_output_shapes((self.input_feature_count,), self.layers)[0])
     
     @property
+    def weighted_layers(self):
+        return [ each_layer for each_layer in self.layers if hasattr(each_layer, "weight") ]
+    
+    @property
     def gradients(self):
         gradients = []
-        for each_layer in self.layers:
+        for each_layer in self.weighted_layers:
             # if it has weights (e.g. not an activation function "layer")
-            if hasattr(each_layer, "weight"):
-                gradients.append(each_layer.weight.grad)
+            if hasattr(each_layer, "bias"):
+                gradients.append((each_layer.weight.grad, each_layer.bias.grad))
+            else:
+                gradients.append((each_layer.weight.grad, None))
         return gradients
         
-    
-    def update_gradients(self, input_batch, ideal_outputs_batch, retain_graph=False):
-        loss_value = self.loss(input_batch, ideal_outputs_batch)
+    def compute_gradients_for(self, input_batch, ideal_outputs_batch, loss_function=None, retain_graph=False):
+        """
+        Examples:
+            (weight_gradient_layer1, bias_gradient_layer1), *other_layer_gradients = compute_gradients_for(
+                input_batch=input_batch,
+                ideal_outputs_batch=ideal_outputs_batch,
+            )
+        Output:
+            a list, that contains tuples
+            each tuple contains the weight gradient (number), followed by the bias gradient
+            if a layer is missing one of those, then it will be None
+            if a layer is missing both of those, it is skipped
+        """
+        if loss_function is None:
+            loss_function = self.loss_function
+        loss_value = loss_function(input_batch, ideal_outputs_batch)
         # compute the gradients
         loss_value.backward(retain_graph=retain_graph)
         # return the gradients
