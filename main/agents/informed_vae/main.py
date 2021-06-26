@@ -40,21 +40,34 @@ from tools.pytorch_tools import ImageModelSequential
     #        (e.g. value_of(latent space) ~= value_of(decoded-then-encoded latent space))
     #        then effectively the loss from this is 0, the decoder perfectly preserves information vital to the agent
     #        
-    #        by running the forward pass throught the decoder, then encoder, then the value function of the agent
+    #        by running the forward pass throught the decoder, then encoder, then through the value function of the agent
     #        we can propogate the loss all the way back to the decoder, while keeping the weights of the encoder and 
     #        value function frozen.
-    #    when these two parts of the loss function agree, that is fine, the larger of the two will be chosen
-    #    however when they disagree on the direction of a neuron weight, recreating the latent space is the most important
-    #    and it will generally win. However, so long as recreating the latent space is unaffected, the other half of the
-    #    loss function is free to make changes to the weights. This is effectively done by making recreation of the latent space
-    #    have a really high reward/loss and image decompression a relatively low reward/loss
+    #    these two parts of the loss function (the "image recreation" and "feature preservation") are not equal.
+    #    accurately preserving the latent space is the most important, and is always possible to do perfectly
+    #    but recreating the image is a useful secondary goal
+    #    so we want "feature preservation" to effectively have a higher priority
+    #        One such way would be to scale both image-recreation loss and feature-preservation loss between 0 and 1 
+    #        and concatonate them with feature-preservation in the 10's place, and image-recreation in the 1's place
+    #        (however, this will likely have the tell-tale problems of sigmoid, and might need a different approach)
+    # 
+    #        an alternative approach would be to have a hyperparameter; a threshold or scaling factor 
+    #        so long as the feature-preservation is good enough (within some threshold)
+    #        then the loss from the image recreation plays the main role of updating the weights
+    # 
+    #    NOTE: typical gradient decent may not be the best optimizer here
+    #          this is because there should be many different ways to meet the "preserves the latent space" requirement
+    #          which might create several local optima
+    #          something like the SAM algorithm might help with this: https://github.com/davda54/sam
     #    TODO: consider how this will vary from task to task
     # 
     # encoder
     #    the job of the encoder is 3 ways 
     #    1. dont forget features that were useful for other core_agent's doing other tasks
+    #         NOTE: this might need to be done by preserving value-estimation (and/or decision) function for core_agent's on a previous task
     #    2. provide features that are useful to the current core_agent
     #    3. try to help the decompression function with the image-recreation task
+    # 
 
 class Agent:
     def __init__(self, action_space=None, **config):
@@ -190,7 +203,7 @@ class ImageEncoder(ImageModelSequential):
                 if hasattr(each_layer, "bias"):
                     each_layer.bias = each_layer.bias - step_size * each_layer.bias.grad
                 each_layer.bias.requires_grad = True
-
+    
         
 
 # 
