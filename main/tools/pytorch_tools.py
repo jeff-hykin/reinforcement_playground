@@ -218,6 +218,7 @@ class ImageModelSequential(nn.Module):
         """
         # converts to torch if needed
         input_data = to_tensor(input_data)
+        print('[forward] input_data.shape = ', input_data.shape)
         
         # 
         # batch or not?
@@ -228,20 +229,29 @@ class ImageModelSequential(nn.Module):
             # convert images into batches
             input_data = torch.reshape(input_data, (1, *input_data.shape))
         else:
-            batch_size = input_data.shape[0]
+            batch_size = tuple(input_data.shape)[0]
             output_shape = (batch_size, *self.output_shape)
+        print('batch_size = ', batch_size)
+        print('output_shape = ', output_shape)
         # TODO: add print statements, and consider the possibility of being givent a single 2D image
         
-        # force into batches of vectors
+        # force into batches even if that means just adding a dimension
+        from tools.basics import product
         batch_length = 1 if batch_size == None else batch_size
-        print('batch_length = ', batch_length)
-        input_data = torch.reshape(input_data, (batch_length, -1))
-        print('input_data.shape = ', input_data.shape)
+        input_data = torch.reshape(input_data, shape=(batch_length, product(self.input_shape)))
+        input_data = input_data.type(torch.float)
         
         neuron_activations = input_data.to(self.device)
+        print('[forward] neuron_activations = ', neuron_activations.shape)
         for each_layer in self.layers:
+            print('[each] neuron_activations.shape = ', neuron_activations.shape)
+            print('[each] each_layer = ', each_layer)
+            print('neuron_activations = ', neuron_activations)
             neuron_activations = each_layer(neuron_activations)
         
+        print('input_data.shape = ', input_data.shape)
+        print('neuron_activations = ', neuron_activations)
+        print('output_shape = ', output_shape)
         # force the output to be the correct shape
         return torch.reshape(neuron_activations, output_shape)
     

@@ -43,7 +43,7 @@ def merge(old_value, new_value):
         
         return old_value
 
-def bundle(iteratble, bundle_size):
+def bundle(iterable, bundle_size):
     next_bundle = []
     for each in iterable:
         next_bundle.append(each)

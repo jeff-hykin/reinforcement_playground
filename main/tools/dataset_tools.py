@@ -17,6 +17,8 @@ class Mnist(torch.utils.data.Dataset):
                 ...
     
     """
+    number_of_classes = 10
+    
     @classmethod
     def get_path(cls, quiet=True):
         """
@@ -33,13 +35,23 @@ class Mnist(torch.utils.data.Dataset):
         self.transform_output = transform_output
         self.folder_path = Mnist.get_path()
         
-        from tools.defaults import FS
+        from tools.file_system_tools import FS
         # ignore hidden files/folders (start with a .)
         self.ids = [ each for each in FS.list_folders(self.folder_path) if each[0] != '.' ]
     
     @property
     def path(self):
         return self.folder_path
+
+    @property
+    def input_shape(self):
+        input_1, _ = self[0]
+        return tuple(input_1.shape)
+
+    @property
+    def output_shape(self):
+        _, output_1 = self[0]
+        return tuple(output_1.shape)
 
     def __len__(self):
         return len(self.ids)
@@ -56,8 +68,12 @@ class Mnist(torch.utils.data.Dataset):
         # 
         # output
         # 
-        from tools.defaults import FS
-        corrisponding_output = int(FS.read(item_folder+"/data.integer"))
+        from tools.file_system_tools import FS
+        from tools.pytorch_tools import to_tensor
+        import torch.nn.functional as F
+
+        number = int(FS.read(item_folder+"/data.integer"))
+        corrisponding_output = F.one_hot(to_tensor(number), num_classes=self.number_of_classes)
         if self.transform_output:
             corrisponding_output = self.transform_output(corrisponding_output)
         

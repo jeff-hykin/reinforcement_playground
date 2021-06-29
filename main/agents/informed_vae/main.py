@@ -164,7 +164,7 @@ class ImageEncoder(ImageModelSequential):
         however it can also be the core_agent, figuring out what features would help with its decision process
         Ideally it will be both those things combined, or something more advanced
     '''
-    def __init__(self, input_shape=(1, 28, 28), latent_shape=(16, 1), loss_function=None, **config):
+    def __init__(self, input_shape=(1, 28, 28), latent_shape=(10,), loss_function=None, **config):
         # this statement is a helper from ImageModelSequential
         with self.setup(input_shape=input_shape, output_shape=latent_shape, loss_function=loss_function):
             # gives us access to
@@ -185,14 +185,19 @@ class ImageEncoder(ImageModelSequential):
             self.layers.add_module("layer2_activation", nn.Sigmoid())
             
             # default to squared error loss
-            self.loss_function = loss_function or (lambda input_batch, ideal_output_batch: torch.mean((self.forward(input_batch) - ideal_output_batch)**2))
+            def loss_function(input_batch, ideal_output_batch):
+                print('[loss] input_batch.shape = ', input_batch.shape)
+                print('[loss] ideal_output_batch.shape = ', ideal_output_batch.shape)
+                return torch.mean((self.forward(input_batch) - ideal_output_batch)**2)
+                
+            self.loss_function = loss_function
     
     def update_weights(self, input_batch, ideal_outputs_batch, **config):
         # 
         # data used inside the update
         # 
         step_size = config.get("step_size", 0.01)
-        gradients = compute_gradients_for(
+        gradients = self.compute_gradients_for(
             input_batch=input_batch,
             ideal_outputs_batch=ideal_outputs_batch,
             loss_function=self.loss_function
@@ -212,29 +217,44 @@ class ImageEncoder(ImageModelSequential):
         for each in self.layers:
             each.requires_grad = True
     
-    def fit(self, all_inputs, all_ideal_outputs, **config):
-        batch_size    = config.get("batch_size"   , 32)
-        epochs        = config.get("epochs"       , 10)
-        update_config = config.get("update_config", {}) # step_size can be in here
+    def fit(self, input_output_pairs, **config):
+        batch_size     = config.get("batch_size"   , 32)
+        epochs         = config.get("epochs"       , 10)
+        update_options = config.get("update_options", {}) # step_size can be in here
+        
+        # convert so that input_batch is a single tensor and ou are a tensor
+        all_inputs  = (each for each, _ in input_output_pairs)
+        all_outputs = (each for _   , each in input_output_pairs)
         
         from tools.pytorch_tools import batch_input_and_output
-        for each_input_batch, each_ideal_output_batch in batch_input_and_output(all_inputs, all_ideal_outputs, batch_size):
-            self.update_weights(all_inputs, all_ideal_outputs, **update_config)
-
+        for batch_of_inputs, batch_of_ideal_outputs in batch_input_and_output(all_inputs, all_outputs, batch_size):
+            self.update_weights(batch_of_inputs, batch_of_ideal_outputs, **update_options)
+        
+        return self
 
 def test_encoder():
-    dummy_encoder = ImageEncoder()
+    from tools.dataset_tools import mnist_dataset
     from tools.pytorch_tools import read_image
-    from tools.dataset_tools import Mnist
+    
+    # 
+    # forward pass
+    # 
+    dummy_encoder = ImageEncoder()
     # grab the first Mnist image
     img = read_image(mnist_dataset.path+"/img_0/data.jpg")
     encoded_output = dummy_encoder.forward(img)
     print('encoded_output = ', encoded_output)
+    
+    # 
+    # training
+    # 
+    return dummy_encoder.fit(
+        # mnist_dataset is an iterable with each element being an input output pair
+        input_output_pairs=mnist_dataset,
+    )
 
 
 
-from tools.dataset_tools import Mnist
-mnist_dataset.path
 
 
 # # 
