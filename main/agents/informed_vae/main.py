@@ -186,9 +186,9 @@ class ImageEncoder(ImageModelSequential):
             
             # default to squared error loss
             def loss_function(input_batch, ideal_output_batch):
-                print('[loss] input_batch.shape = ', input_batch.shape)
-                print('[loss] ideal_output_batch.shape = ', ideal_output_batch.shape)
-                return torch.mean((self.forward(input_batch) - ideal_output_batch)**2)
+                actual_output_batch = self.forward(input_batch).to(self.device)
+                ideal_output_batch = ideal_output_batch.to(self.device)
+                return torch.mean((actual_output_batch - ideal_output_batch)**2)
                 
             self.loss_function = loss_function
     
@@ -227,7 +227,10 @@ class ImageEncoder(ImageModelSequential):
         all_outputs = (each for _   , each in input_output_pairs)
         
         from tools.pytorch_tools import batch_input_and_output
+        batch_number = 0
         for batch_of_inputs, batch_of_ideal_outputs in batch_input_and_output(all_inputs, all_outputs, batch_size):
+            batch_number += 1
+            print('batch_number = ', batch_number)
             self.update_weights(batch_of_inputs, batch_of_ideal_outputs, **update_options)
         
         return self
@@ -254,163 +257,6 @@ def test_encoder():
     )
 
 
-
-
-
-# # 
-# # ImageDecoder
-# # 
-# class ImageDecoder(nn.Module):
-#     def __init__(self, latent_shape=None, output_shape=None, loss=None, **config):
-#         """
-#         Arguments:
-#             latent_shape:
-#                 basically the shape of the input
-#                 a tuple, probably with only one large number, e.g. (32, 1) or (32, 1, 1)
-#                 more dynamic shapes are allowed too, e.g (32, 32)
-                
-#             output_shape:
-#                 a tuple that expected to be (image_channels, image_height, image_width)
-#                 where image_channels, image_height, and image_width are all integers
-            
-#             loss:
-#                 a function, that is by default squared error loss
-#                 function Arguments:
-#                     input_batch:
-#                         a torch tensor of images with shape (batch_size, channels, height, width)
-#                     ideal_output_batch:
-#                         a vector of latent spaces with shape (batch_size, *latent_shape) 
-#                         for example if the latent_shape was (32, 16) then this would be (batch_size, 32, 16)
-#                 function Content:
-#                     must perform only pytorch tensor operations on the input_batch
-#                     (see here for vaild pytorch tensor operations: https://towardsdatascience.com/how-to-train-your-neural-net-tensors-and-autograd-941f2c4cc77c)
-#                     otherwise pytorch won't be able to keep track of computing the gradient
-#                 function Ouput:
-#                     should return a torch tensor that is the result of an operation with the input_batch
-#         """
-#         # 
-#         # basic setup
-#         # 
-#         super(ImageDecoder, self).__init__()
-#         self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
-#         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
-#         # 
-#         # model setup
-#         # 
-#         self.output_shape = output_shape or (1, 28, 28)
-#         self.latent_shape = latent_shape or (16, 1)
-#         # squared error loss
-#         self.get_loss = loss or lambda input_batch, ideal_output_batch: torch.mean((self.forward(input_batch) - ideal_output_batch)**2)
-#         from itertools import product
-#         self.input_feature_count = product(self.output_shape)
-#         self.latent_feature_count = product(self.latent_shape)
-        
-#         # upgrade image input to 3D if 2D
-#         if len(output_shape) == 2: output_shape = (1, *output_shape)
-#         channels, height, width  = output_shape
-        
-#         # 
-#         # Layers
-#         # 
-#         self.layer1 = nn.Linear(self.input_feature_count, self.input_feature_count/2)
-#         self.layer2 = nn.Linear(self.layer1.out_features, self.latent_feature_count)
-#         # this var is just so other parts of the code can be automated
-#         self.layers = [
-#             self.layer1,
-#             nn.Relu(),
-#             self.layer2
-#             nn.Sigmoid(),
-#         ]
- 
-#     # Called with either one element to determine next action, or a batch
-#     # during optimization. Returns tensor([[left0exp,right0exp]...]).
-#     def forward(self, input_data):
-#         """
-#         Arguments:
-#             input_data:
-#                 either an input image or batch of images
-#                 should be a torch tensor with a shape of (batch_size, channels, height, width)
-#         Ouptut:
-#             a torch tensor the shape of the latent space
-#         Examples:
-#             obj.forward(torch.tensor([
-#                 # first image in batch
-#                 [
-#                     # red layer
-#                     [
-#                         [ 1, 2, 3 ],
-#                         [ 4, 5, 6] 
-#                     ], 
-#                     # blue layer
-#                     [
-#                         [ 1, 2, 3 ],
-#                         [ 4, 5, 6] 
-#                     ], 
-#                     # green layer
-#                     [
-#                         [ 1, 2, 3 ],
-#                         [ 4, 5, 6] 
-#                     ],
-#                 ] 
-#             ]))
-        
-#         """
-#         # converts to torch if needed
-#         input_data = torch.tensor(input_data)
-#         # 
-#         # batch or not?
-#         # 
-#         if len(input_data.shape) == 3: 
-#             batch_size = None
-#             output_shape = self.latent_shape
-#             # convert images into batches of 1
-#             input_data = torch.reshape(input_data, (1, input_data.shape))
-#         else:
-#             batch_size = input_data.shape[0]
-#             output_shape = (batch_size, *self.latent_shape)
-            
-#         neuron_activations = input_data.to(device)
-#         for each_layer in self.layers:
-#             neuron_activations = each_layer(neuron_activations)
-        
-#         # force the output to be the correct shape
-#         return torch.reshape(neuron_activations, output_shape)
-    
-#     @property
-#     def gradients(self):
-#         gradients = []
-#         for each_layer in self.layers:
-#             # if it has weights (e.g. not an activation function "layer")
-#             if hasattr(each_layer, "weight"):
-#                 gradients.append(each_layer.weight.grad)
-#         return gradients
-        
-    
-#     def update_gradients(self, input_batch, ideal_outputs_batch, retain_graph=False):
-#         loss = self.get_loss(input_batch, ideal_outputs_batch)
-#         # compute the gradients
-#         loss.backward(retain_graph=retain_graph)
-#         # return the gradients
-#         return self.gradients
-
-#     def update_weights(self, input_batch, ideal_outputs_batch, step_size=0.01, retain_graph=False):
-#         self.update_gradients(input_batch, ideal_outputs_batch, retain_graph=retain_graph)
-        
-#         # Note: this is normally where an optimizer would be called
-        
-#         # turn off tracking because things are about to be updated
-#         with torch.no_grad():
-#             for each_layer in self.layers:
-#                 # if it has weights (e.g. not an activation function "layer")
-#                 if hasattr(each_layer, "weight"):
-#                     each_layer.weight = each_layer.weight - step_size * each_layer.weight.grad
-#                 each_layer.weight.requires_grad = True
-                
-#                 # if it has a bias layer
-#                 if hasattr(each_layer, "bias"):
-#                     each_layer.bias = each_layer.bias - step_size * each_layer.bias.grad
-#                 each_layer.bias.requires_grad = True
         
 
         
