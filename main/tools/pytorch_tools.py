@@ -285,8 +285,15 @@ class ImageModelSequential(nn.Module):
         """
         if loss_function is None:
             loss_function = self.loss_function
+        
+        torch.save(self.state_dict(), "./tmp.dont-sync.model")
+        
         loss_value = loss_function(input_batch, ideal_outputs_batch)
         # compute the gradients
         loss_value.backward(retain_graph=retain_graph)
+        # get the gradients
+        gradients = self.gradients
+        # restore the previous values 
+        self.load_state_dict(torch.load("./tmp.dont-sync.model"), strict=False)
         # return the gradients
-        return self.gradients
+        return gradients
