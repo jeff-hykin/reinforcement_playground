@@ -18,7 +18,7 @@ class Mnist(torch.utils.data.Dataset):
     
     """
     @classmethod
-    def get_path(cls, quiet=False):
+    def get_path(cls, quiet=True):
         """
         returns the mnist folder, downloading the mnist data if needed
         """
@@ -30,12 +30,16 @@ class Mnist(torch.utils.data.Dataset):
         
     def __init__(self, transform_input=None, transform_output=None):
         self.transform_input  = transform_input
-        self.target_transform = target_transform
+        self.transform_output = transform_output
         self.folder_path = Mnist.get_path()
         
         from tools.defaults import FS
         # ignore hidden files/folders (start with a .)
-        self.ids = [ each for each in FS.list_folders(folder_path) if each[0] != '.' ]
+        self.ids = [ each for each in FS.list_folders(self.folder_path) if each[0] != '.' ]
+    
+    @property
+    def path(self):
+        return self.folder_path
 
     def __len__(self):
         return len(self.ids)
@@ -59,4 +63,5 @@ class Mnist(torch.utils.data.Dataset):
         
         # return
         return an_input, corrisponding_output
-
+    
+mnist_dataset = Mnist()

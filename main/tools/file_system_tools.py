@@ -103,11 +103,11 @@ class FileSys():
 
     @classmethod
     def list_files(self, path="."):
-        return [ x for x in FileSys.ls(path) if FileSys.is_file(x) ]
+        return [ each for each in FileSys.ls(path) if FileSys.is_file(FileSys.join(path, each)) ]
     
     @classmethod
     def list_folders(self, path="."):
-        return [ x for x in FileSys.ls(path) if FileSys.is_folder(x) ]
+        return [ each for each in FileSys.ls(path) if FileSys.is_folder(FileSys.join(path, each)) ]
     
     @classmethod
     def ls(self, file_path="."):
