@@ -181,8 +181,10 @@ class ImageEncoder(ImageModelSequential):
             # 
             self.layers.add_module("layer1", nn.Linear(self.size_of_last_layer, int(self.input_feature_count/2)))
             self.layers.add_module("layer1_activation", nn.ReLU())
-            self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, self.output_feature_count))
-            self.layers.add_module("layer2_activation", nn.Sigmoid())
+            self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, int(64)))
+            self.layers.add_module("layer2_activation", nn.ReLU())
+            self.layers.add_module("layer3", nn.Linear(self.size_of_last_layer, self.output_feature_count))
+            self.layers.add_module("layer3_activation", nn.Sigmoid())
             
             # default to squared error loss
             def loss_function(input_batch, ideal_output_batch):
@@ -228,10 +230,11 @@ class ImageEncoder(ImageModelSequential):
         
         from tools.pytorch_tools import batch_input_and_output
         batch_number = 0
-        for batch_of_inputs, batch_of_ideal_outputs in batch_input_and_output(all_inputs, all_outputs, batch_size):
-            batch_number += 1
-            print('batch_number = ', batch_number)
-            self.update_weights(batch_of_inputs, batch_of_ideal_outputs, **update_options)
+        for each_epoch in range(epochs):
+            for batch_of_inputs, batch_of_ideal_outputs in batch_input_and_output(all_inputs, all_outputs, batch_size):
+                batch_number += 1
+                print('batch_number = ', batch_number)
+                self.update_weights(batch_of_inputs, batch_of_ideal_outputs, **update_options)
         
         return self
 
