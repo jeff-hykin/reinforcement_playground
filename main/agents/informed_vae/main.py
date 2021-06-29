@@ -181,7 +181,7 @@ class ImageEncoder(ImageModelSequential):
             # 
             self.layers.add_module("layer1", nn.Linear(self.size_of_last_layer, int(self.input_feature_count/2)))
             self.layers.add_module("layer1_activation", nn.ReLU())
-            self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, int(64)))
+            self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, 64))
             self.layers.add_module("layer2_activation", nn.ReLU())
             self.layers.add_module("layer3", nn.Linear(self.size_of_last_layer, self.output_feature_count))
             self.layers.add_module("layer3_activation", nn.Sigmoid())
@@ -198,12 +198,13 @@ class ImageEncoder(ImageModelSequential):
         # 
         # data used inside the update
         # 
-        step_size = config.get("step_size", 0.01)
+        step_size = config.get("step_size", 0.000001)
         gradients = self.compute_gradients_for(
             input_batch=input_batch,
             ideal_outputs_batch=ideal_outputs_batch,
             loss_function=self.loss_function
         )
+        
         # 
         # the actual update
         # 
@@ -212,9 +213,12 @@ class ImageEncoder(ImageModelSequential):
             for gradients, each_layer in zip(gradients, self.weighted_layers):
                 weight_gradient, bias_gradient = gradients
                 
+                print('each_layer.weight = ', each_layer.weight)
+                print('step_size * weight_gradient = ', step_size * weight_gradient)
                 each_layer.weight += step_size * weight_gradient
                 each_layer.bias   += step_size * bias_gradient
-                
+        
+        
         # turn gradient-tracking back on
         for each in self.layers:
             each.requires_grad = True
@@ -224,7 +228,7 @@ class ImageEncoder(ImageModelSequential):
         epochs         = config.get("epochs"       , 10)
         update_options = config.get("update_options", {}) # step_size can be in here
         
-        # convert so that input_batch is a single tensor and ou are a tensor
+        # convert so that input_batch is a single tensor and output_batch is a single tensor
         all_inputs  = (each for each, _ in input_output_pairs)
         all_outputs = (each for _   , each in input_output_pairs)
         
@@ -238,6 +242,7 @@ class ImageEncoder(ImageModelSequential):
         
         return self
 
+from tools.dataset_tools import mnist_dataset
 def test_encoder():
     from tools.dataset_tools import mnist_dataset
     from tools.pytorch_tools import read_image

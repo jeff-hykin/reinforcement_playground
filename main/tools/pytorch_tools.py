@@ -239,6 +239,7 @@ class ImageModelSequential(nn.Module):
         input_data = torch.reshape(input_data, shape=(batch_length, product(self.input_shape)))
         input_data = input_data.type(torch.float)
         
+        
         neuron_activations = input_data.to(self.device)
         for each_layer in self.layers:
             neuron_activations = each_layer(neuron_activations)
@@ -252,7 +253,7 @@ class ImageModelSequential(nn.Module):
         if len(self.layers) == 0:
             return self.input_feature_count
         else:
-            return product(layer_output_shapes((self.input_feature_count,), self.layers)[0])
+            return product(layer_output_shapes((self.input_feature_count,), self.layers)[-1])
     
     @property
     def weighted_layers(self):
