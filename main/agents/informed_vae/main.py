@@ -156,7 +156,7 @@ class ImageEncoder(ImageModelSequential):
         an_encoder = ImageEncoder()
         from tools.defaults import *
         # img is just a torch tensor
-        img = read_image(get_path_to_mnist()+"/img_0/data.jpg")
+        img = read_image(mnist_dataset.path+"/img_0/data.jpg")
         an_encoder.forward(img)
     notes:
         an external network is going to be the one updating the gradients
@@ -213,11 +213,13 @@ class ImageEncoder(ImageModelSequential):
             each.requires_grad = True
     
     def fit(self, all_inputs, all_ideal_outputs, **config):
-        # consider it to be one batch
-        all_inputs = to_tensor(all_inputs)
-        all_ideal_outputs = to_tensor(all_ideal_outputs)
-        self.update_weights(all_inputs, all_ideal_outputs)
-        # TODO: resume here (train encoder on MNIST)
+        batch_size    = config.get("batch_size"   , 32)
+        epochs        = config.get("epochs"       , 10)
+        update_config = config.get("update_config", {}) # step_size can be in here
+        
+        from tools.pytorch_tools import batch_input_and_output
+        for each_input_batch, each_ideal_output_batch in batch_input_and_output(all_inputs, all_ideal_outputs, batch_size):
+            self.update_weights(all_inputs, all_ideal_outputs, **update_config)
 
 
 def test_encoder():
@@ -225,14 +227,14 @@ def test_encoder():
     from tools.pytorch_tools import read_image
     from tools.dataset_tools import Mnist
     # grab the first Mnist image
-    img = read_image(Mnist.get_path()+"/img_0/data.jpg")
+    img = read_image(mnist_dataset.path+"/img_0/data.jpg")
     encoded_output = dummy_encoder.forward(img)
     print('encoded_output = ', encoded_output)
 
 
 
 from tools.dataset_tools import Mnist
-Mnist.get_path()
+mnist_dataset.path
 
 
 # # 

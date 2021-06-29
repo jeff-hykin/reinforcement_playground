@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from tools.basics import product
+from tools.basics import product, bundle
 
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -101,6 +101,11 @@ def to_tensor(an_object):
         
         return torch.stack(reshaped_list)    
             
+def batch_input_and_output(inputs, outputs, batch_size):
+    from tools.basics import bundle
+    batches = zip(bundle(inputs, batch_size), bundle(outputs, batch_size))
+    for each_input_batch, each_output_batch in batches:
+        yield to_tensor(each_input_batch), to_tensor(each_output_batch)
 
 class ImageModelSequential(nn.Module):
     @property

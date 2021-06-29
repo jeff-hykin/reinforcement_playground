@@ -42,5 +42,17 @@ def merge(old_value, new_value):
             old_value[key] = merge(old_value.get(key, {}), updated_value)
         
         return old_value
+
+def bundle(iteratble, bundle_size):
+    next_bundle = []
+    for each in iterable:
+        next_bundle.append(each)
+        if len(next_bundle) == bundle_size:
+            yield tuple(next_bundle)
+            next_bundle = []
+    # return any half-made bundles
+    if len(next_bundle) > 0:
+        yield tuple(next_bundle)
+
 import os
 here = "os.path.dirname(__file__)"
