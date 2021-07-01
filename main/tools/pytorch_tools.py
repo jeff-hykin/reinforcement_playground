@@ -156,7 +156,8 @@ class ImageModelSequential(nn.Module):
                 # basic setup
                 # 
                 real_super(ImageModelSequential, self).__init__()
-                self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+                self.suppress_output = config.get("suppress_output", False)
+                self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
                 # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
                 self.device = torch.device('cpu') # FIXME: I had to do this to get the loss function working
                 
