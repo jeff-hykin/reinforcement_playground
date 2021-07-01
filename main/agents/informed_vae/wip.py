@@ -17,49 +17,9 @@ import torch
 import torch.nn.functional as F
 from torch.optim.optimizer import Optimizer, required
 
-def sgd(
-    params,
-    d_p_list,
-    momentum_buffer_list,
-    *,
-    weight_decay: float,
-    momentum: float,
-    lr: float,
-    dampening: float,
-    nesterov: bool
-):
-    r"""
-    Functional API that performs SGD algorithm computation.
-    See :class:`~torch.optim.SGD` for details.
-    """
-    for index, param in enumerate(params):
-
-        d_p = d_p_list[index]
-        if weight_decay != 0:
-            d_p = d_p.add(param, alpha=weight_decay)
-
-        if momentum != 0:
-            buf = momentum_buffer_list[index]
-
-            if buf is None:
-                buf = torch.clone(d_p).detach()
-                momentum_buffer_list[index] = buf
-            else:
-                buf.mul_(momentum).add_(d_p, alpha=1 - dampening)
-
-            if nesterov:
-                d_p = d_p.add(buf, alpha=momentum)
-            else:
-                d_p = buf
-
-        param.add_(d_p, alpha=-lr)
-
 
 class SGD(Optimizer):
     r"""Implements stochastic gradient descent (optionally with momentum).
-
-    Nesterov momentum is based on the formula from
-    `On the importance of initialization and momentum in deep learning`__.
 
     Args:
         params (iterable): iterable of parameters to optimize or dicts defining
@@ -68,7 +28,6 @@ class SGD(Optimizer):
         momentum (float, optional): momentum factor (default: 0)
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
         dampening (float, optional): dampening for momentum (default: 0)
-        nesterov (bool, optional): enables Nesterov momentum (default: False)
 
     Example:
         >>> optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
@@ -79,7 +38,7 @@ class SGD(Optimizer):
     __ http://www.cs.toronto.edu/%7Ehinton/absps/momentum.pdf
 
     .. note::
-        The implementation of SGD with Momentum/Nesterov subtly differs from
+        The implementation of SGD with Momentum subtly differs from
         Sutskever et. al. and implementations in some other frameworks.
 
         Considering the specific case of Momentum, the update can be written as
@@ -102,11 +61,44 @@ class SGD(Optimizer):
                 p_{t+1} & = p_{t} - v_{t+1}.
             \end{aligned}
 
-        The Nesterov version is analogously modified.
     """
 
-    def __init__(self, params, lr=required, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False):
+    @classmethod
+    def sgd(
+        cls,
+        parameters,
+        gradients,
+        momentum_buffer_list,
+        *,
+        weight_decay: float,
+        momentum: float,
+        lr: float,
+        dampening: float,
+    ):
+        r"""
+        Functional API that performs SGD algorithm computation.
+        See :class:`~torch.optim.SGD` for details.
+        """
+        for index, parameters in enumerate(parameters):
+
+            gradient = gradients[index]
+            if weight_decay != 0:
+                gradient = gradient.add(parameters, alpha=weight_decay)
+
+            if momentum != 0:
+                buffer = momentum_buffer_list[index]
+
+                if buffer is None:
+                    buffer = torch.clone(gradient).detach()
+                    momentum_buffer_list[index] = buffer
+                else:
+                    buffer.mul_(momentum).add_(gradient, alpha=1 - dampening)
+
+                gradient = buffer
+
+            parameters.add_(gradient, alpha=-lr)
+    
+    def __init__(self, model_parameters, lr=required, momentum=0, dampening=0, weight_decay=0):
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -114,16 +106,11 @@ class SGD(Optimizer):
         if weight_decay < 0.0:
             raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
 
-        defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
-                        weight_decay=weight_decay, nesterov=nesterov)
-        if nesterov and (momentum <= 0 or dampening != 0):
-            raise ValueError("Nesterov momentum requires a momentum and zero dampening")
-        super(SGD, self).__init__(params, defaults)
+        defaults = dict(lr=lr, momentum=momentum, dampening=dampening, weight_decay=weight_decay)
+        super(SGD, self).__init__(model_parameters, defaults)
 
     def __setstate__(self, state):
         super(SGD, self).__setstate__(state)
-        for group in self.param_groups:
-            group.setdefault('nesterov', False)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -140,34 +127,32 @@ class SGD(Optimizer):
 
         for group in self.param_groups:
             params_with_grad = []
-            d_p_list = []
+            gradients = []
             momentum_buffer_list = []
             weight_decay = group['weight_decay']
-            momentum = group['momentum']
-            dampening = group['dampening']
-            nesterov = group['nesterov']
-            lr = group['lr']
+            momentum     = group['momentum']
+            dampening    = group['dampening']
+            lr           = group['lr']
 
-            for p in group['params']:
-                if p.grad is not None:
-                    params_with_grad.append(p)
-                    d_p_list.append(p.grad)
+            for parameter in group['params']:
+                if parameter.grad is not None:
+                    params_with_grad.append(parameter)
+                    gradients.append(parameter.grad)
 
-                    state = self.state[p]
+                    state = self.state[parameter]
                     if 'momentum_buffer' not in state:
                         momentum_buffer_list.append(None)
                     else:
                         momentum_buffer_list.append(state['momentum_buffer'])
             
-            sgd(
+            self.sgd(
                 params_with_grad,
-                d_p_list,
+                gradients,
                 momentum_buffer_list,
                 weight_decay=weight_decay,
                 momentum=momentum,
                 lr=lr,
                 dampening=dampening,
-                nesterov=nesterov
             )
 
             # update momentum_buffers in state
