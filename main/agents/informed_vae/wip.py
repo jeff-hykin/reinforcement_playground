@@ -116,7 +116,28 @@ class ImageEncoder(ImageModelSequential):
                 # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
                 # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
                 # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
-    
+        
+    def test(self, test_loader):
+        self.eval()
+        test_loss = 0
+        correct = 0
+        with torch.no_grad():
+            for batch_of_inputs, batch_of_ideal_outputs in test_loader:
+                actual_output = self(batch_of_inputs)
+                test_loss += F.nll_loss(actual_output, batch_of_ideal_outputs, reduction='sum').item()
+                prediction = actual_output.data.max(1, keepdim=True)[1]
+                correct += prediction.eq(batch_of_ideal_outputs.data.view_as(prediction)).sum()
+        test_loss /= len(test_loader.dataset)
+        test_losses.append(test_loss)
+        print(
+            "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+                test_loss,
+                correct,
+                len(test_loader.dataset),
+                100.0 * correct / len(test_loader.dataset),
+            )
+        )
+
     
         
 
@@ -128,32 +149,7 @@ train_counter = []
 test_losses = []
 test_counter = [i * len(train_loader.dataset) for i in range(n_epochs + 1)]
 
-
-
-
-def test():
-    network.eval()
-    test_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for data, target in test_loader:
-            output = network(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()
-            pred = output.data.max(1, keepdim=True)[1]
-            correct += pred.eq(target.data.view_as(pred)).sum()
-    test_loss /= len(test_loader.dataset)
-    test_losses.append(test_loss)
-    print(
-        "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-            test_loss,
-            correct,
-            len(test_loader.dataset),
-            100.0 * correct / len(test_loader.dataset),
-        )
-    )
-
-
-test()
+network.test(test_loader)
 for epoch in range(1, n_epochs + 1):
     network.fit(epoch, train_loader, log_interval)
-    test()
+    network.test(test_loader)
