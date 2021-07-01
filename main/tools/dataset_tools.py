@@ -72,8 +72,7 @@ class Mnist(torch.utils.data.Dataset):
         from tools.pytorch_tools import to_tensor
         import torch.nn.functional as F
 
-        number = int(FS.read(item_folder+"/data.integer"))
-        corrisponding_output = F.one_hot(to_tensor(number), num_classes=self.number_of_classes)
+        corrisponding_output = int(FS.read(item_folder+"/data.integer"))
         if self.transform_output:
             corrisponding_output = self.transform_output(corrisponding_output)
         
