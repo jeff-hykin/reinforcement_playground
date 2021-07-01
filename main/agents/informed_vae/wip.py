@@ -68,8 +68,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 
-class Net(ImageModelSequential):
-    def __init__(self):
+class ImageEncoder(ImageModelSequential):
+    def __init__(self, learning_rate, momentum):
         with self.setup(input_shape=(1, 28, 28), output_shape=(10,)):
             self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
             self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
@@ -88,9 +88,39 @@ class Net(ImageModelSequential):
             self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, 10))
             self.layers.add_module("fc2_activation", nn.LogSoftmax(dim=-1))
         
+        self.optimizer = optim.SGD(self.parameters(), lr=learning_rate, momentum=momentum)
+            
+    def fit(self, epoch, train_loader, log_interval):
+        self.train()
+        for batch_index, (data, target) in enumerate(train_loader):
+            self.optimizer.zero_grad()
+            output = self(data)
+            loss = F.nll_loss(output, target)
+            loss.backward()
+            self.optimizer.step()
+            if batch_index % log_interval == 0:
+                print(
+                    "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                        epoch,
+                        batch_index * len(data),
+                        len(train_loader.dataset),
+                        100.0 * batch_index / len(train_loader),
+                        loss.item(),
+                    )
+                )
+                train_losses.append(loss.item())
+                train_counter.append(
+                    (batch_index * 64) + ((epoch - 1) * len(train_loader.dataset))
+                )
+                # import os
+                # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
+                # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
+                # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
+    
+    
+        
 
-network = Net()
-optimizer = optim.SGD(network.parameters(), lr=learning_rate, momentum=momentum)
+network = ImageEncoder(learning_rate, momentum)
 
 
 train_losses = []
@@ -99,32 +129,6 @@ test_losses = []
 test_counter = [i * len(train_loader.dataset) for i in range(n_epochs + 1)]
 
 
-def train(epoch):
-    network.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
-        optimizer.zero_grad()
-        output = network(data)
-        loss = F.nll_loss(output, target)
-        loss.backward()
-        optimizer.step()
-        if batch_idx % log_interval == 0:
-            print(
-                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
-                    epoch,
-                    batch_idx * len(data),
-                    len(train_loader.dataset),
-                    100.0 * batch_idx / len(train_loader),
-                    loss.item(),
-                )
-            )
-            train_losses.append(loss.item())
-            train_counter.append(
-                (batch_idx * 64) + ((epoch - 1) * len(train_loader.dataset))
-            )
-            import os
-            os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
-            torch.save(network.state_dict(), f"{temp_folder_path}/results/model.pth")
-            torch.save(optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
 
 
 def test():
@@ -134,7 +138,7 @@ def test():
     with torch.no_grad():
         for data, target in test_loader:
             output = network(data)
-            test_loss += F.nll_loss(output, target, size_average=False).item()
+            test_loss += F.nll_loss(output, target, reduction='sum').item()
             pred = output.data.max(1, keepdim=True)[1]
             correct += pred.eq(target.data.view_as(pred)).sum()
     test_loss /= len(test_loader.dataset)
@@ -151,5 +155,5 @@ def test():
 
 test()
 for epoch in range(1, n_epochs + 1):
-    train(epoch)
+    network.fit(epoch, train_loader, log_interval)
     test()
