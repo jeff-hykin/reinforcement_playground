@@ -259,6 +259,72 @@ class ImageModelSequential(nn.Module):
         else:
             return product(layer_output_shapes(self.input_shape, self.layers)[-1])
     
+    def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
+        """
+        Examples:
+            model.fit(
+                dataset=torchvision.datasets.MNIST(<mnist args>),
+                epochs=4,
+                batch_size=64,
+            )
+            
+            model.fit(
+                loader=torch.utils.data.DataLoader(<dataloader args>),
+                epochs=4,
+            )
+        """
+        # TODO: test input_output_pairs
+        if input_output_pairs is not None:
+            # creates batches
+            def bundle(iterable, bundle_size):
+                next_bundle = []
+                for each in iterable:
+                    next_bundle.append(each)
+                    if len(next_bundle) == bundle_size:
+                        yield tuple(next_bundle)
+                        next_bundle = []
+                # return any half-made bundles
+                if len(next_bundle) > 0:
+                    yield tuple(next_bundle)
+            # unpair, batch, then re-pair the inputs and outputs
+            input_generator        = (each for each, _ in input_output_pairs)
+            ideal_output_generator = (each for _   , each in input_output_pairs)
+            seperated_batches = zip(bundle(input_generator, batch_size), bundle(ideal_output_generator, batch_size))
+            loader = ((to_tensor(each_input_batch), to_tensor(each_output_batch)) for each_input_batch, each_output_batch in seperated_batches)
+            # NOTE: shuffling isn't possible when there is no length (and generators don't have lengths). So maybe think of an alternative
+        else:
+            # convert the dataset into a loader (assumming loader was not given)
+            if isinstance(dataset, torch.utils.data.Dataset):
+                loader = torch.utils.data.DataLoader(
+                    dataset,
+                    batch_size=batch_size,
+                    shuffle=shuffle,
+                )
+        
+        train_losses = []
+        for epoch_index in range(number_of_epochs):
+            self.train()
+            for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
+                loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
+                if batch_index % self.log_interval == 0:
+                    self.print(
+                        "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                            epoch_index+1,
+                            batch_index * len(batch_of_inputs),
+                            len(loader.dataset),
+                            100.0 * batch_index / len(loader),
+                            loss.item(),
+                        )
+                    )
+                    train_losses.append(loss.item())
+                    # TODO: add/allow checkpoints
+                    # import os
+                    # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
+                    # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
+                    # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
+        return train_losses
+    
+    
     @property
     def weighted_layers(self):
         return [ each_layer for each_layer in self.layers if hasattr(each_layer, "weight") ]
