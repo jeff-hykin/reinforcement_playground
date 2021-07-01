@@ -151,16 +151,18 @@ class ImageModelSequential(nn.Module):
         # like sending the model to the device, and making sure the input/output shape is right
         real_super = super
         class Setup(object):
-            def __init__(_, input_shape=None, output_shape=None, loss=None, layers=None, **config):
+            def __init__(_, input_shape=None, output_shape=None, loss=None, optimizer=None, layers=None, **config):
                 # 
                 # basic setup
                 # 
                 real_super(ImageModelSequential, self).__init__()
                 self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
-                self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                self.device = torch.device('cpu') # FIXME: I had to do this to get the loss function working
                 
                 self.layers = layers or nn.Sequential()
                 self.loss = loss
+                self.optimizer = optimizer
                 # 
                 # upgrade image input to 3D if 2D
                 # 
@@ -236,9 +238,8 @@ class ImageModelSequential(nn.Module):
         # force into batches even if that means just adding a dimension
         from tools.basics import product
         batch_length = 1 if batch_size == None else batch_size
-        input_data = torch.reshape(input_data, shape=(batch_length, product(self.input_shape)))
+        input_data = torch.reshape(input_data, shape=(batch_length, *self.input_shape))
         input_data = input_data.type(torch.float)
-        
         
         neuron_activations = input_data.to(self.device)
         for each_layer in self.layers:
@@ -253,7 +254,7 @@ class ImageModelSequential(nn.Module):
         if len(self.layers) == 0:
             return self.input_feature_count
         else:
-            return product(layer_output_shapes((self.input_feature_count,), self.layers)[-1])
+            return product(layer_output_shapes(self.input_shape, self.layers)[-1])
     
     @property
     def weighted_layers(self):
