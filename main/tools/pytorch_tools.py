@@ -3,6 +3,8 @@ import torch.nn as nn
 
 from tools.basics import product, bundle
 
+torch.manual_seed(1)
+
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

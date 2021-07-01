@@ -9,9 +9,6 @@ import torch.nn.functional as F
 
 import torch
 import torchvision
-random_seed = 1
-torch.backends.cudnn.enabled = False
-torch.manual_seed(random_seed)
 
 
 #
@@ -50,10 +47,14 @@ class ImageEncoder(ImageModelSequential):
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.optimizer.zero_grad()
         actual_output = self.forward(batch_of_inputs)
-        loss = F.nll_loss(actual_output, batch_of_ideal_outputs)
+        def NLLLoss(logs, targets):
+            out = logs[range(len(targets)), targets]
+            return -out.sum()/len(out)
+        
+        loss = NLLLoss(actual_output, batch_of_ideal_outputs)
+        
         loss.backward()
         self.optimizer.step()
-        
         return loss
             
     def fit(self, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
@@ -149,8 +150,6 @@ class ImageEncoder(ImageModelSequential):
 # load datasets
 # 
 # 
-batch_size_train = 64
-batch_size_test = 1000
 
 import os
 temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
@@ -170,7 +169,7 @@ train_loader = torch.utils.data.DataLoader(
             ]
         ),
     ),
-    batch_size=batch_size_train,
+    batch_size=64,
     shuffle=True,
 )
 
@@ -189,7 +188,7 @@ test_loader = torch.utils.data.DataLoader(
             ]
         ),
     ),
-    batch_size=batch_size_test,
+    batch_size=1000,
     shuffle=True,
 )
 
