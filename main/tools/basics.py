@@ -56,3 +56,7 @@ def bundle(iterable, bundle_size):
 
 import os
 here = "os.path.dirname(__file__)"
+if os.environ.get('PROJECTR_FOLDER', None):
+    temp_folder = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
+else:
+    temp_folder = f"/tmp/"
