@@ -7,53 +7,11 @@ from tools.pytorch_tools import read_image, to_tensor
 from torchvision import transforms
 import torch.nn.functional as F
 
-
-# 
-# parameters
-# 
-batch_size_train = 64
-batch_size_test = 1000
-
 import torch
 import torchvision
 random_seed = 1
 torch.backends.cudnn.enabled = False
 torch.manual_seed(random_seed)
-
-
-import os
-temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
-train_loader = torch.utils.data.DataLoader(
-    torchvision.datasets.MNIST(
-        f"{temp_folder_path}/files/",
-        train=True,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    ),
-    batch_size=batch_size_train,
-    shuffle=True,
-)
-
-test_loader = torch.utils.data.DataLoader(
-    torchvision.datasets.MNIST(
-        f"{temp_folder_path}/files/",
-        train=False,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    ),
-    batch_size=batch_size_test,
-    shuffle=True,
-)
 
 
 #
@@ -62,7 +20,6 @@ test_loader = torch.utils.data.DataLoader(
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
 
 class ImageEncoder(ImageModelSequential):
     def __init__(self, **config):
@@ -90,36 +47,77 @@ class ImageEncoder(ImageModelSequential):
         
         self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
             
-    def fit(self, train_loader, number_of_epochs=3):
+    def fit(self, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
+        """
+        Examples:
+            model.fit(
+                dataset=torchvision.datasets.MNIST(<mnist args>),
+                epochs=4,
+                batch_size=64,
+            )
+            
+            model.fit(
+                loader=torch.utils.data.DataLoader(<dataloader args>),
+                epochs=4,
+            )
+        """
         train_losses = []
         train_counter = []
-        for epoch in range(1, number_of_epochs + 1):
-            self.train()
-            for batch_index, (data, target) in enumerate(train_loader):
-                self.optimizer.zero_grad()
-                output = self(data)
-                loss = F.nll_loss(output, target)
-                loss.backward()
-                self.optimizer.step()
-                if batch_index % self.log_interval == 0:
-                    print(
-                        "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
-                            epoch,
-                            batch_index * len(data),
-                            len(train_loader.dataset),
-                            100.0 * batch_index / len(train_loader),
-                            loss.item(),
+        if input_output_pairs is not None:
+            # creates batches
+            def bundle(iterable, bundle_size):
+                next_bundle = []
+                for each in iterable:
+                    next_bundle.append(each)
+                    if len(next_bundle) == bundle_size:
+                        yield tuple(next_bundle)
+                        next_bundle = []
+                # return any half-made bundles
+                if len(next_bundle) > 0:
+                    yield tuple(next_bundle)
+            # unpair, batch, then re-pair the inputs and outputs
+            input_generator        = (each for each, _ in input_output_pairs)
+            ideal_output_generator = (each for _   , each in input_output_pairs)
+            seperated_batches = zip(bundle(input_generator, batch_size), bundle(ideal_output_generator, batch_size))
+            batches = ((to_tensor(each_input_batch), to_tensor(each_output_batch)) for each_input_batch, each_output_batch in seperated_batches)
+                
+        # convert the dataset into a loader (assumming loader was not given)
+        if isinstance(dataset, torch.utils.data.Dataset):
+            loader = torch.utils.data.DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=shuffle,
+            )
+        if isinstance(loader, torch.utils.data.DataLoader):
+            for epoch in range(number_of_epochs):
+                epoch += 1
+                
+                self.train()
+                for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
+                    self.optimizer.zero_grad()
+                    output = self.forward(batch_of_inputs)
+                    loss = F.nll_loss(output, batch_of_ideal_outputs)
+                    loss.backward()
+                    self.optimizer.step()
+                    if batch_index % self.log_interval == 0:
+                        print(
+                            "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                                epoch,
+                                batch_index * len(batch_of_inputs),
+                                len(loader.dataset),
+                                100.0 * batch_index / len(loader),
+                                loss.item(),
+                            )
                         )
-                    )
-                    train_losses.append(loss.item())
-                    train_counter.append(
-                        (batch_index * 64) + ((epoch - 1) * len(train_loader.dataset))
-                    )
-                    # import os
-                    # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
-                    # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
-                    # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
-        
+                        train_losses.append(loss.item())
+                        train_counter.append(
+                            (batch_index * 64) + ((epoch - 1) * len(loader.dataset))
+                        )
+                        # import os
+                        # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
+                        # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
+                        # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
+            
     def test(self, test_loader):
         test_losses = []
         self.eval()
@@ -143,10 +141,62 @@ class ImageEncoder(ImageModelSequential):
         )
 
     
-        
+# 
+# 
+# load datasets
+# 
+# 
+batch_size_train = 64
+batch_size_test = 1000
 
+import os
+temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
+
+# 
+# training
+# 
+train_loader = torch.utils.data.DataLoader(
+    torchvision.datasets.MNIST(
+        f"{temp_folder_path}/files/",
+        train=True,
+        download=True,
+        transform=torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+            ]
+        ),
+    ),
+    batch_size=batch_size_train,
+    shuffle=True,
+)
+
+# 
+# testing
+# 
+test_loader = torch.utils.data.DataLoader(
+    torchvision.datasets.MNIST(
+        f"{temp_folder_path}/files/",
+        train=False,
+        download=True,
+        transform=torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+            ]
+        ),
+    ),
+    batch_size=batch_size_test,
+    shuffle=True,
+)
+
+
+# 
+# 
+# train and test the model
+# 
+# 
 network = ImageEncoder()
-
 network.test(test_loader)
-network.fit(train_loader, number_of_epochs=3)
+network.fit(loader=train_loader, number_of_epochs=3)
 network.test(test_loader)
