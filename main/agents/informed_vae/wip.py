@@ -217,35 +217,31 @@ class ImageEncoder(ImageModelSequential):
         self.loss_function = NLLLoss
         self.optimizer = SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
-    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
-        self.optimizer.zero_grad()
-        batch_of_actual_outputs = self.forward(batch_of_inputs)
-        loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
-        loss.backward()
-        self.optimizer.step()
-        return loss
+class ImageDecoder(ImageModelSequential):
+    def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (10,))
+        self.output_shape  = config.get("output_shape", (1, 28, 28))
+        self.learning_rate = config.get("learning_rate", 0.01)
+        self.momentum      = config.get("momentum", 0.5)
+        self.log_interval  = config.get("log_interval", 10)
+        
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+            self.layers.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
+            self.layers.add_module("fn1_activation", nn.ReLU(True))
             
-    def test(self, test_loader):
-        test_losses = []
-        self.eval()
-        test_loss = 0
-        correct = 0
-        with torch.no_grad():
-            for batch_of_inputs, batch_of_ideal_outputs in test_loader:
-                actual_output = self(batch_of_inputs)
-                test_loss += F.nll_loss(actual_output, batch_of_ideal_outputs, reduction='sum').item()
-                prediction = actual_output.data.max(1, keepdim=True)[1]
-                correct += prediction.eq(batch_of_ideal_outputs.data.view_as(prediction)).sum()
-        test_loss /= len(test_loader.dataset)
-        test_losses.append(test_loss)
-        print(
-            "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-                test_loss,
-                correct,
-                len(test_loader.dataset),
-                100.0 * correct / len(test_loader.dataset),
-            )
-        )
+            self.layers.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
+            self.layers.add_module("fn2_activation", nn.ReLU(True))
+            
+            conv_shape_1 = [ 10, 20, 20 ] # needs to mupltiply together to be the size of the previous layer (currently 4000)
+            conv_size_2 = 10
+            self.layers.add_module("conv1_prep", nn.Unflatten(1, conv_shape))
+            self.layers.add_module("conv1", nn.ConvTranspose2d(conv_shape[0], conv_size_2, kernel_size=5))
+            self.layers.add_module("conv2", nn.ConvTranspose2d(conv_size_2, 1, kernel_size=5))
+            self.layers.add_module("conv2_activation", nn.Sigmoid())
+        
+            self.loss_function = nn.MSELoss()
+            self.optimizer = torch.optim.SGD(model.parameters(), lr=self.learning_rate, momentum=self.momentum)
+    
 
     
 # 
