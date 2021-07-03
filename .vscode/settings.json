@@ -5,5 +5,5 @@
         "**/*.code-search": true,
         "modules/**/*": true,
         "resources/**/*": true,
-    }
+    },
 }
