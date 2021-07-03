@@ -47,6 +47,7 @@ class SimpleDataset(torch.utils.data.Dataset):
         # return
         return an_input, corrisponding_output
 
+# FIXME: the images are corrupt for some reason
 class Mnist(SimpleDataset):
     """
     file structure:

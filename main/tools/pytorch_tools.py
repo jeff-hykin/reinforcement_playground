@@ -333,6 +333,7 @@ class ImageModelSequential(nn.Module):
         return train_losses
     
     def test(self, test_loader):
+        # TODO: change this to use the full loss instead of exact equivlence
         test_losses = []
         self.eval()
         test_loss = 0

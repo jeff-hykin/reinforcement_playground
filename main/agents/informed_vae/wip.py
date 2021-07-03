@@ -217,6 +217,54 @@ class ImageEncoder(ImageModelSequential):
         self.loss_function = NLLLoss
         self.optimizer = SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
+    def train_and_test_on_mnist(self):
+        from tools.basics import temp_folder
+
+        # 
+        # training dataset
+        # 
+        train_loader = torch.utils.data.DataLoader(
+            torchvision.datasets.MNIST(
+                f"{temp_folder}/files/",
+                train=True,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=64,
+            shuffle=True,
+        )
+
+        # 
+        # testing dataset
+        # 
+        test_loader = torch.utils.data.DataLoader(
+            torchvision.datasets.MNIST(
+                f"{temp_folder}/files/",
+                train=False,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=1000,
+            shuffle=True,
+        )
+        
+        self.test(test_loader)
+        self.fit(loader=train_loader, number_of_epochs=3)
+        self.test(test_loader)
+        
+        return self
+        
+    
 class ImageDecoder(ImageModelSequential):
     def __init__(self, **config):
         self.input_shape   = config.get("input_shape", (10,))
@@ -276,67 +324,84 @@ class ImageAutoEncoder(ImageModelSequential):
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.optimizer.zero_grad()
         batch_of_actual_outputs = self.forward(batch_of_inputs)
-        print('batch_of_actual_outputs = ', batch_of_actual_outputs.shape)
-        print('batch_of_inputs = ', batch_of_inputs.shape)
         loss = self.loss_function(batch_of_actual_outputs, batch_of_inputs)
         loss.backward()
         self.optimizer.step()
         return loss
     
-# 
-# 
-# load datasets
-# 
-# 
+    # TODO: test(self) needs to be changed, but its a bit difficult to make it useful
+    
+    def train_and_test_on_mnist(self):
+        # 
+        # modify Mnist so that the input and output are both the image
+        # 
+        class AutoMnist(torchvision.datasets.MNIST):
+            def __init__(self, *args, **kwargs):
+                super(AutoMnist, self).__init__(*args, **kwargs)
+            
+            def __getitem__(self, index):
+                an_input, corrisponding_output = super(AutoMnist, self).__getitem__(index)
+                return an_input, an_input
 
-import os
-temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
-
-# 
-# training
-# 
-train_loader = torch.utils.data.DataLoader(
-    torchvision.datasets.MNIST(
-        f"{temp_folder_path}/files/",
-        train=True,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    ),
-    batch_size=64,
-    shuffle=True,
-)
-
-# 
-# testing
-# 
-test_loader = torch.utils.data.DataLoader(
-    torchvision.datasets.MNIST(
-        f"{temp_folder_path}/files/",
-        train=False,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    ),
-    batch_size=1000,
-    shuffle=True,
-)
-
-
-# 
-# 
-# train and test the model
-# 
-# 
-network = ImageEncoder()
-network.test(test_loader)
-network.fit(loader=train_loader, number_of_epochs=3)
-network.test(test_loader)
+        train_loader = torch.utils.data.DataLoader(
+            AutoMnist(
+                f"{temp_folder}/files/",
+                train=True,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=64,
+            shuffle=True,
+        )
+        test_loader = torch.utils.data.DataLoader(
+            torchvision.datasets.MNIST(
+                f"{temp_folder}/files/",
+                train=False,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=1000,
+            shuffle=True,
+        )
+        
+        self.test(test_loader)
+        self.fit(loader=train_loader, number_of_epochs=3)
+        self.test(test_loader)
+        
+    
+    def generate_confusion_matrix(self, test_loader):
+        from tools.basics import product
+        number_of_outputs = product(self.latent_shape)
+        confusion_matrix = torch.zeros(number_of_outputs, number_of_outputs)
+        test_losses = []
+        test_loss = 0
+        correct = 0
+        
+        self.eval()
+        with torch.no_grad():
+            for batch_of_inputs, batch_of_ideal_outputs in test_loader:
+                latent_space_activation_batch = self.encoder.forward(batch_of_inputs)
+                for each_activation_space, each_ideal_output in zip(latent_space_activation_batch, batch_of_ideal_outputs):
+                    # which index was chosen
+                    predicted_index = numpy.argmax(each_activation_space)
+                    actual_index    = numpy.argmax(each_ideal_output)
+                    confusion_matrix[actual_index][predicted_index] += 1
+        
+        return confusion_matrix
+    
+    def importance_identification(self, test_loader):
+        # FIXME: freeze the latent space
+        for each_latent_index in range(product(self.latent_shape)):
+            pass
+            # FIXME: select an amount of gaussian noise, add the noise
+            
