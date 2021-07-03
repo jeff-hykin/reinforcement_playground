@@ -259,6 +259,14 @@ class ImageModelSequential(nn.Module):
         else:
             return product(layer_output_shapes(self.input_shape, self.layers)[-1])
     
+    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+        self.optimizer.zero_grad()
+        batch_of_actual_outputs = self.forward(batch_of_inputs)
+        loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
+        loss.backward()
+        self.optimizer.step()
+        return loss
+    
     def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
         """
         Examples:
@@ -324,22 +332,28 @@ class ImageModelSequential(nn.Module):
                     # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
         return train_losses
     
+    def test(self, test_loader):
+        test_losses = []
+        self.eval()
+        test_loss = 0
+        correct = 0
+        with torch.no_grad():
+            for batch_of_inputs, batch_of_ideal_outputs in test_loader:
+                actual_output = self.forward(batch_of_inputs)
+                test_loss += self.loss_function(actual_output, batch_of_ideal_outputs).item()
+                prediction = actual_output.data.max(1, keepdim=True)[1]
+                correct += prediction.eq(batch_of_ideal_outputs.data.view_as(prediction)).sum()
+        test_loss /= len(test_loader.dataset)
+        test_losses.append(test_loss)
+        print(
+            "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+                test_loss,
+                correct,
+                len(test_loader.dataset),
+                100.0 * correct / len(test_loader.dataset),
+            )
+        )
     
-    @property
-    def weighted_layers(self):
-        return [ each_layer for each_layer in self.layers if hasattr(each_layer, "weight") ]
-    
-    @property
-    def gradients(self):
-        gradients = []
-        for each_layer in self.weighted_layers:
-            # if it has weights (e.g. not an activation function "layer")
-            if hasattr(each_layer, "bias"):
-                gradients.append((each_layer.weight.grad, each_layer.bias.grad))
-            else:
-                gradients.append((each_layer.weight.grad, None))
-        return gradients
-        
     def compute_gradients_for(self, input_batch, ideal_outputs_batch, loss_function=None, retain_graph=False):
         """
         Examples:
@@ -353,17 +367,5 @@ class ImageModelSequential(nn.Module):
             if a layer is missing one of those, then it will be None
             if a layer is missing both of those, it is skipped
         """
-        if loss_function is None:
-            loss_function = self.loss_function
-        
-        torch.save(self.state_dict(), "./tmp.dont-sync.model")
-        
-        loss_value = loss_function(input_batch, ideal_outputs_batch)
-        # compute the gradients
-        loss_value.backward(retain_graph=retain_graph)
-        # get the gradients
-        gradients = self.gradients
-        # restore the previous values 
-        self.load_state_dict(torch.load("./tmp.dont-sync.model"), strict=False)
-        # return the gradients
-        return gradients
+        # FIXME: implment
+        pass

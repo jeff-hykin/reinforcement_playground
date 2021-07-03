@@ -186,11 +186,13 @@ import torch.optim as optim
 
 class ImageEncoder(ImageModelSequential):
     def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (1, 28, 28))
+        self.output_shape  = config.get("output_shape", (10,))
         self.learning_rate = config.get("learning_rate", 0.01)
         self.momentum      = config.get("momentum", 0.5)
         self.log_interval  = config.get("log_interval", 10)
         
-        with self.setup(input_shape=(1, 28, 28), output_shape=(10,)):
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
             self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
             self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
             self.layers.add_module("conv1_activation", nn.ReLU())
