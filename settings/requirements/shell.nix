@@ -35,7 +35,14 @@ let
         linuxOnlyPackages = [] ++ main.optionals (main.stdenv.isLinux) [
             majorCustomDependencies.nixGL
             # opencv4cuda, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-            (main.packages.opencv4.override {  
+            ((builtins.import # needed to get a specific revision (a332da8588aeea4feb9359d23f58d95520899e3c) for it to work
+                (builtins.fetchTarball 
+                    ({url="https://github.com/NixOS/nixpkgs/archive/a332da8588aeea4feb9359d23f58d95520899e3c.tar.gz";})
+                )
+                ({
+                    config = { allowUnfree = true; };
+                })
+            ).opencv4.override {  
                 enableGtk3   = true; 
                 enableFfmpeg = true; 
                 enableCuda   = true;
@@ -71,7 +78,7 @@ let
     # 
         majorCustomDependencies = rec {
             # nixGLNvidia, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-            nixGL = (main.callPackage (
+            nixGL = (main.import (
                     main.fetchGit {
                     url = "https://github.com/guibou/nixGL";
                     rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e";
