@@ -9,99 +9,207 @@
         },
         "packages": [
             {
-                "load": "ncurses",
+                "load": [ "ncurses" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "openssh",
+                "load": [ "openssh" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "sd",
+                "load": [ "sd" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "dua",
+                "load": [ "dua" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "tealdeer",
+                "load": [ "tealdeer" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "ytop",
+                "load": [ "ytop" ], 
                 "from": "a332da8588aeea4feb9359d23f58d95520899e3c"
             },
             {
-                "load": "exa",
+                "load": [ "exa" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "zsh",
+                "load": [ "zsh" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "zsh-syntax-highlighting",
+                "load": [ "zsh-syntax-highlighting" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "oh-my-zsh",
+                "load": [ "oh-my-zsh" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "zsh-autosuggestions",
+                "load": [ "zsh-autosuggestions" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "spaceship-prompt",
+                "load": [ "spaceship-prompt" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "nnn",
+                "load": [ "nnn" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "man",
+                "load": [ "man" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "coreutils",
+                "load": [ "coreutils" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "ripgrep",
+                "load": [ "ripgrep" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "which",
+                "load": [ "which" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "git",
+                "load": [ "git" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "colorls",
+                "load": [ "colorls" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "tree",
+                "load": [ "tree" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "less",
+                "load": [ "less" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "nano",
+                "load": [ "nano" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "findutils",
+                "load": [ "findutils" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             },
             {
-                "load": "nix",
+                "load": ["unixtools", "arp" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "ifconfig" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "netstat" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "ping" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "route" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "col" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "column" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "fdisk" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "fsck" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "getconf" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "getent" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "getopt" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "hexdump" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "hostname" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "killall" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "locale" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "more" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "mount" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "ps" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "quota" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "script" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "sysctl" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "top" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "umount" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "whereis" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "write" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": ["unixtools", "xxd" ],
+                "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
+            },
+            {
+                "load": [ "nix" ], 
                 "from": "8917ffe7232e1e9db23ec9405248fd1944d0b36f"
             }
         ]

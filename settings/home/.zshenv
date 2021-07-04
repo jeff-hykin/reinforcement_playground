@@ -20,26 +20,28 @@ else
     fi
     
     function nix_path_for {
-        nix-instantiate --eval -E  '"${
-            (
-                builtins.elemAt (
-                    builtins.filter (each: each.name == "'$1'") (
-                        builtins.map (
-                            each: ({
-                                name = each.load;
-                                source = builtins.getAttr each.load (
-                                    builtins.import (
-                                        builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";}
-                                    ) {
-                                        config = (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json")).nix.config;
-                                    }
-                                );
-                            })
-                        ) (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json")).nix.packages
-                    )
-                ) 0
-            ).source
-        }"' | sed -E 's/^"|"$//g'
+        nix-instantiate --eval -E  '(rec {
+            std = (builtins.import (builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/a332da8588aeea4feb9359d23f58d95520899e3c.tar.gz";}) {}).lib;
+            packageJson = (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json"));
+            projectPackages = packageJson.nix.packages;
+            packagesWithSources = builtins.map (
+                    each: ({
+                        name = std.concatMapStringsSep "." (each: each) each.load;
+                        commitHash = each.from;
+                        source = std.getAttrFromPath each.load (
+                            builtins.import (
+                                builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";}
+                            ) {
+                                config = packageJson.nix.config;
+                            }
+                        );
+                    })
+                ) projectPackages;
+            packageBeingLookedFor = "'$1'";
+            listWithOnlyTheCorrectPackage = builtins.filter (each: each.name == packageBeingLookedFor) (packagesWithSources);
+            theCorrectPackage = builtins.elemAt listWithOnlyTheCorrectPackage 0;
+            return = "${theCorrectPackage.source}";
+        }).return' | sed -E 's/^"|"$//g' # the sed part removes the extra quotes
     }
     
     # 

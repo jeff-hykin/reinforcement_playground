@@ -17,79 +17,92 @@ let
     # nix.json
     # 
     # 
+        frozenStd = (builtins.import 
+            (builtins.fetchTarball
+                ({url="https://github.com/NixOS/nixpkgs/archive/a332da8588aeea4feb9359d23f58d95520899e3c.tar.gz";})
+            )
+            ({})
+        ).lib;
+        std = (frozenStd.mergeAttrs
+            (builtins) # <- for import, fetchTarball, etc 
+            (frozenStd) # <- for mergeAttrs, optionals, getAttrFromPath, etc 
+        );
         # load packages and config
         definitions = rec {
             # 
             # load the nix.json cause were going to extract basically everything from there
             # 
-            packageJson = builtins.fromJSON (builtins.readFile ./nix.json);
+            packageJson = (std.fromJSON
+                (std.readFile
+                    (./nix.json)
+                )
+            );
             # 
             # load the store with all the packages, and load it with the config
             # 
-            mainRepo = builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${packageJson.nix.mainRepo}.tar.gz";};
-            mainPackages = builtins.import mainRepo {
-                config = packageJson.nix.config;
-            };
+            mainRepo = (std.fetchTarball
+                ({url="https://github.com/NixOS/nixpkgs/archive/${packageJson.nix.mainRepo}.tar.gz";})
+            );
+            mainPackages = (std.import
+                (mainRepo)
+                ({ config = packageJson.nix.config;})
+            );
+            packagesForThisMachine = (std.filter
+                (eachPackage:
+                    (std.all
+                        # if all are true
+                        (x: x)
+                        (std.optionals
+                            # if package depends on something
+                            (std.hasAttr "onlyIf" eachPackage)
+                            # basically convert something like ["stdev", "isLinux"] to std.stdenv.isLinux
+                            (std.map
+                                (eachCondition:
+                                    
+                                    (std.getAttrFromPath
+                                        (eachCondition)
+                                        (std)
+                                    )
+                                )
+                                (eachPackage.onlyIf)
+                            )
+                        )
+                    )
+                )
+                (packageJson.nix.packages)
+            );
             # 
             # reorganize the list of packages from:
             #    [ { load: "blah", from:"blah-hash" }, ... ]
             # into a list like:
             #    [ { name: "blah", commitHash:"blah-hash", source: (*an object*) }, ... ]
-            # 
-            packagesWithSources = builtins.map (
-                each: ({
-                    name = each.load;
-                    commitHash = each.from;
-                    source = builtins.getAttr each.load (
-                        builtins.import (
-                            builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";}
-                        ) {
-                            config = packageJson.nix.config;
-                        }
-                    );
-                })
-            ) packageJson.nix.packages;
+            #
+            packagesWithSources = (std.map
+                (each: 
+                    ({
+                        name = (std.concatMapStringsSep
+                            (".")
+                            (each: each)
+                            (each.load)
+                        );
+                        commitHash = each.from;
+                        source = if std.isString
+                            then (std.getAttrFromPath
+                                (each.load)
+                                (std.import 
+                                    (std.fetchTarball
+                                        ({url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";})
+                                    ) 
+                                    ({ config = packageJson.nix.config;})
+                                )
+                            )
+                            else (mainPackages)
+                        ;
+                    })
+                )
+                (packagesForThisMachine)
+            );
         };
-    
-    # 
-    # 
-    # nested packages
-    # 
-    # 
-        # TODO: add support for the nix.json to have nested packages so this section is no longer needed
-        nestedPackages = [
-            # 
-            # this is just a list of all of the standard unix tools
-            # 
-            definitions.mainPackages.unixtools.arp         # depends on openssl_1_0_2     
-            definitions.mainPackages.unixtools.ifconfig    # depends on openssl_1_0_2         
-            definitions.mainPackages.unixtools.netstat     # depends on openssl_1_0_2         
-            definitions.mainPackages.unixtools.ping        # depends on openssl_1_0_2     
-            definitions.mainPackages.unixtools.route       # depends on openssl_1_0_2         
-            definitions.mainPackages.unixtools.col
-            definitions.mainPackages.unixtools.column
-            definitions.mainPackages.unixtools.fdisk
-            definitions.mainPackages.unixtools.fsck
-            definitions.mainPackages.unixtools.getconf
-            definitions.mainPackages.unixtools.getent
-            definitions.mainPackages.unixtools.getopt
-            definitions.mainPackages.unixtools.hexdump
-            definitions.mainPackages.unixtools.hostname
-            definitions.mainPackages.unixtools.killall
-            definitions.mainPackages.unixtools.locale
-            definitions.mainPackages.unixtools.more
-            definitions.mainPackages.unixtools.mount
-            definitions.mainPackages.unixtools.ps
-            definitions.mainPackages.unixtools.quota
-            definitions.mainPackages.unixtools.script
-            definitions.mainPackages.unixtools.sysctl
-            definitions.mainPackages.unixtools.top
-            definitions.mainPackages.unixtools.umount
-            definitions.mainPackages.unixtools.whereis
-            definitions.mainPackages.unixtools.write
-            definitions.mainPackages.unixtools.xxd
-        ];
-    
     # 
     # 
     # Conditional Dependencies
@@ -100,7 +113,7 @@ let
         # 
         # Linux Only
         # 
-        linuxOnlyPackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isLinux) [
+        linuxOnlyPackages = [] ++ std.optionals (definitions.mainPackages.stdenv.isLinux) [
             definitions.mainPackages.stdenv.cc
             definitions.mainPackages.linuxPackages.nvidia_x11
             definitions.mainPackages.cudatoolkit
@@ -114,7 +127,7 @@ let
                 enableUnfree = true; 
             })
         ];
-        linuxOnlyNativePackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isLinux) [
+        linuxOnlyNativePackages = [] ++ std.optionals (definitions.mainPackages.stdenv.isLinux) [
             definitions.mainPackages.pkgconfig
             definitions.mainPackages.libconfig
             definitions.mainPackages.cmake
@@ -127,16 +140,16 @@ let
                 export EXTRA_CCFLAGS="-I/usr/include"
                 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${definitions.mainPackages.linuxPackages.nvidia_x11}/lib:${definitions.mainPackages.ncurses5}/lib:/run/opengl-driver/lib"
                 export LD_LIBRARY_PATH="$(${majorCustomDependencies.nixGL}/bin/nixGLNvidia printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
-                export LD_LIBRARY_PATH="${definitions.mainPackages.lib.makeLibraryPath [ definitions.mainPackages.glib ] }:$LD_LIBRARY_PATH"
+                export LD_LIBRARY_PATH="${std.makeLibraryPath [ definitions.mainPackages.glib ] }:$LD_LIBRARY_PATH"
             fi
         '';
         
         # 
         # Mac Only
         # 
-        macOnlyPackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isDarwin) [
+        macOnlyPackages = [] ++ std.optionals (definitions.mainPackages.stdenv.isDarwin) [
         ];
-        macOnlyNativePackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isDarwin) [
+        macOnlyNativePackages = [] ++ std.optionals (definitions.mainPackages.stdenv.isDarwin) [
         ];
         macOnlyShellCode = if !definitions.mainPackages.stdenv.isDarwin then "" else ''
         '';
@@ -147,32 +160,41 @@ let
     # 
     # 
         majorCustomDependencies = rec {
+            packagesFrom_2020_11_5 = import (std.fetchGit {
+                # Descriptive name to make the store path easier to identify                
+                name = "my-old-revision";                                                 
+                url = "https://github.com/NixOS/nixpkgs/";                       
+                ref = "refs/heads/nixpkgs-unstable";                     
+                rev = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2";
+            }) {};
+
             python = [
-                definitions.mainPackages.poetry
-                definitions.mainPackages.python37
-                definitions.mainPackages.python37Packages.setuptools
-                definitions.mainPackages.python37Packages.pip
-                definitions.mainPackages.python37Packages.virtualenv
-                definitions.mainPackages.python37Packages.wheel
+                packagesFrom_2020_11_5.poetry
+                packagesFrom_2020_11_5.python38
+                packagesFrom_2020_11_5.python38Packages.setuptools
+                packagesFrom_2020_11_5.python38Packages.pip
+                packagesFrom_2020_11_5.python38Packages.virtualenv
+                packagesFrom_2020_11_5.python38Packages.wheel
+                packagesFrom_2020_11_5.python38Packages.shap
             ];
             
             # nixGLNvidia, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-            nixGL = (definitions.mainPackages.callPackage (
-                    builtins.fetchGit {
+            nixGL = (std.callPackage (
+                    std.fetchGit {
                     url = "https://github.com/guibou/nixGL";
                     rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e";
                 }
             ) {}).nixGLNvidia;
         };
         
-        subDepedencies = [] ++ majorCustomDependencies.python ++ nestedPackages;
+        subDepedencies = [] ++ majorCustomDependencies.python;
     
 # using those definitions
 in
     # create a shell
-    definitions.mainPackages.mkShell {
+    std.mkShell {
         # inside that shell, make sure to use these packages
-        buildInputs = subDepedencies ++ macOnlyPackages ++ linuxOnlyPackages ++ builtins.map (each: each.source) definitions.packagesWithSources;
+        buildInputs = subDepedencies ++ macOnlyPackages ++ linuxOnlyPackages ++ std.map (each: each.source) definitions.packagesWithSources;
         
         nativeBuildInputs = [] ++ linuxOnlyNativePackages ++ macOnlyNativePackages;
         
