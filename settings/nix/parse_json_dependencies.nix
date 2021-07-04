@@ -68,6 +68,14 @@
                     (each.load)
                 );
                 commitHash = each.from;
+                asNativeBuildInput = (
+                    (std.hasAttr
+                        ("asNativeBuildInput")
+                        (each)
+                    )
+                    &&
+                    each.asNativeBuildInput
+                );
                 value =
                     # if it says where (e.g. from)
                     if (std.hasAttr
@@ -97,12 +105,14 @@
     buildInputs = (std.map
         (each: each.value)
         (std.filter
-            (each: 
-                (!std.hasAttr
-                    "isNativeBuildInput"
-                    each
-                )
-            )
+            (each: !each.asNativeBuildInput)
+            (jsonPackagesWithSources)
+        )
+    );
+    nativeBuildInputs = (std.map
+        (each: each.value)
+        (std.filter
+            (each: each.asNativeBuildInput)
             (jsonPackagesWithSources)
         )
     );
@@ -119,6 +129,7 @@
             );
             project = {
                 buildInputs = buildInputs;
+                nativeBuildInputs = nativeBuildInputs;
             };
         })
     );

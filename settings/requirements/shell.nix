@@ -42,11 +42,6 @@ let
                 enableUnfree = true; 
             })
         ];
-        linuxOnlyNativePackages = [] ++ main.optionals (main.stdenv.isLinux) [
-            main.packages.pkgconfig
-            main.packages.libconfig
-            main.packages.cmake
-        ];
         linuxOnlyShellCode = if !main.stdenv.isLinux then "" else ''
             if [[ "$OSTYPE" == "linux-gnu" ]] 
             then
@@ -91,7 +86,7 @@ in
         # inside that shell, make sure to use these packages
         buildInputs = macOnlyPackages ++ linuxOnlyPackages ++ main.project.buildInputs;
         
-        nativeBuildInputs = [] ++ linuxOnlyNativePackages ++ macOnlyNativePackages;
+        nativeBuildInputs = macOnlyNativePackages ++ main.project.nativeBuildInputs;
         
         # run some bash code before starting up the shell
         shellHook = ''

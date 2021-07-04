@@ -77,13 +77,28 @@
                 "load": [ "nnn" ]
             },
             {
-                "load":[ "stdenv", "cc" ],
+                "load":[ "pkgconfig" ],
+                "asNativeBuildInput": true,
                 "onlyIf": [
                     ["stdenv", "isLinux"]
                 ]
             },
             {
-                "load":[ "linuxPackages", "nvidia_x11" ],
+                "load":[ "libconfig" ],
+                "asNativeBuildInput": true,
+                "onlyIf": [
+                    ["stdenv", "isLinux"]
+                ]
+            },
+            {
+                "load":[ "cmake" ],
+                "asNativeBuildInput": true,
+                "onlyIf": [
+                    ["stdenv", "isLinux"]
+                ]
+            },
+            {
+                "load":[ "libGLU" ],
                 "onlyIf": [
                     ["stdenv", "isLinux"]
                 ]
@@ -95,7 +110,13 @@
                 ]
             },
             {
-                "load":[ "libGLU" ],
+                "load":[ "linuxPackages", "nvidia_x11" ],
+                "onlyIf": [
+                    ["stdenv", "isLinux"]
+                ]
+            },
+            {
+                "load":[ "stdenv", "cc" ],
                 "onlyIf": [
                     ["stdenv", "isLinux"]
                 ]
