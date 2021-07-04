@@ -21,26 +21,21 @@ else
     
     function nix_path_for {
         nix-instantiate --eval -E  '(rec {
-            std = (builtins.import (builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/a332da8588aeea4feb9359d23f58d95520899e3c.tar.gz";}) {}).lib;
-            packageJson = (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json"));
-            projectPackages = packageJson.nix.packages;
-            packagesWithSources = builtins.map (
-                    each: ({
-                        name = std.concatMapStringsSep "." (each: each) each.load;
-                        commitHash = each.from;
-                        source = std.getAttrFromPath each.load (
-                            builtins.import (
-                                builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";}
-                            ) {
-                                config = packageJson.nix.config;
-                            }
-                        );
-                    })
-                ) projectPackages;
+            main = (
+                (builtins.import
+                    ("'"$PROJECTR_FOLDER"'/settings/nix/parse_json_dependencies.nix")
+                )
+                
+                ({
+                    jsonPath = ("'"$PROJECTR_FOLDER"'/settings/requirements/nix.json");
+                })
+            );
             packageBeingLookedFor = "'$1'";
-            listWithOnlyTheCorrectPackage = builtins.filter (each: each.name == packageBeingLookedFor) (packagesWithSources);
-            theCorrectPackage = builtins.elemAt listWithOnlyTheCorrectPackage 0;
-            return = "${theCorrectPackage.source}";
+            theCorrectPackage = (main.getAttr
+                (packageBeingLookedFor)
+                (main.packages)
+            );
+            return = '"''"'${theCorrectPackage}'"''"';
         }).return' | sed -E 's/^"|"$//g' # the sed part removes the extra quotes
     }
     
