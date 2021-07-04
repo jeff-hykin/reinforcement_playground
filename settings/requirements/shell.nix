@@ -32,11 +32,7 @@ let
         # 
         # Linux Only
         # 
-        linuxOnlyPackages = [] ++ main.optionals (main.packages.stdenv.isLinux) [
-            main.packages.stdenv.cc
-            main.packages.linuxPackages.nvidia_x11
-            main.packages.cudatoolkit
-            main.packages.libGLU
+        linuxOnlyPackages = [] ++ main.optionals (main.stdenv.isLinux) [
             majorCustomDependencies.nixGL
             # opencv4cuda, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
             (main.packages.opencv4.override {  
@@ -46,12 +42,12 @@ let
                 enableUnfree = true; 
             })
         ];
-        linuxOnlyNativePackages = [] ++ main.optionals (main.packages.stdenv.isLinux) [
+        linuxOnlyNativePackages = [] ++ main.optionals (main.stdenv.isLinux) [
             main.packages.pkgconfig
             main.packages.libconfig
             main.packages.cmake
         ];
-        linuxOnlyShellCode = if !main.packages.stdenv.isLinux then "" else ''
+        linuxOnlyShellCode = if !main.stdenv.isLinux then "" else ''
             if [[ "$OSTYPE" == "linux-gnu" ]] 
             then
                 export CUDA_PATH="${main.packages.cudatoolkit}"
@@ -66,11 +62,11 @@ let
         # 
         # Mac Only
         # 
-        macOnlyPackages = [] ++ main.optionals (main.packages.stdenv.isDarwin) [
+        macOnlyPackages = [] ++ main.optionals (main.stdenv.isDarwin) [
         ];
-        macOnlyNativePackages = [] ++ main.optionals (main.packages.stdenv.isDarwin) [
+        macOnlyNativePackages = [] ++ main.optionals (main.stdenv.isDarwin) [
         ];
-        macOnlyShellCode = if !main.packages.stdenv.isDarwin then "" else ''
+        macOnlyShellCode = if !main.stdenv.isDarwin then "" else ''
         '';
         
     # 
@@ -79,24 +75,6 @@ let
     # 
     # 
         majorCustomDependencies = rec {
-            packagesFrom_2020_11_5 = import (main.fetchGit {
-                # Descriptive name to make the store path easier to identify                
-                name = "my-old-revision";                                                 
-                url = "https://github.com/NixOS/nixpkgs/";                       
-                ref = "refs/heads/nixpkgs-unstable";                     
-                rev = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2";
-            }) {};
-
-            python = [
-                packagesFrom_2020_11_5.poetry
-                packagesFrom_2020_11_5.python38
-                packagesFrom_2020_11_5.python38Packages.setuptools
-                packagesFrom_2020_11_5.python38Packages.pip
-                packagesFrom_2020_11_5.python38Packages.virtualenv
-                packagesFrom_2020_11_5.python38Packages.wheel
-                packagesFrom_2020_11_5.python38Packages.shap
-            ];
-            
             # nixGLNvidia, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
             nixGL = (main.callPackage (
                     main.fetchGit {
@@ -106,14 +84,12 @@ let
             ) {}).nixGLNvidia;
         };
         
-        subDepedencies = [] ++ majorCustomDependencies.python;
-    
 # using those definitions
 in
     # create a shell
     main.packages.mkShell {
         # inside that shell, make sure to use these packages
-        buildInputs = subDepedencies ++ macOnlyPackages ++ linuxOnlyPackages ++ main.project.buildInputs;
+        buildInputs = macOnlyPackages ++ linuxOnlyPackages ++ main.project.buildInputs;
         
         nativeBuildInputs = [] ++ linuxOnlyNativePackages ++ macOnlyNativePackages;
         

@@ -1,13 +1,16 @@
 { jsonPath } : (rec {
     frozenStd = (builtins.import 
         (builtins.fetchTarball
-            ({url="https://github.com/NixOS/nixpkgs/archive/a332da8588aeea4feb9359d23f58d95520899e3c.tar.gz";})
+            ({url="https://github.com/NixOS/nixpkgs/archive/8917ffe7232e1e9db23ec9405248fd1944d0b36f.tar.gz";})
         )
         ({})
-    ).lib;
-    std = (frozenStd.mergeAttrs
+    );
+    std = (frozenStd.lib.mergeAttrs
         (builtins) # <- for import, fetchTarball, etc 
-        (frozenStd) # <- for mergeAttrs, optionals, getAttrFromPath, etc 
+        (frozenStd.lib.mergeAttrs
+            ({ stdenv = frozenStd.stdenv; })
+            (frozenStd.lib) # <- for mergeAttrs, optionals, getAttrFromPath, etc 
+        )
     );
     # 
     # load the nix.json cause were going to extract basically everything from there
@@ -38,7 +41,6 @@
                     # basically convert something like ["stdev", "isLinux"] to std.stdenv.isLinux
                     (std.map
                         (eachCondition:
-                            
                             (std.getAttrFromPath
                                 (eachCondition)
                                 (std)
@@ -94,7 +96,15 @@
     );
     buildInputs = (std.map
         (each: each.value)
-        (jsonPackagesWithSources)
+        (std.filter
+            (each: 
+                (!std.hasAttr
+                    "isNativeBuildInput"
+                    each
+                )
+            )
+            (jsonPackagesWithSources)
+        )
     );
     depedencyPackages = (std.listToAttrs 
         (jsonPackagesWithSources)
