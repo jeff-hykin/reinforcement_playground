@@ -9,6 +9,40 @@
         },
         "packages": [
             {
+                "load": ["opencv4"],
+                "from": {
+                    "options": { "config": { "allowUnfree": true } },
+                    "fetchGit": {
+                        "url": "https://github.com/NixOS/nixpkgs/",
+                        "rev": "a332da8588aeea4feb9359d23f58d95520899e3c"
+                    }
+                },
+                "onlyIf": [
+                    ["stdenv", "isLinux"]
+                ],
+                "override": {
+                    "enableGtk3":  true,
+                    "enableFfmpeg":  true,
+                    "enableCuda":  true,
+                    "enableUnfree":  true
+                },
+                "comment": "see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5"
+            },
+            {
+                "load": ["nixGLNvidia"],
+                "from": {
+                    "options": {},
+                    "fetchGit": {
+                        "url": "https://github.com/guibou/nixGL",
+                        "rev": "7d6bc1b21316bab6cf4a6520c2639a11c25a220e"
+                    }
+                },
+                "onlyIf": [
+                    ["stdenv", "isLinux"]
+                ],
+                "comment": "see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5"
+            },
+            {
                 "load": ["poetry"],
                 "from": "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
             },

@@ -1,4 +1,7 @@
 { jsonPath } : (rec {
+    # 
+    # create a standard library for convienience 
+    # 
     frozenStd = (builtins.import 
         (builtins.fetchTarball
             ({url="https://github.com/NixOS/nixpkgs/archive/8917ffe7232e1e9db23ec9405248fd1944d0b36f.tar.gz";})
@@ -78,25 +81,69 @@
                 );
                 value =
                     # if it says where (e.g. from)
-                    if (std.hasAttr
-                        ("from")
-                        (each)
-                    )
-                    # then load it from that place
-                    then (std.getAttrFromPath
-                        (each.load)
-                        (std.import
-                            (std.fetchTarball
-                                ({url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";})
-                            ) 
-                            ({ config = packageJson.nix.config;})
+                    if 
+                        (std.hasAttr
+                            ("from")
+                            (each)
                         )
-                    )
+                    # then load it from that place
+                    then 
+                        (rec {
+                            package = (std.getAttrFromPath
+                                (each.load)
+                                (std.import
+                                    # if its a string, assume its a nixpkg commit hash
+                                    (
+                                        if 
+                                            (std.isString
+                                                (each.from)
+                                            )
+                                        then
+                                            (std.fetchGit
+                                                ({
+                                                    url = "https://github.com/NixOS/nixpkgs";
+                                                    rev = each.from;
+                                                })
+                                            )
+                                        # otherwise assume its the details for a github repo
+                                        else
+                                            (std.fetchGit
+                                                (each.from.fetchGit)
+                                            )
+                                    )
+                                    (
+                                        if 
+                                            (std.isString
+                                                (each.from)
+                                            )
+                                        then
+                                            ({ config = packageJson.nix.config; })
+                                        # otherwise assume its the details for a github repo
+                                        else
+                                            (each.from.options)
+                                    )
+                                )
+                            );
+                            return = (
+                                if 
+                                    (std.hasAttr
+                                        ("override")
+                                        (each)
+                                    )
+                                then
+                                    (package.override
+                                        (each.override)
+                                    )
+                                else
+                                    package
+                            );
+                        }.return)
                     # otherwise just default to getting it from mainPackages
-                    else (std.getAttrFromPath
-                        (each.load)
-                        (mainPackages)
-                    )
+                    else 
+                        (std.getAttrFromPath
+                            (each.load)
+                            (mainPackages)
+                        )
                 ;
             })
         )
@@ -131,6 +178,24 @@
                 buildInputs = buildInputs;
                 nativeBuildInputs = nativeBuildInputs;
             };
+            protectHomeShellCode = ''
+                source "$PWD/settings/project.config.sh"
+                
+                if [ -n "$PROJECTR_HOME" ]
+                then
+                    # we don't want to give nix or other apps our home folder
+                    if [[ "$HOME" != "$PROJECTR_HOME" ]] 
+                    then
+                        mkdir -p "$PROJECTR_HOME/.cache/"
+                        ln -s "$HOME/.cache/nix" "$PROJECTR_HOME/.cache/" &>/dev/null
+                        
+                        # so make the home folder the same as the project folder
+                        export HOME="$PROJECTR_HOME"
+                        # make it explicit which nixpkgs we're using
+                        export NIX_PATH="nixpkgs=${mainRepo}:."
+                    fi
+                fi
+            '';
         })
     );
 }).return
