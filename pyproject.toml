@@ -2,7 +2,7 @@
 name = "reinforcement_playground"
 version = "0.1.0"
 description = ""
-authors = ["jeff.hykin <jeff.hykin@gmail.com>"]
+authors = ["Jeff Hykin <jeff.hykin@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]

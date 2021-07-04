@@ -1,3 +1,13 @@
+def reload():
+    """
+    reloads all imported modules
+    (for debugging)
+    """
+    import sys
+    import importlib
+    for module in sys.modules.values():
+        importlib.reload(module)
+
 def product(iterable):
     from functools import reduce
     import operator

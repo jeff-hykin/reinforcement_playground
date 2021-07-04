@@ -171,11 +171,13 @@ import torch.optim as optim
 
 class ImageEncoder(ImageModelSequential):
     def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (1, 28, 28))
+        self.output_shape  = config.get("output_shape", (10,))
         self.learning_rate = config.get("learning_rate", 0.01)
         self.momentum      = config.get("momentum", 0.5)
         self.log_interval  = config.get("log_interval", 10)
         
-        with self.setup(input_shape=(1, 28, 28), output_shape=(10,)):
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
             self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
             self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
             self.layers.add_module("conv1_activation", nn.ReLU())
@@ -200,91 +202,195 @@ class ImageEncoder(ImageModelSequential):
         self.loss_function = NLLLoss
         self.optimizer = SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
+    def train_and_test_on_mnist(self):
+        from tools.basics import temp_folder
+
+        # 
+        # training dataset
+        # 
+        train_loader = torch.utils.data.DataLoader(
+            torchvision.datasets.MNIST(
+                f"{temp_folder}/files/",
+                train=True,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=64,
+            shuffle=True,
+        )
+
+        # 
+        # testing dataset
+        # 
+        test_loader = torch.utils.data.DataLoader(
+            torchvision.datasets.MNIST(
+                f"{temp_folder}/files/",
+                train=False,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=1000,
+            shuffle=True,
+        )
+        
+        self.test(test_loader)
+        self.fit(loader=train_loader, number_of_epochs=3)
+        self.test(test_loader)
+        
+        return self
+        
+    
+class ImageDecoder(ImageModelSequential):
+    def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (10,))
+        self.output_shape  = config.get("output_shape", (1, 28, 28))
+        self.learning_rate = config.get("learning_rate", 0.01)
+        self.momentum      = config.get("momentum", 0.5)
+        self.log_interval  = config.get("log_interval", 10)
+        
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+            self.layers.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
+            self.layers.add_module("fn1_activation", nn.ReLU(True))
+            
+            self.layers.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
+            self.layers.add_module("fn2_activation", nn.ReLU(True))
+            
+            conv1_shape = [ 10, 20, 20 ] # needs to mupltiply together to be the size of the previous layer (currently 4000)
+            conv2_size = 10
+            self.layers.add_module("conv1_prep", nn.Unflatten(1, conv1_shape))
+            self.layers.add_module("conv1", nn.ConvTranspose2d(conv1_shape[0], conv2_size, kernel_size=5))
+            self.layers.add_module("conv2", nn.ConvTranspose2d(conv2_size, 1, kernel_size=5))
+            self.layers.add_module("conv2_activation", nn.Sigmoid())
+        
+            self.loss_function = nn.MSELoss()
+            self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+    
+
+class ImageAutoEncoder(ImageModelSequential):
+    def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (1, 28, 28))
+        self.latent_shape  = config.get("latent_shape", (10,))
+        self.output_shape  = config.get("output_shape", (1, 28, 28))
+        self.learning_rate = config.get("learning_rate", 0.01)
+        self.momentum      = config.get("momentum", 0.5)
+        self.log_interval  = config.get("log_interval", 10)
+        
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+            # 
+            # encoder
+            # 
+            self.encoder = ImageEncoder(
+                input_shape=self.input_shape,
+                output_shape=self.latent_shape,
+            )
+            self.layers.add_module("encoder", self.encoder)
+            # 
+            # decoder
+            # 
+            self.decoder = ImageDecoder(
+                input_shape=self.latent_shape,
+                output_shape=self.output_shape,
+            )
+            self.layers.add_module("decoder", self.decoder)
+            
+        self.loss_function = nn.MSELoss()
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+    
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.optimizer.zero_grad()
         batch_of_actual_outputs = self.forward(batch_of_inputs)
-        loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
+        loss = self.loss_function(batch_of_actual_outputs, batch_of_inputs)
         loss.backward()
         self.optimizer.step()
         return loss
+    
+    # TODO: test(self) needs to be changed, but its a bit difficult to make it useful
+    
+    def train_and_test_on_mnist(self):
+        # 
+        # modify Mnist so that the input and output are both the image
+        # 
+        class AutoMnist(torchvision.datasets.MNIST):
+            def __init__(self, *args, **kwargs):
+                super(AutoMnist, self).__init__(*args, **kwargs)
             
-    def test(self, test_loader):
+            def __getitem__(self, index):
+                an_input, corrisponding_output = super(AutoMnist, self).__getitem__(index)
+                return an_input, an_input
+
+        train_loader = torch.utils.data.DataLoader(
+            AutoMnist(
+                f"{temp_folder}/files/",
+                train=True,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=64,
+            shuffle=True,
+        )
+        test_loader = torch.utils.data.DataLoader(
+            torchvision.datasets.MNIST(
+                f"{temp_folder}/files/",
+                train=False,
+                download=True,
+                transform=torchvision.transforms.Compose(
+                    [
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                    ]
+                ),
+            ),
+            batch_size=1000,
+            shuffle=True,
+        )
+        
+        self.test(test_loader)
+        self.fit(loader=train_loader, number_of_epochs=3)
+        self.test(test_loader)
+        
+    
+    def generate_confusion_matrix(self, test_loader):
+        from tools.basics import product
+        number_of_outputs = product(self.latent_shape)
+        confusion_matrix = torch.zeros(number_of_outputs, number_of_outputs)
         test_losses = []
-        self.eval()
         test_loss = 0
         correct = 0
+        
+        self.eval()
         with torch.no_grad():
             for batch_of_inputs, batch_of_ideal_outputs in test_loader:
-                actual_output = self(batch_of_inputs)
-                test_loss += F.nll_loss(actual_output, batch_of_ideal_outputs, reduction='sum').item()
-                prediction = actual_output.data.max(1, keepdim=True)[1]
-                correct += prediction.eq(batch_of_ideal_outputs.data.view_as(prediction)).sum()
-        test_loss /= len(test_loader.dataset)
-        test_losses.append(test_loss)
-        print(
-            "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-                test_loss,
-                correct,
-                len(test_loader.dataset),
-                100.0 * correct / len(test_loader.dataset),
-            )
-        )
-
+                latent_space_activation_batch = self.encoder.forward(batch_of_inputs)
+                for each_activation_space, each_ideal_output in zip(latent_space_activation_batch, batch_of_ideal_outputs):
+                    # which index was chosen
+                    predicted_index = numpy.argmax(each_activation_space)
+                    actual_index    = numpy.argmax(each_ideal_output)
+                    confusion_matrix[actual_index][predicted_index] += 1
+        
+        return confusion_matrix
     
-# 
-# 
-# load datasets
-# 
-# 
-
-import os
-temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
-
-# 
-# training
-# 
-train_loader = torch.utils.data.DataLoader(
-    torchvision.datasets.MNIST(
-        f"{temp_folder_path}/files/",
-        train=True,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    ),
-    batch_size=64,
-    shuffle=True,
-)
-
-# 
-# testing
-# 
-test_loader = torch.utils.data.DataLoader(
-    torchvision.datasets.MNIST(
-        f"{temp_folder_path}/files/",
-        train=False,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    ),
-    batch_size=1000,
-    shuffle=True,
-)
-
-
-# 
-# 
-# train and test the model
-# 
-# 
-network = ImageEncoder()
-network.test(test_loader)
-network.fit(loader=train_loader, number_of_epochs=3)
-network.test(test_loader)
+    def importance_identification(self, test_loader):
+        import shap
+        results = shap.DeepExplainer(self, inputs)
+        
+        # FIXME: freeze the latent space
+        for each_latent_index in range(product(self.latent_shape)):
+            pass
+            # FIXME: select an amount of gaussian noise, add the noise
+            
+        

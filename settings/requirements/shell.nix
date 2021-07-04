@@ -12,83 +12,15 @@
 
 # Lets setup some definitions
 let        
-    # 
-    # 
-    # nix.json
-    # 
-    # 
-        # load packages and config
-        definitions = rec {
-            # 
-            # load the nix.json cause were going to extract basically everything from there
-            # 
-            packageJson = builtins.fromJSON (builtins.readFile ./nix.json);
-            # 
-            # load the store with all the packages, and load it with the config
-            # 
-            mainRepo = builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${packageJson.nix.mainRepo}.tar.gz";};
-            mainPackages = builtins.import mainRepo {
-                config = packageJson.nix.config;
-            };
-            # 
-            # reorganize the list of packages from:
-            #    [ { load: "blah", from:"blah-hash" }, ... ]
-            # into a list like:
-            #    [ { name: "blah", commitHash:"blah-hash", source: (*an object*) }, ... ]
-            # 
-            packagesWithSources = builtins.map (
-                each: ({
-                    name = each.load;
-                    commitHash = each.from;
-                    source = builtins.getAttr each.load (
-                        builtins.import (
-                            builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";}
-                        ) {
-                            config = packageJson.nix.config;
-                        }
-                    );
-                })
-            ) packageJson.nix.packages;
-        };
-    
-    # 
-    # 
-    # nested packages
-    # 
-    # 
-        # TODO: add support for the nix.json to have nested packages so this section is no longer needed
-        nestedPackages = [
-            # 
-            # this is just a list of all of the standard unix tools
-            # 
-            definitions.mainPackages.unixtools.arp         # depends on openssl_1_0_2     
-            definitions.mainPackages.unixtools.ifconfig    # depends on openssl_1_0_2         
-            definitions.mainPackages.unixtools.netstat     # depends on openssl_1_0_2         
-            definitions.mainPackages.unixtools.ping        # depends on openssl_1_0_2     
-            definitions.mainPackages.unixtools.route       # depends on openssl_1_0_2         
-            definitions.mainPackages.unixtools.col
-            definitions.mainPackages.unixtools.column
-            definitions.mainPackages.unixtools.fdisk
-            definitions.mainPackages.unixtools.fsck
-            definitions.mainPackages.unixtools.getconf
-            definitions.mainPackages.unixtools.getent
-            definitions.mainPackages.unixtools.getopt
-            definitions.mainPackages.unixtools.hexdump
-            definitions.mainPackages.unixtools.hostname
-            definitions.mainPackages.unixtools.killall
-            definitions.mainPackages.unixtools.locale
-            definitions.mainPackages.unixtools.more
-            definitions.mainPackages.unixtools.mount
-            definitions.mainPackages.unixtools.ps
-            definitions.mainPackages.unixtools.quota
-            definitions.mainPackages.unixtools.script
-            definitions.mainPackages.unixtools.sysctl
-            definitions.mainPackages.unixtools.top
-            definitions.mainPackages.unixtools.umount
-            definitions.mainPackages.unixtools.whereis
-            definitions.mainPackages.unixtools.write
-            definitions.mainPackages.unixtools.xxd
-        ];
+    main = (
+        (builtins.import
+            (../nix/parse_json_dependencies.nix)
+        )
+        
+        ({
+            jsonPath = (./nix.json);
+        })
+    );
     
     # 
     # 
@@ -100,45 +32,36 @@ let
         # 
         # Linux Only
         # 
-        linuxOnlyPackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isLinux) [
-            definitions.mainPackages.stdenv.cc
-            definitions.mainPackages.linuxPackages.nvidia_x11
-            definitions.mainPackages.cudatoolkit
-            definitions.mainPackages.libGLU
+        linuxOnlyPackages = [] ++ main.optionals (main.stdenv.isLinux) [
             majorCustomDependencies.nixGL
             # opencv4cuda, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-            (definitions.mainPackages.opencv4.override {  
+            (main.packages.opencv4.override {  
                 enableGtk3   = true; 
                 enableFfmpeg = true; 
                 enableCuda   = true;
                 enableUnfree = true; 
             })
         ];
-        linuxOnlyNativePackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isLinux) [
-            definitions.mainPackages.pkgconfig
-            definitions.mainPackages.libconfig
-            definitions.mainPackages.cmake
-        ];
-        linuxOnlyShellCode = if !definitions.mainPackages.stdenv.isLinux then "" else ''
+        linuxOnlyShellCode = if !main.stdenv.isLinux then "" else ''
             if [[ "$OSTYPE" == "linux-gnu" ]] 
             then
-                export CUDA_PATH="${definitions.mainPackages.cudatoolkit}"
-                export EXTRA_LDFLAGS="-L/lib -L${definitions.mainPackages.linuxPackages.nvidia_x11}/lib"
+                export CUDA_PATH="${main.packages.cudatoolkit}"
+                export EXTRA_LDFLAGS="-L/lib -L${main.packages.linuxPackages.nvidia_x11}/lib"
                 export EXTRA_CCFLAGS="-I/usr/include"
-                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${definitions.mainPackages.linuxPackages.nvidia_x11}/lib:${definitions.mainPackages.ncurses5}/lib:/run/opengl-driver/lib"
+                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.linuxPackages.nvidia_x11}/lib:${main.packages.ncurses5}/lib:/run/opengl-driver/lib"
                 export LD_LIBRARY_PATH="$(${majorCustomDependencies.nixGL}/bin/nixGLNvidia printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
-                export LD_LIBRARY_PATH="${definitions.mainPackages.lib.makeLibraryPath [ definitions.mainPackages.glib ] }:$LD_LIBRARY_PATH"
+                export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
             fi
         '';
         
         # 
         # Mac Only
         # 
-        macOnlyPackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isDarwin) [
+        macOnlyPackages = [] ++ main.optionals (main.stdenv.isDarwin) [
         ];
-        macOnlyNativePackages = [] ++ definitions.mainPackages.lib.optionals (definitions.mainPackages.stdenv.isDarwin) [
+        macOnlyNativePackages = [] ++ main.optionals (main.stdenv.isDarwin) [
         ];
-        macOnlyShellCode = if !definitions.mainPackages.stdenv.isDarwin then "" else ''
+        macOnlyShellCode = if !main.stdenv.isDarwin then "" else ''
         '';
         
     # 
@@ -147,34 +70,23 @@ let
     # 
     # 
         majorCustomDependencies = rec {
-            python = [
-                definitions.mainPackages.poetry
-                definitions.mainPackages.python37
-                definitions.mainPackages.python37Packages.setuptools
-                definitions.mainPackages.python37Packages.pip
-                definitions.mainPackages.python37Packages.virtualenv
-                definitions.mainPackages.python37Packages.wheel
-            ];
-            
             # nixGLNvidia, see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-            nixGL = (definitions.mainPackages.callPackage (
-                    builtins.fetchGit {
+            nixGL = (main.callPackage (
+                    main.fetchGit {
                     url = "https://github.com/guibou/nixGL";
                     rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e";
                 }
             ) {}).nixGLNvidia;
         };
         
-        subDepedencies = [] ++ majorCustomDependencies.python ++ nestedPackages;
-    
 # using those definitions
 in
     # create a shell
-    definitions.mainPackages.mkShell {
+    main.packages.mkShell {
         # inside that shell, make sure to use these packages
-        buildInputs = subDepedencies ++ macOnlyPackages ++ linuxOnlyPackages ++ builtins.map (each: each.source) definitions.packagesWithSources;
+        buildInputs = macOnlyPackages ++ linuxOnlyPackages ++ main.project.buildInputs;
         
-        nativeBuildInputs = [] ++ linuxOnlyNativePackages ++ macOnlyNativePackages;
+        nativeBuildInputs = macOnlyNativePackages ++ main.project.nativeBuildInputs;
         
         # run some bash code before starting up the shell
         shellHook = ''
@@ -193,7 +105,7 @@ in
             # so make the home folder the same as the project folder
             export HOME="$PROJECTR_HOME"
             # make it explicit which nixpkgs we're using
-            export NIX_PATH="nixpkgs=${definitions.mainRepo}:."
+            export NIX_PATH="nixpkgs=${main.nixPath}:."
         fi
         '';
     }

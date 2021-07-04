@@ -20,26 +20,23 @@ else
     fi
     
     function nix_path_for {
-        nix-instantiate --eval -E  '"${
-            (
-                builtins.elemAt (
-                    builtins.filter (each: each.name == "'$1'") (
-                        builtins.map (
-                            each: ({
-                                name = each.load;
-                                source = builtins.getAttr each.load (
-                                    builtins.import (
-                                        builtins.fetchTarball {url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";}
-                                    ) {
-                                        config = (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json")).nix.config;
-                                    }
-                                );
-                            })
-                        ) (builtins.fromJSON (builtins.readFile "'"$PROJECTR_FOLDER"'/settings/requirements/nix.json")).nix.packages
-                    )
-                ) 0
-            ).source
-        }"' | sed -E 's/^"|"$//g'
+        nix-instantiate --eval -E  '(rec {
+            main = (
+                (builtins.import
+                    ("'"$PROJECTR_FOLDER"'/settings/nix/parse_json_dependencies.nix")
+                )
+                
+                ({
+                    jsonPath = ("'"$PROJECTR_FOLDER"'/settings/requirements/nix.json");
+                })
+            );
+            packageBeingLookedFor = "'$1'";
+            theCorrectPackage = (main.getAttr
+                (packageBeingLookedFor)
+                (main.packages)
+            );
+            return = '"''"'${theCorrectPackage}'"''"';
+        }).return' | sed -E 's/^"|"$//g' # the sed part removes the extra quotes
     }
     
     # 
