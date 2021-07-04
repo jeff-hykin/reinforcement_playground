@@ -400,8 +400,12 @@ class ImageAutoEncoder(ImageModelSequential):
         return confusion_matrix
     
     def importance_identification(self, test_loader):
+        import shap
+        results = shap.DeepExplainer(self, inputs)
+        
         # FIXME: freeze the latent space
         for each_latent_index in range(product(self.latent_shape)):
             pass
             # FIXME: select an amount of gaussian noise, add the noise
             
+        
