@@ -13,12 +13,12 @@
 # Lets setup some definitions
 let        
     # 
-    # load most things from the nix.json
+    # load most things from the nix.toml
     # 
-    main = (  (builtins.import (../nix/parse_json_dependencies.nix))
-        ({
-            jsonPath = (./nix.json);
-        })
+    main = (builtins.import
+        (builtins.getEnv
+            ("__PROJECTR_NIX_MAIN_CODE_PATH")
+        )
     );
     
     # just a helper
@@ -77,7 +77,7 @@ in
             
             ${linuxOnly.shellCode}
             ${macOnly.shellCode}
-            ${main.protectHomeShellCode}
+            ${main.project.protectHomeShellCode}
             
         '';
     }

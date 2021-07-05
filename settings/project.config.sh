@@ -9,3 +9,5 @@
 export PROJECTR_FOLDER="$PWD"
 export PROJECTR_HOME="$PROJECTR_FOLDER/settings/home/"
 export PROJECTR_COMMANDS_FOLDER="$PROJECTR_FOLDER/commands/"
+# TODO: improve this in the future (auto detect any packages with #env.sh)
+source "$PROJECTR_FOLDER/settings/nix/#env.sh"
