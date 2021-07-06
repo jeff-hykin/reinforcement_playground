@@ -379,11 +379,15 @@ class ImageAutoEncoder(ImageModelSequential):
         
         return confusion_matrix
     
-    def importance_identification(self, train_dataset, test_dataset):
+    def importance_identification(self, train_dataset, test_dataset, training_size=10, testing_size=1):
+        """
+        Outputs:
+            A list
+            The length of list is the size of the model's output (one element per output parameter)
+            Every element in the list is a numpy array
+            Every element has the shape of the model's input
+        """
         import shap
-        
-        training_size = 100
-        testing_size = 10
         
         # TODO: improve me, these values are converted to and from numpy values basically as a means of copying to shead information such as gradient tracking info
         # note: the inputs are all encoded because we're trying to explain the latent/encoded space
