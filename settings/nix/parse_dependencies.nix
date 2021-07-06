@@ -117,11 +117,8 @@
                                                 (each.from)
                                             )
                                         then
-                                            (main.fetchGit
-                                                ({
-                                                    url = "https://github.com/NixOS/nixpkgs";
-                                                    rev = each.from;
-                                                })
+                                            (main.fetchTarball
+                                                ({url="https://github.com/NixOS/nixpkgs/archive/${each.from}.tar.gz";})
                                             )
                                         # otherwise assume its the details for a github repo
                                         else
