@@ -382,10 +382,22 @@ class ImageAutoEncoder(ImageModelSequential):
     def importance_identification(self, train_dataset, test_dataset, training_size=10, testing_size=1):
         """
         Outputs:
-            A list
-            The length of list is the size of the model's output (one element per output parameter)
-            Every element in the list is a numpy array
-            Every element has the shape of the model's input
+            importance_values, shap_values
+            
+            the shap_values
+                is A list
+                The length of list is the size of the model's output (one element per output parameter)
+                Every element in the list is a numpy array
+                Every element has the shape of the model's input
+                A value of 0 means no correlation
+                negative values means negatively correlated (similar for positive values)
+            
+            the importance values
+                is a numpy array
+                The shape is the same shape as the input for the model
+                The values are the relative importance of each latent parameter
+                All values are positive
+                Larger values = more important
         """
         import shap
         
@@ -403,6 +415,13 @@ class ImageAutoEncoder(ImageModelSequential):
         explainer = shap.DeepExplainer(model, latent_spaces_for_training)
         shap_values = explainer.shap_values(latent_spaces_for_testing)
         
-        return shap_values
-            
-    # explainer = shap.DeepExplainer(b.encoder, latent_spaces_for_training)
+        import numpy
+        import functools
+        # sum these up elementwise
+        summed = numpy.squeeze(functools.reduce(
+            lambda each_new, existing: numpy.add(each_new, existing),
+            # take the absolute value because we just want impactful values, not just neg/pos correlated ones
+            numpy.abs(shap_values),
+            numpy.zeros_like(shap_values[0]),
+        ))
+        return summed, shap_values
