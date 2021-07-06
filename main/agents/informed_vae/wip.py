@@ -168,6 +168,8 @@ class SGD(Optimizer):
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from tools.basics import temp_folder
+from tools.pytorch_tools import autoencodeify
 
 class ImageEncoder(ImageModelSequential):
     def __init__(self, **config):
@@ -204,12 +206,11 @@ class ImageEncoder(ImageModelSequential):
     
     def train_and_test_on_mnist(self):
         from tools.basics import temp_folder
-
         # 
         # training dataset
         # 
         train_loader = torch.utils.data.DataLoader(
-            torchvision.datasets.MNIST(
+            autoencodeify(torchvision.datasets.MNIST)(
                 f"{temp_folder}/files/",
                 train=True,
                 download=True,
@@ -275,7 +276,6 @@ class ImageDecoder(ImageModelSequential):
             self.loss_function = nn.MSELoss()
             self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
-
 class ImageAutoEncoder(ImageModelSequential):
     def __init__(self, **config):
         self.input_shape   = config.get("input_shape", (1, 28, 28))
@@ -320,16 +320,9 @@ class ImageAutoEncoder(ImageModelSequential):
         # 
         # modify Mnist so that the input and output are both the image
         # 
-        class AutoMnist(torchvision.datasets.MNIST):
-            def __init__(self, *args, **kwargs):
-                super(AutoMnist, self).__init__(*args, **kwargs)
-            
-            def __getitem__(self, index):
-                an_input, corrisponding_output = super(AutoMnist, self).__getitem__(index)
-                return an_input, an_input
-
+        from tools.basics import temp_folder
         train_loader = torch.utils.data.DataLoader(
-            AutoMnist(
+            autoencodeify(torchvision.datasets.MNIST)(
                 f"{temp_folder}/files/",
                 train=True,
                 download=True,
@@ -359,9 +352,11 @@ class ImageAutoEncoder(ImageModelSequential):
             shuffle=True,
         )
         
-        self.test(test_loader)
+        # FIXME: add a testing method (probably related to confusion_matrix) for auto-encoder
+        # self.test(test_loader)
+        # TODO: autoencodeify the train loader inside the fit function
         self.fit(loader=train_loader, number_of_epochs=3)
-        self.test(test_loader)
+        # self.test(test_loader)
         
     
     def generate_confusion_matrix(self, test_loader):
@@ -384,13 +379,26 @@ class ImageAutoEncoder(ImageModelSequential):
         
         return confusion_matrix
     
-    def importance_identification(self, test_loader):
+    def importance_identification(self, train_dataset, test_dataset):
         import shap
-        results = shap.DeepExplainer(self, inputs)
         
-        # FIXME: freeze the latent space
-        for each_latent_index in range(product(self.latent_shape)):
-            pass
-            # FIXME: select an amount of gaussian noise, add the noise
+        training_size = 100
+        testing_size = 10
+        
+        # TODO: improve me, these values are converted to and from numpy values basically as a means of copying to shead information such as gradient tracking info
+        # note: the inputs are all encoded because we're trying to explain the latent/encoded space
+        latent_spaces_for_training  = to_tensor( torch.from_numpy(b.encoder(train_dataset[index][0]).cpu().detach().numpy()) for index in range(len(train_dataset)) if index < training_size)
+        latent_spaces_for_testing   = to_tensor( torch.from_numpy(b.encoder(test_dataset[index][0] ).cpu().detach().numpy()) for index in range(len(test_dataset )) if index < testing_size)
+        
+        # DeepExplainer needs the output to be flat for some reason
+        # use only the decoder explains the latent space instead of going back to the image
+        model = nn.Sequential(
+            self.decoder,
+            nn.Flatten(),
+        )
+        explainer = shap.DeepExplainer(model, latent_spaces_for_training)
+        shap_values = explainer.shap_values(latent_spaces_for_testing)
+        
+        return shap_values
             
-        
+    # explainer = shap.DeepExplainer(b.encoder, latent_spaces_for_training)
