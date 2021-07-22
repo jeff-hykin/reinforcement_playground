@@ -64,6 +64,21 @@ def bundle(iterable, bundle_size):
     if len(next_bundle) > 0:
         yield tuple(next_bundle)
 
+def to_pure(an_object):
+    from tools.basics import is_iterable
+    
+    if hasattr(an_object, "tolist"):
+        return an_object.tolist()
+    
+    # if already a tensor, just return
+    if not is_iterable(an_object):
+        return an_object
+    else:
+        if isinstance(an_object, dict):
+            return { to_pure(each_key) : to_pure(each_value) for each_key, each_value in an_object.items() }
+        else:
+            return [ to_pure(each) for each in an_object ]
+
 import os
 here = "os.path.dirname(__file__)"
 if os.environ.get('PROJECTR_FOLDER', None):

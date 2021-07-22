@@ -314,6 +314,7 @@ class ImageModelSequential(nn.Module):
             self.train()
             for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
                 loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
+                from tools.basics import to_pure
                 if batch_index % self.log_interval == 0:
                     self.print(
                         "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
@@ -321,7 +322,7 @@ class ImageModelSequential(nn.Module):
                             batch_index * len(batch_of_inputs),
                             len(loader.dataset),
                             100.0 * batch_index / len(loader),
-                            loss,
+                            to_pure(loss),
                         )
                     )
                     train_losses.append(loss)

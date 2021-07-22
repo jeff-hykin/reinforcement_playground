@@ -1,11 +1,5 @@
 from agents.informed_vae.wip import * 
 
-
-# 
-# auto encoder setup/test
-# 
-b = SplitAutoEncoder()
-
 def binary_mnist(numbers):
     class Dataset(torchvision.datasets.MNIST):
         number_of_classes = 10
@@ -45,9 +39,20 @@ def binary_mnist(numbers):
     )
     return train_dataset, test_dataset, train_loader, test_loader
 
-train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
-b.fit(loader=train_loader, number_of_epochs=3)
 
+# 
+# auto encoder setup/test
+# 
+train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
+
+split = SplitAutoEncoder()
+classifier = ImageClassifier()
+
+split.fit(loader=train_loader, number_of_epochs=3)
+split.test(test_loader)
+
+classifier.fit(loader=train_loader, number_of_epochs=3)
+classifier.test(test_loader)
 # 
 # importance values
 # 

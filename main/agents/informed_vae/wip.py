@@ -429,11 +429,11 @@ class ImageAutoEncoder(ImageModelSequential):
 
 
 
-class SplitAutoEncoder(ImageAutoEncoder):
+class ImageClassifier(ImageAutoEncoder):
     def __init__(self, **config):
         self.input_shape   = config.get("input_shape", (1, 28, 28))
         self.latent_shape  = config.get("latent_shape", (20,))
-        self.output_shape  = config.get("output_shape", (1, 28, 28))
+        self.output_shape  = config.get("output_shape", (2,))
         self.learning_rate = config.get("learning_rate", 0.01)
         self.momentum      = config.get("momentum", 0.5)
         self.log_interval  = config.get("log_interval", 10)
@@ -448,13 +448,37 @@ class SplitAutoEncoder(ImageAutoEncoder):
             )
             self.layers.add_module("encoder", self.encoder)
             # 
-            # decoder
+            # task (classifier)
             # 
-            self.decoder = ImageDecoder(
-                input_shape=self.latent_shape,
-                output_shape=self.output_shape,
+            self.task_network = nn.Sequential(
+                nn.Linear(product(self.latent_shape), 2), # binary classification
+                nn.Sigmoid(),
             )
-            self.layers.add_module("decoder", self.decoder)
+            self.layers.add_module("task_network", self.task_network)
+            
+        self.classifier_loss_function = self.loss_function = nn.BCELoss()
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+    
+
+class SplitAutoEncoder(ImageAutoEncoder):
+    def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (1, 28, 28))
+        self.latent_shape  = config.get("latent_shape", (20,))
+        self.output_shape  = config.get("output_shape", (2,))
+        self.decoded_shape = config.get("decoded_shape", (1, 28, 28))
+        self.learning_rate = config.get("learning_rate", 0.01)
+        self.momentum      = config.get("momentum", 0.5)
+        self.log_interval  = config.get("log_interval", 10)
+        
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+            # 
+            # encoder
+            # 
+            self.encoder = ImageEncoder(
+                input_shape=self.input_shape,
+                output_shape=self.latent_shape,
+            )
+            self.layers.add_module("encoder", self.encoder)
             # 
             # task (classifier)
             # 
@@ -462,9 +486,17 @@ class SplitAutoEncoder(ImageAutoEncoder):
                 nn.Linear(product(self.latent_shape), 2), # binary classification
                 nn.Sigmoid(),
             )
+            self.layers.add_module("task_network", self.task_network)
+            # 
+            # decoder
+            # 
+            self.decoder = ImageDecoder(
+                input_shape=self.latent_shape,
+                output_shape=self.decoded_shape,
+            )
             
         self.decoder_loss_function = nn.MSELoss()
-        self.classifier_loss_function = nn.BCELoss()
+        self.classifier_loss_function = self.loss_function = nn.BCELoss()
         self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
