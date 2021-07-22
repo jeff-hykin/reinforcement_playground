@@ -1,5 +1,10 @@
 from agents.informed_vae.wip import * 
-b = ImageAutoEnccoder()
+
+
+# 
+# auto encoder setup/test
+# 
+b = SmartImageAutoEncoder()
 
 class AutoMnist(torchvision.datasets.MNIST):
     def __init__(self, *args, **kwargs):
@@ -10,63 +15,37 @@ class AutoMnist(torchvision.datasets.MNIST):
         return an_input, an_input
 
 from tools.basics import temp_folder
-train_loader = torch.utils.data.DataLoader(
-    AutoMnist(
-        f"{temp_folder}/files/",
-        train=True,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
+
+options = dict(
+    root=f"{temp_folder}/files/",
+    train=True,
+    download=True,
+    transform=torchvision.transforms.Compose(
+        [
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+        ]
     ),
+)
+train_dataset = AutoMnist(**options)
+test_dataset = AutoMnist(**{**options, "train":False})
+train_loader = torch.utils.data.DataLoader(
+    train_dataset,
     batch_size=64,
     shuffle=True,
 )
-
 test_loader = torch.utils.data.DataLoader(
-    AutoMnist(
-        f"{temp_folder}/files/",
-        train=False,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    ),
+    test_dataset,
     batch_size=1000,
     shuffle=True,
 )
 
-train_dataset = AutoMnist(
-        f"{temp_folder}/files/",
-        train=True,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    )
-test_dataset = AutoMnist(
-        f"{temp_folder}/files/",
-        train=False,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    )
-
 b.fit(loader=train_loader, number_of_epochs=3)
 
+
+# 
+# importance values
+# 
 latent_spaces_for_training  = to_tensor( torch.from_numpy(b.encoder(train_dataset[index][0]).cpu().detach().numpy()) for index in range(len(train_dataset)) if index < 10)
 latent_spaces_for_testing   = to_tensor( torch.from_numpy(b.encoder(test_dataset[index][0]).cpu().detach().numpy()) for index in range(len(test_dataset)) if index < 1)
 

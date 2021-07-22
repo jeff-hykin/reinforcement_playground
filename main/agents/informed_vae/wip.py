@@ -7,6 +7,7 @@ from tools.dataset_tools import Mnist
 from tools.pytorch_tools import read_image, to_tensor
 from torchvision import transforms
 import torch.nn.functional as F
+from tools.basics import product
 
 # 
 # 
@@ -194,7 +195,7 @@ class ImageEncoder(ImageModelSequential):
             self.layers.add_module("fc1_activation", nn.ReLU())
             self.layers.add_module("fc1_dropout", nn.Dropout2d())
             
-            self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, 10))
+            self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
             self.layers.add_module("fc2_activation", nn.LogSoftmax(dim=-1))
         
         def NLLLoss(batch_of_actual_outputs, batch_of_ideal_outputs):
@@ -425,3 +426,60 @@ class ImageAutoEncoder(ImageModelSequential):
             numpy.zeros_like(shap_values[0]),
         ))
         return summed, shap_values
+
+
+
+class SmartImageAutoEncoder(ImageAutoEncoder):
+    def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (1, 28, 28))
+        self.latent_shape  = config.get("latent_shape", (20,))
+        self.output_shape  = config.get("output_shape", (1, 28, 28))
+        self.learning_rate = config.get("learning_rate", 0.01)
+        self.momentum      = config.get("momentum", 0.5)
+        self.log_interval  = config.get("log_interval", 10)
+        
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+            # 
+            # encoder
+            # 
+            self.encoder = ImageEncoder(
+                input_shape=self.input_shape,
+                output_shape=self.latent_shape,
+            )
+            self.layers.add_module("encoder", self.encoder)
+            # 
+            # decoder
+            # 
+            self.decoder = ImageDecoder(
+                input_shape=self.latent_shape,
+                output_shape=self.output_shape,
+            )
+            self.layers.add_module("decoder", self.decoder)
+            # 
+            # task (classifier)
+            # 
+            self.task_network = nn.Sequential(
+                self.encoder,
+                nn.Linear(product(self.latent_shape), 2), # binary classification
+            )
+            
+        self.decoder_loss_function = nn.MSELoss()
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+    
+    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+        # set the gradient values to zero before accumulating them
+        self.zero_grad()
+        # loss #1
+        batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+        batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
+        decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs)
+        decoder_loss.backward()
+        # loss #2 
+        batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+        batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
+        # FIXME: figure out how to make this loss more important
+        task_loss = self.loss_function(batch_of_classified_images, batch_of_inputs)
+        task_loss.backward()
+        
+        self.optimizer.step()
+        return loss

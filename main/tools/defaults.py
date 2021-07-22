@@ -19,6 +19,7 @@ import ez_yaml
 # tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 # local
+import tools.fix_ssl_certificates
 from tools.basics import *
 from tools.file_system_tools import FS
 from tools.pytorch_tools import *
