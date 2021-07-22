@@ -22,6 +22,7 @@ pygame = "^2.0.1"
 scikit-video = "^1.1.11"
 matplotlib = "^3.4.2"
 gdown = "^3.13.0"
+torchsampler = { git = "https://github.com/jeff-hykin/imbalanced-dataset-sampler", tag = "1.0.0" }
 
 [tool.poetry.dev-dependencies]
 

@@ -2,6 +2,7 @@ import torch
 import torchvision
 
 from tools.file_system_tools import FS
+
 n_epochs = 3
 batch_size_train = 64
 batch_size_test = 1000
@@ -14,6 +15,7 @@ torch.backends.cudnn.enabled = False
 torch.manual_seed(random_seed)
 
 import os
+
 temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
 train_loader = torch.utils.data.DataLoader(
     torchvision.datasets.MNIST(
@@ -108,9 +110,12 @@ def train(epoch):
                 (batch_idx * 64) + ((epoch - 1) * len(train_loader.dataset))
             )
             import os
+
             os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
             torch.save(network.state_dict(), f"{temp_folder_path}/results/model.pth")
-            torch.save(optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
+            torch.save(
+                optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth"
+            )
 
 
 def test():

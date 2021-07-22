@@ -13,13 +13,11 @@ def binary_mnist(numbers):
             super(Dataset, self).__init__(*args, **kwargs)
         def __getitem__(self, index):
             an_input, corrisponding_output = super(Dataset, self).__getitem__(index)
-            print('corrisponding_output = ', corrisponding_output)
             if corrisponding_output in numbers:
-                weight = (self.number_of_classes - len(numbers))/self.number_of_classes
-                return an_input, [ weight, torch.tensor([1,0]) ]
+                return an_input, torch.tensor([1,0])
             else:
-                weight = len(numbers)/self.number_of_classes
-                return an_input, [ weight, torch.tensor([0,1]) ]
+                return an_input, torch.tensor([0,1])
+    
     from tools.basics import temp_folder
     options = dict(
         root=f"{temp_folder}/files/",
@@ -32,23 +30,23 @@ def binary_mnist(numbers):
             ]
         ),
     )
+    from torchsampler import ImbalancedDatasetSampler
     train_dataset = Dataset(**options)
     test_dataset = Dataset(**{**options, "train":False})
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
+        sampler=ImbalancedDatasetSampler(train_dataset),
         batch_size=64,
-        shuffle=True,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
+        sampler=ImbalancedDatasetSampler(test_dataset),
         batch_size=1000,
-        shuffle=True,
     )
     return train_dataset, test_dataset, train_loader, test_loader
 
 train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
-# b.fit(loader=train_loader, number_of_epochs=3)
-
+b.fit(loader=train_loader, number_of_epochs=3)
 
 # 
 # importance values

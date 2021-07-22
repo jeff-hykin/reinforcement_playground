@@ -459,7 +459,6 @@ class SplitAutoEncoder(ImageAutoEncoder):
             # task (classifier)
             # 
             self.task_network = nn.Sequential(
-                self.encoder,
                 nn.Linear(product(self.latent_shape), 2), # binary classification
                 nn.Sigmoid(),
             )
@@ -475,11 +474,11 @@ class SplitAutoEncoder(ImageAutoEncoder):
         # loss #1
         batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
         decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs)
-        decoder_loss.backward()
+        decoder_loss.backward(retain_graph=True)
         # loss #2 
-        # FIXME: figure out how to make this loss relatively more important (maybe scaling it would work?)
+        # FIXME: figure out how to make this loss relatively more important (maybe a scalar would work?)
         batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
-        task_loss = self.classifier_loss_function(batch_of_classified_images, batch_of_ideal_outputs)
+        task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float))
         task_loss.backward()
         
         # call step after both losses have propogated backward

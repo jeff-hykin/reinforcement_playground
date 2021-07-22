@@ -316,7 +316,7 @@ class ImageModelSequential(nn.Module):
                 loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
                 if batch_index % self.log_interval == 0:
                     self.print(
-                        "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                        "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
                             epoch_index+1,
                             batch_index * len(batch_of_inputs),
                             len(loader.dataset),
@@ -324,7 +324,7 @@ class ImageModelSequential(nn.Module):
                             loss,
                         )
                     )
-                    train_losses.append(lossZz)
+                    train_losses.append(loss)
                     # TODO: add/allow checkpoints
                     # import os
                     # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
