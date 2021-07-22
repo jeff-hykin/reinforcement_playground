@@ -321,10 +321,10 @@ class ImageModelSequential(nn.Module):
                             batch_index * len(batch_of_inputs),
                             len(loader.dataset),
                             100.0 * batch_index / len(loader),
-                            loss.item(),
+                            loss,
                         )
                     )
-                    train_losses.append(loss.item())
+                    train_losses.append(loss)
                     # TODO: add/allow checkpoints
                     # import os
                     # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
@@ -371,14 +371,6 @@ class ImageModelSequential(nn.Module):
         # FIXME: implment
         pass
 
-def autoencodeify(dataset):
-    class AutoDataset(dataset):
-        def __init__(self, *args, **kwargs):
-            super(AutoDataset, self).__init__(*args, **kwargs)
-        
-        def __getitem__(self, index):
-            an_input, corrisponding_output = super(AutoDataset, self).__getitem__(index)
-            return an_input, an_input
 
 _image_log_count = 0
 def log_image(image_tensor):

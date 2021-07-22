@@ -429,7 +429,7 @@ class ImageAutoEncoder(ImageModelSequential):
 
 
 
-class SmartImageAutoEncoder(ImageAutoEncoder):
+class SplitAutoEncoder(ImageAutoEncoder):
     def __init__(self, **config):
         self.input_shape   = config.get("input_shape", (1, 28, 28))
         self.latent_shape  = config.get("latent_shape", (20,))
@@ -461,25 +461,27 @@ class SmartImageAutoEncoder(ImageAutoEncoder):
             self.task_network = nn.Sequential(
                 self.encoder,
                 nn.Linear(product(self.latent_shape), 2), # binary classification
+                nn.Sigmoid(),
             )
             
         self.decoder_loss_function = nn.MSELoss()
+        self.classifier_loss_function = nn.BCELoss()
         self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         # set the gradient values to zero before accumulating them
         self.zero_grad()
-        # loss #1
         batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+        # loss #1
         batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
         decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs)
         decoder_loss.backward()
         # loss #2 
-        batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+        # FIXME: figure out how to make this loss relatively more important (maybe scaling it would work?)
         batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
-        # FIXME: figure out how to make this loss more important
-        task_loss = self.loss_function(batch_of_classified_images, batch_of_inputs)
+        task_loss = self.classifier_loss_function(batch_of_classified_images, batch_of_ideal_outputs)
         task_loss.backward()
         
+        # call step after both losses have propogated backward
         self.optimizer.step()
-        return loss
+        return decoder_loss, task_loss
