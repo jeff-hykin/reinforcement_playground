@@ -6,40 +6,47 @@ from agents.informed_vae.wip import *
 # 
 b = SplitAutoEncoder()
 
-class AutoMnist(torchvision.datasets.MNIST):
-    def __init__(self, *args, **kwargs):
-        super(AutoMnist, self).__init__(*args, **kwargs)
-    
-    def __getitem__(self, index):
-        an_input, corrisponding_output = super(AutoMnist, self).__getitem__(index)
-        return an_input, corrisponding_output
+def binary_mnist(numbers):
+    class Dataset(torchvision.datasets.MNIST):
+        number_of_classes = 10
+        def __init__(self, *args, **kwargs):
+            super(Dataset, self).__init__(*args, **kwargs)
+        def __getitem__(self, index):
+            an_input, corrisponding_output = super(Dataset, self).__getitem__(index)
+            print('corrisponding_output = ', corrisponding_output)
+            if corrisponding_output in numbers:
+                weight = (self.number_of_classes - len(numbers))/self.number_of_classes
+                return an_input, [ weight, torch.tensor([1,0]) ]
+            else:
+                weight = len(numbers)/self.number_of_classes
+                return an_input, [ weight, torch.tensor([0,1]) ]
+    from tools.basics import temp_folder
+    options = dict(
+        root=f"{temp_folder}/files/",
+        train=True,
+        download=True,
+        transform=torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+            ]
+        ),
+    )
+    train_dataset = Dataset(**options)
+    test_dataset = Dataset(**{**options, "train":False})
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=64,
+        shuffle=True,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=1000,
+        shuffle=True,
+    )
+    return train_dataset, test_dataset, train_loader, test_loader
 
-from tools.basics import temp_folder
-
-options = dict(
-    root=f"{temp_folder}/files/",
-    train=True,
-    download=True,
-    transform=torchvision.transforms.Compose(
-        [
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-        ]
-    ),
-)
-train_dataset = AutoMnist(**options)
-test_dataset = AutoMnist(**{**options, "train":False})
-train_loader = torch.utils.data.DataLoader(
-    train_dataset,
-    batch_size=64,
-    shuffle=True,
-)
-test_loader = torch.utils.data.DataLoader(
-    test_dataset,
-    batch_size=1000,
-    shuffle=True,
-)
-
+train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
 # b.fit(loader=train_loader, number_of_epochs=3)
 
 
