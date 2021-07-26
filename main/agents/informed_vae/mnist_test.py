@@ -34,8 +34,9 @@ def binary_mnist(numbers):
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
-        sampler=ImbalancedDatasetSampler(test_dataset),
+        # sampler=ImbalancedDatasetSampler(test_dataset),
         batch_size=1000,
+        shuffle=True
     )
     return train_dataset, test_dataset, train_loader, test_loader
 
@@ -43,16 +44,36 @@ def binary_mnist(numbers):
 # 
 # auto encoder setup/test
 # 
-train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
-
 split = SplitAutoEncoder()
 classifier = ImageClassifier()
 
-split.fit(loader=train_loader, number_of_epochs=3)
-split.test(test_loader)
-
-classifier.fit(loader=train_loader, number_of_epochs=3)
-classifier.test(test_loader)
+results = []
+for each in [9,8,3]:
+    train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
+    # reset the task network part (last few layers)
+    split.task_network = nn.Sequential(
+        nn.Linear(product(split.latent_shape), 2), # binary classification
+        nn.Sigmoid(),
+    )
+    split.fit(loader=train_loader, number_of_epochs=3)
+    print('#')
+    print('# split')
+    print('#')
+    split_result = split.test(test_loader)
+    
+    
+    classifier.task_network = nn.Sequential(
+        nn.Linear(product(classifier.latent_shape), 2), # binary classification
+        nn.Sigmoid(),
+    )
+    classifier.fit(loader=train_loader, number_of_epochs=3)
+    print('#')
+    print('# classifier')
+    print('#')
+    classifier_result = classifier.test(test_loader)
+    
+    results.append([split_result, classifier_result])
+    
 # 
 # importance values
 # 
