@@ -41,14 +41,18 @@ def binary_mnist(numbers):
     return train_dataset, test_dataset, train_loader, test_loader
 
 
-# 
-# auto encoder setup/test
-# 
-split = SplitAutoEncoder()
-classifier = ImageClassifier()
+# TODO: cross validaion-ish split of data / test sets
 
+
+# randomize the torch seed
+from time import time as now
+torch.manual_seed(now())
+
+# 
+# 
+# 
 results = []
-for each in [9,8,3]:
+for each in [9,3,8]:
     train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
     # reset the task network part (last few layers)
     split.task_network = nn.Sequential(
@@ -72,7 +76,23 @@ for each in [9,8,3]:
     print('#')
     classifier_result = classifier.test(test_loader)
     
-    results.append([split_result, classifier_result])
+    new_classifier = ImageClassifier()
+    new_classifier.fit(loader=train_loader, number_of_epochs=3)
+    print('#')
+    print('# new_classifier')
+    print('#')
+    new_classifier_result = new_classifier.test(test_loader)
+    
+    results.append({
+        "split_train": [],
+        "split_test": [],
+        "classifier_train": [],
+        "classifier_test": [],
+        "new_classifier_train": [],
+        "new_classifier_test": [],
+    })
+        [split_result, classifier_result, new_classifier_result])
+    
     
 # 
 # importance values

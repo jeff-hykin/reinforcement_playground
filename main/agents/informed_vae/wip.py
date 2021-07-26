@@ -479,6 +479,7 @@ class SplitAutoEncoder(ImageAutoEncoder):
         self.learning_rate = config.get("learning_rate", 0.01)
         self.momentum      = config.get("momentum", 0.5)
         self.log_interval  = config.get("log_interval", 10)
+        self.decoding_important = config.get("decoding_important", 0)
         
         with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
             # 
@@ -516,12 +517,12 @@ class SplitAutoEncoder(ImageAutoEncoder):
         batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
         # loss #1
         batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
-        decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs)
+        decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs) * self.decoding_important
         decoder_loss.backward(retain_graph=True)
         # loss #2 
         # FIXME: figure out how to make this loss relatively more important (maybe a scalar would work?)
         batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
-        task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float))
+        task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float)) 
         task_loss.backward()
         
         # call step after both losses have propogated backward

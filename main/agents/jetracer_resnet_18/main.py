@@ -2,7 +2,7 @@ import torch
 import torchvision
 
 # local 
-from tools.defaults import *
+from tools.all_tools import *
 
 class Agent:
     def __init__(self, action_space=None, categories, **config):

@@ -1,5 +1,6 @@
 paths:
     cache_folder: ./settings/.cache
+    display_data: ./display_data.dont-sync
 
 parameters:
     environment: {}

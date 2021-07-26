@@ -3,6 +3,8 @@ import os
 import sys
 import math
 import json
+from time import time as now
+import time
 
 def reload():
     """

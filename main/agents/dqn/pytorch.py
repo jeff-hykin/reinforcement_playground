@@ -20,7 +20,7 @@ import torchvision.transforms as T
 # - variability in learning (rewards bouncing around)
 
 # local 
-from tools.defaults import PATHS, product, device, layer_output_shapes
+from tools.all_tools import PATHS, product, device, layer_output_shapes
 
 class Agent:
     def __init__(self, action_space=None, train=True, **config):

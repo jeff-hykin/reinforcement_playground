@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # local 
-from tools.defaults import PATHS
+from tools.all_tools import PATHS
 
 class Agent:
     def __init__(self, action_space=None, **config):

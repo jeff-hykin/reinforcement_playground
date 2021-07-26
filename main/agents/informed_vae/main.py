@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # local 
-from tools.defaults import PATHS
+from tools.all_tools import PATHS
 from tools.pytorch_tools import ImageModelSequential
 
 # 
@@ -154,7 +154,7 @@ class ImageEncoder(ImageModelSequential):
     '''
     examples:
         an_encoder = ImageEncoder()
-        from tools.defaults import *
+        from tools.all_tools import *
         # img is just a torch tensor
         img = read_image(mnist_dataset.path+"/img_0/data.jpg")
         an_encoder.forward(img)
@@ -234,11 +234,12 @@ class ImageEncoder(ImageModelSequential):
         
         from tools.pytorch_tools import batch_input_and_output
         batch_number = 0
+        losses = []
         for each_epoch in range(epochs):
             for batch_of_inputs, batch_of_ideal_outputs in batch_input_and_output(all_inputs, all_outputs, batch_size):
                 batch_number += 1
                 print('batch_number = ', batch_number)
-                self.update_weights(batch_of_inputs, batch_of_ideal_outputs, **update_options)
+                losses.append(self.update_weights(batch_of_inputs, batch_of_ideal_outputs, **update_options))
         
         return self
 
