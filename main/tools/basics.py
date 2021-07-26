@@ -211,11 +211,6 @@ def auto_cache(function, *args, **kwargs):
             print("running the function manually instead (failsafe)")
         return result
 
-def ensure_folder(path):
-    try:
-        os.makedirs(path)
-    except:
-        pass
         
 import os
 here = "os.path.dirname(__file__)"
