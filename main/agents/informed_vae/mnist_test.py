@@ -54,44 +54,30 @@ torch.manual_seed(now())
 results = []
 for each in [9,3,8]:
     train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
+    
     # reset the task network part (last few layers)
     split.task_network = nn.Sequential(
         nn.Linear(product(split.latent_shape), 2), # binary classification
         nn.Sigmoid(),
     )
-    split.fit(loader=train_loader, number_of_epochs=3)
-    print('#')
-    print('# split')
-    print('#')
-    split_result = split.test(test_loader)
     
-    
+    # reset the task network part (last few layers)
     classifier.task_network = nn.Sequential(
         nn.Linear(product(classifier.latent_shape), 2), # binary classification
         nn.Sigmoid(),
     )
-    classifier.fit(loader=train_loader, number_of_epochs=3)
-    print('#')
-    print('# classifier')
-    print('#')
-    classifier_result = classifier.test(test_loader)
     
-    new_classifier = ImageClassifier()
-    new_classifier.fit(loader=train_loader, number_of_epochs=3)
-    print('#')
-    print('# new_classifier')
-    print('#')
-    new_classifier_result = new_classifier.test(test_loader)
+    # create fresh classifier
+    fresh_classifier = ImageClassifier()
     
     results.append({
-        "split_train": [],
-        "split_test": [],
-        "classifier_train": [],
-        "classifier_test": [],
-        "new_classifier_train": [],
-        "new_classifier_test": [],
+        "split_train": split.fit(loader=train_loader, number_of_epochs=3),
+        "split_test": split.test(test_loader),
+        "classifier_train": classifier.fit(loader=train_loader, number_of_epochs=3),
+        "classifier_test": classifier.test(test_loader),
+        "fresh_classifier_train": fresh_classifier.fit(loader=train_loader, number_of_epochs=3),
+        "fresh_classifier_test": fresh_classifier.test(test_loader),
     })
-        [split_result, classifier_result, new_classifier_result])
     
     
 # 
