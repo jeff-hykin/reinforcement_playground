@@ -428,7 +428,6 @@ class ImageAutoEncoder(ImageModelSequential):
         return summed, shap_values
 
 
-
 class ImageClassifier(ImageAutoEncoder):
     def __init__(self, **config):
         self.input_shape   = config.get("input_shape", (1, 28, 28))
@@ -442,10 +441,10 @@ class ImageClassifier(ImageAutoEncoder):
             # 
             # encoder
             # 
-            self.encoder = ImageEncoder(
+            self.encoder       = config.get("encoder", ImageEncoder(
                 input_shape=self.input_shape,
                 output_shape=self.latent_shape,
-            )
+            ))
             self.layers.add_module("encoder", self.encoder)
             # 
             # task (classifier)
@@ -459,7 +458,18 @@ class ImageClassifier(ImageAutoEncoder):
         self.classifier_loss_function = self.loss_function = nn.BCELoss()
         self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
-
+    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+        # set the gradient values to zero before accumulating them
+        self.zero_grad()
+        batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+        batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
+        task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float))
+        task_loss.backward()
+        
+        # call step after both losses have propogated backward
+        self.optimizer.step()
+        return task_loss
+        
 class SplitAutoEncoder(ImageAutoEncoder):
     def __init__(self, **config):
         self.input_shape   = config.get("input_shape", (1, 28, 28))
@@ -474,10 +484,10 @@ class SplitAutoEncoder(ImageAutoEncoder):
             # 
             # encoder
             # 
-            self.encoder = ImageEncoder(
+            self.encoder       = config.get("encoder", ImageEncoder(
                 input_shape=self.input_shape,
                 output_shape=self.latent_shape,
-            )
+            ))
             self.layers.add_module("encoder", self.encoder)
             # 
             # task (classifier)
@@ -488,12 +498,13 @@ class SplitAutoEncoder(ImageAutoEncoder):
             )
             self.layers.add_module("task_network", self.task_network)
             # 
-            # decoder
+            # task (decoder)
             # 
-            self.decoder = ImageDecoder(
+            self.decoder       = config.get("decoder", ImageDecoder(
                 input_shape=self.latent_shape,
                 output_shape=self.decoded_shape,
-            )
+            ))
+            
             
         self.decoder_loss_function = nn.MSELoss()
         self.classifier_loss_function = self.loss_function = nn.BCELoss()

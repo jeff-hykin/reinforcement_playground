@@ -103,6 +103,15 @@ def to_tensor(an_object):
         
         return torch.stack(reshaped_list)    
             
+def onehot_argmax(tensor):
+    tensor = to_tensor(tensor)
+    the_max = max(each for each in tensor)
+    onehot_tensor = torch.zeros_like(tensor)
+    for each_index, each_value in enumerate(tensor):
+        if each_value == the_max:
+            onehot_tensor[each_index] = 1
+    return onehot_tensor
+
 def batch_input_and_output(inputs, outputs, batch_size):
     from tools.basics import bundle
     batches = zip(bundle(inputs, batch_size), bundle(outputs, batch_size))
@@ -334,6 +343,7 @@ class ImageModelSequential(nn.Module):
         return train_losses
     
     def test(self, test_loader):
+        from tools.basics import max_index
         # TODO: change this to use the full loss instead of exact equivlence
         test_losses = []
         self.eval()
@@ -342,9 +352,11 @@ class ImageModelSequential(nn.Module):
         with torch.no_grad():
             for batch_of_inputs, batch_of_ideal_outputs in test_loader:
                 actual_output = self.forward(batch_of_inputs)
-                test_loss += self.loss_function(actual_output, batch_of_ideal_outputs).item()
-                prediction = actual_output.data.max(1, keepdim=True)[1]
-                correct += prediction.eq(batch_of_ideal_outputs.data.view_as(prediction)).sum()
+                test_loss += self.loss_function(actual_output.type(torch.float), batch_of_ideal_outputs.type(torch.float)).item()
+                correct += sum(
+                    1 if max_index(each_output) == max_index(each_ideal_output) else 0
+                        for each_output, each_ideal_output in zip(actual_output, batch_of_ideal_outputs)
+                )
         test_loss /= len(test_loader.dataset)
         test_losses.append(test_loss)
         print(
@@ -355,6 +367,7 @@ class ImageModelSequential(nn.Module):
                 100.0 * correct / len(test_loader.dataset),
             )
         )
+        return correct
     
     def compute_gradients_for(self, input_batch, ideal_outputs_batch, loss_function=None, retain_graph=False):
         """
