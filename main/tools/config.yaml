@@ -1,6 +1,6 @@
 paths:
     cache_folder: ./settings/.cache
-    display_data: ./display_data.dont-sync
+    visualizer: ./main/tools/visualizer.js
 
 parameters:
     environment: {}
