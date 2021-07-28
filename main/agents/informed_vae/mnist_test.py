@@ -78,7 +78,7 @@ for each in [9,3,8]:
         "fresh_classifier_train": fresh_classifier.fit(loader=train_loader, number_of_epochs=3),
         "fresh_classifier_test": fresh_classifier.test(test_loader),
     })
-    
+
     
 # 
 # importance values
