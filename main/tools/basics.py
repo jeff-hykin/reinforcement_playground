@@ -72,20 +72,81 @@ def bundle(iterable, bundle_size):
     if len(next_bundle) > 0:
         yield tuple(next_bundle)
 
-def to_pure(an_object):
+
+def to_pure(an_object, recursion_help=None):
     from tools.basics import is_iterable
     
-    if hasattr(an_object, "tolist"):
-        return an_object.tolist()
-    
-    # if already a tensor, just return
-    if not is_iterable(an_object):
-        return an_object
-    else:
-        if isinstance(an_object, dict):
-            return { to_pure(each_key) : to_pure(each_value) for each_key, each_value in an_object.items() }
+    # 
+    # infinte recursion prevention
+    # 
+    top_level = False
+    if recursion_help is None:
+        top_level = True
+        recursion_help = {}
+    class PlaceHolder:
+        def __init__(self, id):
+            self.id = id
+        def eval():
+            return recursion_help[key]
+    object_id = id(an_object)
+    # if we've see this object before
+    if object_id in recursion_help:
+        # if this value is a placeholder, then it means we found a child that is equal to a parent (or equal to other ancestor/grandparent)
+        if isinstance(recursion_help[object_id], PlaceHolder):
+            return recursion_help[object_id]
         else:
-            return [ to_pure(each) for each in an_object ]
+            # if its not a placeholder, then we already have cached the output
+            return recursion_help[object_id]
+    # if we havent seen the object before, give it a placeholder while it is being computed
+    else:
+        recursion_help[object_id] = PlaceHolder(object_id)
+    
+    parents_of_placeholders = set()
+    
+    # 
+    # main compute
+    # 
+    return_value = None
+    # base case 1 (exists because of scalar numpy/pytorch/tensorflow objects)
+    if hasattr(an_object, "tolist"):
+        return_value = an_object.tolist()
+    else:
+        # base case 2
+        if not is_iterable(an_object):
+            return_value = an_object
+        else:
+            if isinstance(an_object, dict):
+                return_value = { to_pure(each_key, recursion_help) : to_pure(each_value, recursion_help) for each_key, each_value in an_object.items() }
+            else:
+                return_value = [ to_pure(each, recursion_help) for each in an_object ]
+    
+    # convert lists to tuples so they are hashable
+    if is_iterable(return_value) and not isinstance(return_value, dict):
+        return_value = tuple(return_value)
+        
+    # update the cache/log with the real value
+    recursion_help[object_id] = return_value
+    
+    #
+    # handle placeholders
+    #
+    if is_iterable(return_value):
+        # check if this value has any placeholder children
+        children = return_value if not isinstance(return_value, dict) else [ *return_value.keys(), *return_value.values() ]
+        for each in children:
+            if isinstance(each, PlaceHolder):
+                parents_of_placeholders.add(each)
+                break
+        # convert all the placeholders into their final values
+        if top_level == True:
+            for each_parent in parents_of_placeholders:
+                iterator = enumerate(each_parent) if not isinstance(each_parent, dict) else each_parent.items()
+                for each_key, each_value in iterator:
+                    if isinstance(each_parent[each_key], PlaceHolder):
+                        each_parent[each_key] = each_parent[each_key].eval()
+    
+    # finally return the value
+    return return_value
 
 
 
