@@ -73,6 +73,32 @@ def bundle(iterable, bundle_size):
         yield tuple(next_bundle)
 
 
+def recursively_map(an_object, function, is_key=False):
+    from tools.basics import is_iterable
+    
+    
+    # base case 1 (iterable but treated like a primitive)
+    if isinstance(an_object, str):
+        return_value = an_object
+    # base case 2 (exists because of scalar numpy/pytorch/tensorflow objects)
+    if hasattr(an_object, "tolist"):
+        return_value = an_object.tolist()
+    else:
+        # base case 3
+        if not is_iterable(an_object):
+            return_value = an_object
+        else:
+            if isinstance(an_object, dict):
+                return_value = { recursively_map(each_key, function, is_key=True) : recursively_map(each_value, function) for each_key, each_value in an_object.items() }
+            else:
+                return_value = [ recursively_map(each, function) for each in an_object ]
+    
+    # convert lists to tuples so they are hashable
+    if is_iterable(return_value) and not isinstance(return_value, dict) and not isinstance(return_value, str):
+        return_value = tuple(return_value)
+    
+    return function(return_value, is_key=is_key)
+
 def to_pure(an_object, recursion_help=None):
     from tools.basics import is_iterable
     
@@ -86,7 +112,7 @@ def to_pure(an_object, recursion_help=None):
     class PlaceHolder:
         def __init__(self, id):
             self.id = id
-        def eval():
+        def eval(self):
             return recursion_help[key]
     object_id = id(an_object)
     # if we've see this object before
@@ -107,26 +133,31 @@ def to_pure(an_object, recursion_help=None):
     # main compute
     # 
     return_value = None
-    # base case 1 (exists because of scalar numpy/pytorch/tensorflow objects)
-    if hasattr(an_object, "tolist"):
+    # base case 1 (iterable but treated like a primitive)
+    if isinstance(an_object, str):
+        return_value = an_object
+    # base case 2 (exists because of scalar numpy/pytorch/tensorflow objects)
+    elif hasattr(an_object, "tolist"):
         return_value = an_object.tolist()
     else:
-        # base case 2
+        # base case 3
         if not is_iterable(an_object):
             return_value = an_object
         else:
             if isinstance(an_object, dict):
-                return_value = { to_pure(each_key, recursion_help) : to_pure(each_value, recursion_help) for each_key, each_value in an_object.items() }
+                return_value = {
+                    to_pure(each_key, recursion_help) : to_pure(each_value, recursion_help)
+                        for each_key, each_value in an_object.items()
+                }
             else:
                 return_value = [ to_pure(each, recursion_help) for each in an_object ]
     
-    # convert lists to tuples so they are hashable
-    if is_iterable(return_value) and not isinstance(return_value, dict):
+    # convert iterables to tuples so they are hashable
+    if is_iterable(return_value) and not isinstance(return_value, dict) and not isinstance(return_value, str):
         return_value = tuple(return_value)
-        
+    
     # update the cache/log with the real value
     recursion_help[object_id] = return_value
-    
     #
     # handle placeholders
     #
@@ -135,7 +166,7 @@ def to_pure(an_object, recursion_help=None):
         children = return_value if not isinstance(return_value, dict) else [ *return_value.keys(), *return_value.values() ]
         for each in children:
             if isinstance(each, PlaceHolder):
-                parents_of_placeholders.add(each)
+                parents_of_placeholders.add(return_value)
                 break
         # convert all the placeholders into their final values
         if top_level == True:
@@ -144,10 +175,14 @@ def to_pure(an_object, recursion_help=None):
                 for each_key, each_value in iterator:
                     if isinstance(each_parent[each_key], PlaceHolder):
                         each_parent[each_key] = each_parent[each_key].eval()
+                    # if the key is a placeholder
+                    if isinstance(each_key, PlaceHolder):
+                        value = each_parent[each_key]
+                        del each_parent[each_key]
+                        each_parent[each_key.eval()] = value
     
     # finally return the value
     return return_value
-
 
 
 relative_path = lambda *filepath_peices : os.path.join(os.path.dirname(__file__), *filepath_peices)
