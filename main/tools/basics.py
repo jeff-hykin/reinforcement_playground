@@ -390,7 +390,7 @@ def auto_cache(function, *args, **kwargs):
         return function(*args, **kwargs)
     
     # make the folders for the cache
-    path_to_cache = relative_path("cache.nosync", f"{unique_hash}")
+    path_to_cache = relative_path("__pycache__", f"{unique_hash}")
     ensure_folder(os.path.dirname(path_to_cache))
 
     # if the cache (for these arguments) exists, then just load it
