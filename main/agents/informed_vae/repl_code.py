@@ -1,4 +1,5 @@
 from agents.informed_vae.wip import * 
+from tools.all_tools import *
 from tools.dataset_tools import binary_mnist
 
 __file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
@@ -8,47 +9,56 @@ from time import time as now; torch.manual_seed(now())
 # 
 # train and test
 # 
-results = []
-split = SplitAutoEncoder()
-classifier = ImageClassifier()
-for each in [9,3,8]:
-    train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
-    
-    # reset the task network part (last few layers)
-    split.task_network = nn.Sequential(
-        nn.Linear(product(split.latent_shape), 2), # binary classification
-        nn.Sigmoid(),
-    )
-    
-    # reset the task network part (last few layers)
-    classifier.task_network = nn.Sequential(
-        nn.Linear(product(classifier.latent_shape), 2), # binary classification
-        nn.Sigmoid(),
-    )
-    
-    # create fresh classifier
-    fresh_classifier = ImageClassifier()
-    
-    results.append({
-        "split_train": split.fit(loader=train_loader, number_of_epochs=3),
-        "split_test": split.test(test_loader),
-        "classifier_train": classifier.fit(loader=train_loader, number_of_epochs=3),
-        "classifier_test": classifier.test(test_loader),
-        "fresh_classifier_train": fresh_classifier.fit(loader=train_loader, number_of_epochs=3),
-        "fresh_classifier_test": fresh_classifier.test(test_loader),
-    })
+def compute(*args):
+    results = []
+    split = SplitAutoEncoder()
+    classifier = ImageClassifier()
+    classifier2 = ImageClassifier2()
+    for each in [9,3,8]:
+        train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
+        
+        # reset the task network part (last few layers)
+        split.task_network = nn.Sequential(
+            nn.Linear(product(split.latent_shape), 2), # binary classification
+            nn.Sigmoid(),
+        )
+        
+        # reset the task network part (last few layers)
+        classifier.task_network = nn.Sequential(
+            nn.Linear(product(classifier.latent_shape), 2), # binary classification
+            nn.Sigmoid(),
+        )
+        
+        # create fresh classifier
+        fresh_classifier = ImageClassifier()
+        
+        results.append({
+            "split_train": split.fit(loader=train_loader, number_of_epochs=3),
+            "split_test": split.test(test_loader),
+            "classifier_train": classifier.fit(loader=train_loader, number_of_epochs=3),
+            "classifier_test": classifier.test(test_loader),
+            "classifier2_train": classifier2.fit(loader=train_loader, number_of_epochs=3),
+            "classifier2_test": classifier2.test(test_loader),
+            "fresh_classifier_train": fresh_classifier.fit(loader=train_loader, number_of_epochs=3),
+            "fresh_classifier_test": fresh_classifier.test(test_loader),
+        })
+    return to_pure(results)
 
+results = auto_cache(compute, 0)
+for each in results:
+    split, classifier, classifier2, fresh_classifier = [ each["split_test"], each["classifier_test"], each["classifier2_test"], each["fresh_classifier_test"] ]
+    print(f"results: \t{split} \t{classifier} \t{classifier2} \t{fresh_classifier}")
 
-import json
-from os.path import join, dirname
-with open(join(dirname(__file__), 'data.json'), 'w') as outfile:
-    json.dump(to_pure(results), outfile)
+# import json
+# from os.path import join, dirname
+# with open(join(dirname(__file__), 'data.json'), 'w') as outfile:
+#     json.dump(to_pure(results), outfile)
 
-__file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
-import json
-from os.path import join, dirname
-with open(join(dirname(__file__), 'data.json'), 'r') as in_file:
-    results = json.load(in_file)
+# __file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
+# import json
+# from os.path import join, dirname
+# with open(join(dirname(__file__), 'data.json'), 'r') as in_file:
+#     results = json.load(in_file)
     
 for each_digit in results:
     pass

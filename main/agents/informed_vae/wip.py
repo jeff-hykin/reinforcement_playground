@@ -469,6 +469,48 @@ class ImageClassifier(ImageAutoEncoder):
         # call step after both losses have propogated backward
         self.optimizer.step()
         return task_loss
+
+class ImageClassifier2(ImageAutoEncoder):
+    def __init__(self, **config):
+        self.input_shape   = config.get("input_shape", (1, 28, 28))
+        self.latent_shape  = config.get("latent_shape", (20,))
+        self.output_shape  = config.get("output_shape", (2,))
+        self.learning_rate = config.get("learning_rate", 0.01)
+        self.momentum      = config.get("momentum", 0.5)
+        self.log_interval  = config.get("log_interval", 10)
+        
+        with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+            # 
+            # encoder
+            # 
+            self.encoder       = config.get("encoder", ImageEncoder(
+                input_shape=self.input_shape,
+                output_shape=self.latent_shape,
+            ))
+            self.layers.add_module("encoder", self.encoder)
+            # 
+            # task (classifier)
+            # 
+            self.task_network = nn.Sequential(
+                nn.Linear(product(self.latent_shape), 2), # binary classification
+                nn.Sigmoid(),
+            )
+            self.layers.add_module("task_network", self.task_network)
+            
+        self.classifier_loss_function = self.loss_function = nn.BCELoss()
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+    
+    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+        # set the gradient values to zero before accumulating them
+        self.zero_grad()
+        batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+        batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
+        task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float))
+        task_loss.backward()
+        
+        # call step after both losses have propogated backward
+        self.optimizer.step()
+        return task_loss
         
 class SplitAutoEncoder(ImageAutoEncoder):
     def __init__(self, **config):
@@ -501,10 +543,10 @@ class SplitAutoEncoder(ImageAutoEncoder):
             # 
             # task (decoder)
             # 
-            self.decoder       = config.get("decoder", ImageDecoder(
-                input_shape=self.latent_shape,
-                output_shape=self.decoded_shape,
-            ))
+            # self.decoder       = config.get("decoder", ImageDecoder(
+            #     input_shape=self.latent_shape,
+            #     output_shape=self.decoded_shape,
+            # ))
             
             
         self.decoder_loss_function = nn.MSELoss()
@@ -516,9 +558,9 @@ class SplitAutoEncoder(ImageAutoEncoder):
         self.zero_grad()
         batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
         # loss #1
-        batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
-        decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs) * self.decoding_importance
-        decoder_loss.backward(retain_graph=True)
+        # batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
+        # decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs) * self.decoding_importance
+        # decoder_loss.backward(retain_graph=True)
         # loss #2 
         # FIXME: figure out how to make this loss relatively more important (maybe a scalar would work?)
         batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
@@ -527,4 +569,4 @@ class SplitAutoEncoder(ImageAutoEncoder):
         
         # call step after both losses have propogated backward
         self.optimizer.step()
-        return decoder_loss, task_loss
+        return task_loss

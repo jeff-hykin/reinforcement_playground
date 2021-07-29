@@ -62,12 +62,18 @@ def list_module_names(system_only=False, installed_only=False):
     import os
     import sys
     import subprocess
-    # if pip modules are not included
+    
+    # 
+    # what paths to look at
+    # 
     paths = sys.path
     if system_only:
         paths = eval(subprocess.run([sys.executable, '-S', '-s', '-u', '-c', 'import sys;print(list(sys.path))'], capture_output=True, env={"PYTHONPATH": "","PYTHONHOME": "",}).stdout)
     else:
         paths = eval(subprocess.run([sys.executable, '-u', '-c', 'import sys;print(list(sys.path))'], capture_output=True, env={"PYTHONPATH": "","PYTHONHOME": "",}).stdout)
+    # 
+    # add all names
+    # 
     all_modules = set()
     for each_path in paths:
         if os.path.isdir(each_path):
@@ -310,6 +316,13 @@ def hash_decorator(hash_function):
     def make_hashable(value):
         type_of_value = type(value)
         output = None
+        
+        dataframe = None
+        try:
+            dataframe = pd.core.frame.DataFrame
+        except Exception as error:
+            pass
+        
         if type_of_value == str or type_of_value == frozenset:
             output = value
         elif type_of_value == set:
@@ -318,7 +331,7 @@ def hash_decorator(hash_function):
             sorted_iterable = list(value.items())
             sorted_iterable.sort()
             output = tuple([ make_hashable(each) for each in sorted_iterable ])
-        elif type_of_value == pd.core.frame.DataFrame:
+        elif type_of_value == dataframe and dataframe is not None:
             value_as_string = value.to_csv()
             output = hash(value_as_string)
         elif is_iterable(value):
@@ -353,16 +366,23 @@ def relative_path(*filepath_peices):
 
 # save loading times without brittle code
 def auto_cache(function, *args, **kwargs):
-    # from 
+    def ensure_folder(path):
+        try:
+            os.makedirs(path)
+        except:
+            pass
     # 
     # create hash for arguments
     # 
+    possible_error = None
     try:
         unique_hash = str(function.__name__)+"_"+str(hash(hash((args, kwargs))))
-    except:
+    except Exception as error:
+        possible_error = error
         unique_hash = None
     if type(unique_hash) != str:
         print(f"the arguments for {function.__name__} couldn't be auto cached")
+        possible_error and print('error was:', possible_error)
         print("It probably contains some value that python doesn't know how to hash")
         print('args = ', args)
         print('kwargs = ', kwargs)
@@ -392,6 +412,19 @@ def auto_cache(function, *args, **kwargs):
             print('kwargs = ', kwargs)
             print("running the function manually instead (failsafe)")
         return result
+
+
+original_print = print
+def print(*args, **kwargs):
+    from io import StringIO
+    string_stream = StringIO()
+    original_print(*args, **kwargs, file=string_stream)
+    output_str = string_stream.getvalue()
+    string_stream.close()
+    indent = (" "*print.indent)
+    output_str = indent + output_str.replace("\n", "\n"+indent)
+    return original_print(output_str, file=kwargs.get("file", sys.stdout), end="")
+print.indent = 0
 
 here = "os.path.dirname(__file__)"
 if os.environ.get('PROJECTR_FOLDER', None):
