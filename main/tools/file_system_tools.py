@@ -183,7 +183,7 @@ class FileSystem():
             mod = inspect.getmodule(frm[0])
             directory = os.path.dirname(mod.__file__)
         # if inside a repl (error =>) assume that the working directory is the path
-        except IndexError as error:
+        except AttributeError as error:
             directory = os.getcwd()
         
         return FileSystem.join(directory, *paths)
