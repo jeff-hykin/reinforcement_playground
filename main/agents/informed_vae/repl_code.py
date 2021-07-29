@@ -1,61 +1,9 @@
 from agents.informed_vae.wip import * 
+from tools.dataset_tools import binary_mnist
 
 __file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
-def binary_mnist(numbers):
-    import torchvision
-    class Dataset(torchvision.datasets.MNIST):
-        number_of_classes = 10
-        def __init__(self, *args, **kwargs):
-            super(Dataset, self).__init__(*args, **kwargs)
-        def __getitem__(self, index):
-            an_input, corrisponding_output = super(Dataset, self).__getitem__(index)
-            if corrisponding_output in numbers:
-                return an_input, torch.tensor([1,0])
-            else:
-                return an_input, torch.tensor([0,1])
-        
-    from tools.basics import temp_folder
-    options = dict(
-        root=f"{temp_folder}/files/",
-        train=True,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    )
-    from torchsampler import ImbalancedDatasetSampler
-    
-    # 1/6th of the data is for testing
-    dataset = Dataset(**options)
-    number_of_splits = 6
-    test_sections = 1
-    number_of_test_elements = int(test_sections * (len(dataset) / 6))
-    number_of_train_elements = len(dataset) - number_of_test_elements
-    train_dataset, test_dataset = torch.utils.data.random_split(Dataset(**options), [number_of_train_elements, number_of_test_elements])
-    # test_dataset = Dataset(**{**options, "train":False})
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        sampler=ImbalancedDatasetSampler(train_dataset, callback_get_label=lambda *args:range(len(train_dataset))),
-        batch_size=64,
-    )
-    test_loader = torch.utils.data.DataLoader(
-        test_dataset,
-        # sampler=ImbalancedDatasetSampler(test_dataset),
-        batch_size=1000,
-        shuffle=True
-    )
-    return train_dataset, test_dataset, train_loader, test_loader
-
-
-# TODO: cross validaion-ish split of data / test sets
-
-
 # randomize the torch seed
-from time import time as now
-torch.manual_seed(now())
+from time import time as now; torch.manual_seed(now())
 
 # 
 # train and test
