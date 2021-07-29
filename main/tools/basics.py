@@ -6,21 +6,6 @@ import json
 from time import time as now
 import time
 
-def reload():
-    """
-    reloads all imported modules
-    (for debugging)
-    """
-    import sys
-    import importlib
-    for module in sys.modules.values():
-        importlib.reload(module)
-
-def product(iterable):
-    from functools import reduce
-    import operator
-    return reduce(operator.mul, iterable, 1)
-
 def is_iterable(thing):
     # https://stackoverflow.com/questions/1952464/in-python-how-do-i-determine-if-an-object-is-iterable
     try:
@@ -33,6 +18,102 @@ def is_iterable(thing):
 def flatten(value):
     flattener = lambda *m: (i for n in m for i in (flattener(*n) if is_iterable(n) else (n,)))
     return list(flattener(value))
+
+def list_module_names(system_only=False, installed_only=False):
+    def item_is_python_module(item_name, parent_path):
+        import regex
+        import os
+        
+        if os.path.isdir(os.path.join(parent_path, item_name)):
+            # simple name of folder
+            result = regex.match(r"([a-zA-Z][a-zA-Z_0-9]*)$", item_name)
+            if result:
+                return result[1]
+            
+            # dist name
+            result = regex.match(r"([a-zA-Z][a-zA-Z_0-9]*)-\d+(\.\d+)*\.dist-info$", item_name)
+            if result:
+                return result[1]
+        # if file
+        else:
+            # regular python file
+            result = regex.match(r"([a-zA-Z_][a-zA-Z_0-9\-]*)\.py$", item_name)
+            if result:
+                return result[1]
+            
+            # cpython file
+            result = regex.match(r"([a-zA-Z_][a-zA-Z_0-9\-]*)\.cpython-.+\.(so|dll)$", item_name)
+            if result:
+                return result[1]
+            
+            # nspkg.pth file
+            result = regex.match(r"([a-zA-Z_][a-zA-Z_0-9\.\-]*)-\d+(\.\d+)*-.+-nspkg.pth$", item_name)
+            if result:
+                return result[1]
+            
+            # egg-link file
+            result = regex.match(r"([a-zA-Z_][a-zA-Z_0-9\.\-]*)\.egg-link$", item_name)
+            if result:
+                return result[1]
+            
+            
+        return False
+    
+    import os
+    import sys
+    import subprocess
+    # if pip modules are not included
+    paths = sys.path
+    if system_only:
+        paths = eval(subprocess.run([sys.executable, '-S', '-s', '-u', '-c', 'import sys;print(list(sys.path))'], capture_output=True, env={"PYTHONPATH": "","PYTHONHOME": "",}).stdout)
+    else:
+        paths = eval(subprocess.run([sys.executable, '-u', '-c', 'import sys;print(list(sys.path))'], capture_output=True, env={"PYTHONPATH": "","PYTHONHOME": "",}).stdout)
+    all_modules = set()
+    for each_path in paths:
+        if os.path.isdir(each_path):
+            files = os.listdir(each_path)
+            local_modules = [ item_is_python_module(each_file_name, each_path) for each_file_name in files ]
+            # filter out invalid ones
+            local_modules = set([ each for each in local_modules if each is not False ])
+            all_modules |= local_modules
+    # special module
+    all_modules.add('__main__')
+    return all_modules
+
+_system_module_names = None 
+def reload():
+    """
+    reloads all imported modules
+    (for debugging)
+    """
+    global _system_module_names
+    import sys
+    import importlib
+    if _system_module_names is None:
+        _system_module_names = list_module_names(system_only=True)
+    
+    modules_to_reload = set(sys.modules.keys()) - _system_module_names
+    for each_key in modules_to_reload:
+        # check for submodules
+        skip = False
+        for any_name in _system_module_names:
+            if each_key.startswith(any_name+"."):
+                skip = True
+                break
+        if skip:
+            continue
+        
+        each_module = sys.modules[each_key]
+        if each_key not in _system_module_names:
+            try:
+                importlib.reload(each_module)
+            except:
+                print("error reloading:", each_key)
+
+def product(iterable):
+    from functools import reduce
+    import operator
+    return reduce(operator.mul, iterable, 1)
 
 import collections.abc
 def merge(old_value, new_value):
@@ -184,9 +265,6 @@ def to_pure(an_object, recursion_help=None):
     # finally return the value
     return return_value
 
-
-relative_path = lambda *filepath_peices : os.path.join(os.path.dirname(__file__), *filepath_peices)
-
 def large_pickle_load(file_path):
     """
     This is for loading really big python objects from pickle files
@@ -261,15 +339,21 @@ def hash_decorator(hash_function):
             
     return wrapper
 
+# wrap the builtin hash function
+hash = hash_decorator(hash)
+
 def max_index(iterable):
     max_value = max(iterable)
     return to_pure(iterable).index(max_value)
 
-# wrap the builtin hash function
-hash = hash_decorator(hash)
+def relative_path(*filepath_peices):
+    # one-liner version:
+    # relative_path = lambda *filepath_peices : os.path.join(os.path.dirname(__file__), *filepath_peices)
+    return os.path.join(os.path.dirname(__file__), *filepath_peices)
 
 # save loading times without brittle code
 def auto_cache(function, *args, **kwargs):
+    # from 
     # 
     # create hash for arguments
     # 
@@ -309,8 +393,6 @@ def auto_cache(function, *args, **kwargs):
             print("running the function manually instead (failsafe)")
         return result
 
-        
-import os
 here = "os.path.dirname(__file__)"
 if os.environ.get('PROJECTR_FOLDER', None):
     temp_folder = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
