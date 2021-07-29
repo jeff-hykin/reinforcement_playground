@@ -9,13 +9,13 @@ import shutil
 
 
 # 
-# create a class for generate filesystem management
+# create a class for generate filesystemtem management
 # 
-class FileSys():
+class FileSystem():
     @classmethod
     def write(self, data, to=None):
         # make sure the path exists
-        FileSys.makedirs(os.path.dirname(to))
+        FileSystem.makedirs(os.path.dirname(to))
         with open(to, 'w') as the_file:
             the_file.write(str(data))
     
@@ -48,17 +48,17 @@ class FileSys():
     @classmethod
     def copy(self, from_=None, to=None, new_name="", force= True):
         if new_name == "":
-            raise Exception('FileSys.copy() needs a new_name= argument:\n    FileSys.copy(from_="location", to="directory", new_name="")\nif you want the name to be the same as before do new_name=None')
+            raise Exception('FileSystem.copy() needs a new_name= argument:\n    FileSystem.copy(from_="location", to="directory", new_name="")\nif you want the name to be the same as before do new_name=None')
         elif new_name is None:
             new_name = os.path.basename(from_)
         
         # get the full path
         to = os.path.join(to, new_name)
         # if theres a file in the target, delete it
-        if force and FileSys.exists(to):
-            FileSys.delete(to)
+        if force and FileSystem.exists(to):
+            FileSystem.delete(to)
         # make sure the containing folder exists
-        FileSys.makedirs(os.path.dirname(to))
+        FileSystem.makedirs(os.path.dirname(to))
         if os.path.isdir(from_):
             shutil.copytree(from_, to)
         else:
@@ -67,19 +67,19 @@ class FileSys():
     @classmethod
     def move(self, from_=None, to=None, new_name="", force= True):
         if new_name == "":
-            raise Exception('FileSys.move() needs a new_name= argument:\n    FileSys.move(from_="location", to="directory", new_name="")\nif you want the name to be the same as before do new_name=None')
+            raise Exception('FileSystem.move() needs a new_name= argument:\n    FileSystem.move(from_="location", to="directory", new_name="")\nif you want the name to be the same as before do new_name=None')
         elif new_name is None:
             new_name = os.path.basename(from_)
         
         # get the full path
         to = os.path.join(to, new_name)
         # make sure the containing folder exists
-        FileSys.makedirs(os.path.dirname(to))
+        FileSystem.makedirs(os.path.dirname(to))
         shutil.move(from_, to)
     
     @classmethod
     def exists(self, *args):
-        return FileSys.does_exist(*args)
+        return FileSystem.does_exist(*args)
     
     @classmethod
     def does_exist(self, path):
@@ -87,11 +87,11 @@ class FileSys():
     
     @classmethod
     def is_folder(self, *args):
-        return FileSys.is_directory(*args)
+        return FileSystem.is_directory(*args)
         
     @classmethod
     def is_dir(self, *args):
-        return FileSys.is_directory(*args)
+        return FileSystem.is_directory(*args)
         
     @classmethod
     def is_directory(self, path):
@@ -103,11 +103,11 @@ class FileSys():
 
     @classmethod
     def list_files(self, path="."):
-        return [ each for each in FileSys.ls(path) if FileSys.is_file(FileSys.join(path, each)) ]
+        return [ each for each in FileSystem.ls(path) if FileSystem.is_file(FileSystem.join(path, each)) ]
     
     @classmethod
     def list_folders(self, path="."):
-        return [ each for each in FileSys.ls(path) if FileSys.is_folder(FileSys.join(path, each)) ]
+        return [ each for each in FileSystem.ls(path) if FileSystem.is_folder(FileSystem.join(path, each)) ]
     
     @classmethod
     def ls(self, file_path="."):
@@ -118,13 +118,13 @@ class FileSys():
 
     @classmethod
     def touch(self, path):
-        FileSys.makedirs(FileSys.dirname(path))
-        if not FileSys.exists(path):
-            FileSys.write("", to=path)
+        FileSystem.makedirs(FileSystem.dirname(path))
+        if not FileSystem.exists(path):
+            FileSystem.write("", to=path)
     
     @classmethod
     def touch_dir(self, path):
-        FileSys.makedirs(path)
+        FileSystem.makedirs(path)
     
     @classmethod
     def dirname(self, path):
@@ -143,7 +143,7 @@ class FileSys():
     def path_pieces(self, path):
         """
         example:
-            *folders, file_name, file_extension = FileSys.path_pieces("/this/is/a/file_path.txt")
+            *folders, file_name, file_extension = FileSystem.path_pieces("/this/is/a/file_path.txt")
         """
         folders = []
         while 1:
@@ -173,4 +173,19 @@ class FileSys():
     def pwd(self):
         return os.getcwd()
 
-FS = FileSys
+    @classmethod
+    def local_path(*paths):
+        import os
+        import inspect
+        # https://stackoverflow.com/questions/28021472/get-relative-path-of-caller-in-python
+        try:
+            frm = inspect.stack()[1]
+            mod = inspect.getmodule(frm[0])
+            directory = os.path.dirname(mod.__file__)
+        # if inside a repl (error =>) assume that the working directory is the path
+        except IndexError as error:
+            directory = os.getcwd()
+        
+        return FileSystem.join(directory, *paths)
+
+FS = FileSystem
