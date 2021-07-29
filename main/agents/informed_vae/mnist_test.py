@@ -1,6 +1,8 @@
 from agents.informed_vae.wip import * 
 
+__file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
 def binary_mnist(numbers):
+    import torchvision
     class Dataset(torchvision.datasets.MNIST):
         number_of_classes = 10
         def __init__(self, *args, **kwargs):
@@ -11,7 +13,7 @@ def binary_mnist(numbers):
                 return an_input, torch.tensor([1,0])
             else:
                 return an_input, torch.tensor([0,1])
-    
+        
     from tools.basics import temp_folder
     options = dict(
         root=f"{temp_folder}/files/",
@@ -25,11 +27,18 @@ def binary_mnist(numbers):
         ),
     )
     from torchsampler import ImbalancedDatasetSampler
-    train_dataset = Dataset(**options)
-    test_dataset = Dataset(**{**options, "train":False})
+    
+    # 1/6th of the data is for testing
+    dataset = Dataset(**options)
+    number_of_splits = 6
+    test_sections = 1
+    number_of_test_elements = int(test_sections * (len(dataset) / 6))
+    number_of_train_elements = len(dataset) - number_of_test_elements
+    train_dataset, test_dataset = torch.utils.data.random_split(Dataset(**options), [number_of_train_elements, number_of_test_elements])
+    # test_dataset = Dataset(**{**options, "train":False})
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        sampler=ImbalancedDatasetSampler(train_dataset),
+        sampler=ImbalancedDatasetSampler(train_dataset, callback_get_label=lambda *args:range(len(train_dataset))),
         batch_size=64,
     )
     test_loader = torch.utils.data.DataLoader(
@@ -49,9 +58,11 @@ from time import time as now
 torch.manual_seed(now())
 
 # 
-# 
+# train and test
 # 
 results = []
+split = SplitAutoEncoder()
+classifier = ImageClassifier()
 for each in [9,3,8]:
     train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
     
@@ -79,7 +90,59 @@ for each in [9,3,8]:
         "fresh_classifier_test": fresh_classifier.test(test_loader),
     })
 
+
+import json
+from os.path import join, dirname
+with open(join(dirname(__file__), 'data.json'), 'w') as outfile:
+    json.dump(to_pure(results), outfile)
+
+__file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
+import json
+from os.path import join, dirname
+with open(join(dirname(__file__), 'data.json'), 'r') as in_file:
+    results = json.load(in_file)
     
+for each_digit in results:
+    pass
+each_digit = results[0]
+import silver_spectacle as ss
+ss.display("chartjs", {
+    "type": 'line',
+    "data": {
+        "datasets": [
+            {
+                "label": ['split_train'],
+                "data": [ sum(each) for each in each_digit['split_train']],
+                "fill": True,
+                "tension": 0.1,
+                "borderColor": 'rgb(75, 192, 192)',
+            },
+            {
+                "label": 'classifier_train',
+                "data": each_digit['classifier_train'],
+                "fill": True,
+                "tension": 0.1,
+                "borderColor": 'rgb(0, 292, 192)',
+            },
+            {
+                "label": 'fresh_classifier_train',
+                "data": each_digit['fresh_classifier_train'],
+                "fill": True,
+                "tension": 0.1,
+                "borderColor": 'rgb(0, 92, 192)',
+            },
+        ]
+    },
+    "options": {
+        "pointRadius": 3,
+        "scales": {
+            "y": {
+                "min": 0,
+                "max": 0.5,
+            }
+        }
+    }
+})
 # 
 # importance values
 # 

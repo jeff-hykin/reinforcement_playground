@@ -24,6 +24,8 @@ matplotlib = "^3.4.2"
 gdown = "^3.13.0"
 torchsampler = { git = "https://github.com/jeff-hykin/imbalanced-dataset-sampler", tag = "1.0.0" }
 Flask = "^2.0.1"
+optuna = "^2.8.0"
+silver-spectacle = "0.1.7"
 
 [tool.poetry.dev-dependencies]
 
