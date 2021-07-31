@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+realpath "$*" --relative-to="$PROJECTR_FOLDER" --canonicalize-missing --no-symlinks

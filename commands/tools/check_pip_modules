@@ -4,9 +4,9 @@
 if [ -z "$PROJECTR_FOLDER" ]
 then
     # check if file exists (standard project vars)
-    if [ -f "$PWD/settings/project.config.sh" ]
+    if [ -f "$PWD/settings/projectr_core" ]
     then
-        source "$PWD/settings/project.config.sh"
+        source "$PWD/settings/projectr_core"
     fi
     # check if file exists (custom project settings)
     if [ -f "$PWD/settings/setup_manually/main.sh" ]

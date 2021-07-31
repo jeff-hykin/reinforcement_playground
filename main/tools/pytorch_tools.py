@@ -344,6 +344,7 @@ class ImageModelSequential(nn.Module):
     
     def test(self, test_loader):
         from tools.basics import max_index
+        from tools.pytorch_tools import onehot_argmax
         # TODO: change this to use the full loss instead of exact equivlence
         test_losses = []
         self.eval()
@@ -354,8 +355,8 @@ class ImageModelSequential(nn.Module):
                 actual_output = self.forward(batch_of_inputs)
                 test_loss += self.loss_function(actual_output.type(torch.float), batch_of_ideal_outputs.type(torch.float)).item()
                 correct += sum(
-                    1 if max_index(each_output) == max_index(each_ideal_output) else 0
-                        for each_output, each_ideal_output in zip(actual_output, batch_of_ideal_outputs)
+                    1 if torch.equal(onehot_argmax(each_output).float(), onehot_argmax(each_ideal_output).float()) else 0
+                        for each_output, each_ideal_output in zip(actual_output.float(), batch_of_ideal_outputs.float())
                 )
         test_loss /= len(test_loader.dataset)
         test_losses.append(test_loss)

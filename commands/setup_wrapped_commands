@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+# 
+# find projectr
+# 
+path_to_file=""
+file_name="settings/projectr_core"
+folder_to_look_in="$PWD"
+while :
+do
+    # check if file exists
+    if [ -f "$folder_to_look_in/$file_name" ]
+    then
+        path_to_file="$folder_to_look_in/$file_name"
+        break
+    else
+        if [ "$folder_to_look_in" = "/" ]
+        then
+            break
+        else
+            folder_to_look_in="$(dirname "$folder_to_look_in")"
+        fi
+    fi
+done
+if [ -z "$path_to_file" ]
+then
+    #
+    # what to do if file never found
+    #
+    echo "Im a script running with a pwd of:$PWD"
+    echo "Im looking for settings/projectr_core in a parent folder"
+    echo "Im exiting now because I wasnt able to find it"
+    echo "thats all the information I have"
+    exit
+fi
+__projectr_folder="$(dirname "$(dirname "$path_to_file")")"
+
+# 
+# add it to the path
+# 
+mkdir -p "$__projectr_folder/wrapped_commands"
+export PATH="$__projectr_folder/wrapped_commands:$PATH"
+
+# 
+# make sure they're executable
+# 
+
+# this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+for_each_item_in="$__projectr_folder/wrapped_commands"
+[ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap 'rm -rf "$__temp_var__temp_folder"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; (find -L "$for_each_item_in" ! -path . -print0 2>/dev/null | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'\0' each
+do
+    # if its a file, make it executable
+    if [[ -f "$each" ]]; then
+        chmod ugo+x "$each" &>/dev/null || sudo chmod ugo+x "$each"
+    fi
+done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"

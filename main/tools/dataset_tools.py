@@ -143,12 +143,13 @@ def binary_mnist(numbers):
         train_dataset,
         sampler=ImbalancedDatasetSampler(train_dataset, callback_get_label=lambda *args:range(len(train_dataset))),
         batch_size=64,
+        # shuffle=True,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         # sampler=ImbalancedDatasetSampler(test_dataset),
         batch_size=1000,
-        shuffle=True
+        shuffle=True,
     )
     return train_dataset, test_dataset, train_loader, test_loader
 

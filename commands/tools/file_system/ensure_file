@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+__temp_var__filename="$*"
+
+mkdir -p "$(dirname "$__temp_var__filename")"
+touch "$__temp_var__filename"
+
+unset __temp_var__filename

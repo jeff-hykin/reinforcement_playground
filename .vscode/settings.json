@@ -6,4 +6,6 @@
         "modules/**/*": true,
         "resources/**/*": true,
     },
+    "python.pythonPath": "wrapped_commands/python3",
+    "jupyter.jupyterServerType": "remote",
 }

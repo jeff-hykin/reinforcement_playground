@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+if [ -n "$PROJECTR_FOLDER" ]
+then
+    __escaped_projectr_folder="$(printf '%s' "$PROJECTR_FOLDER" | sed 's/[][\.|$(){}?+*^]/\&/g')"
+fi
+
+if [ -f "$1" ]
+then
+    rm -fv "$1" | sed 's/'"$__escaped_projectr_folder"'/./g'
+else
+    rm -rfv "$1" | sed 's/'"$__escaped_projectr_folder"'/./g'
+fi

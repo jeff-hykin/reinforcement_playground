@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+# ensure executable for a single file
+__temp_var__ensure_executable_file () {
+    # if sudo exists
+    if [ -n "$(command -v "sudo")" ]
+    then
+        # ensure its executable
+        chmod ugo+x "$1" 2>/dev/null || sudo chmod ugo+x "$1"
+    else
+        chmod ugo+x "$1"
+    fi
+}
+
+# 
+# if input is a file
+# 
+if [ -f "$1" ]
+then
+    # just call the function once
+    __temp_var__ensure_executable_file "$1"
+# 
+# if its a directory
+# 
+elif [ -d "$1" ]
+then
+    # call for every file
+    find "$1" ! -path . -print0 2>/dev/null | sort -z | while read -d "$(printf '\0')" each
+    do
+        # check if file
+        if [ -f "$each" ]
+        then
+            __temp_var__ensure_executable_file "$each"
+        fi
+    done
+    
+fi
+
+
+unalias __temp_var__ensure_executable_file 2>/dev/null
+unset -f __temp_var__ensure_executable_file 2>/dev/null

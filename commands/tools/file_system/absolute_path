@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+{
+    __temp_var__parent_folder="$(dirname "$1")"
+    
+    if ! [ -d "$__temp_var__parent_folder" ]
+    then
+        echo "Cannot get the absolute path for: $1" 1>&2
+        echo "Because the parent folder: $__temp_var__parent_folder doesnt exist" 1>&2
+        echo "(Note: in the future absolute_path might be able to work for non-existant paths)" 1>&2
+        # TODO: improve this so it also works for paths that don't exist
+    else
+        echo "$(builtin cd "$__temp_var__parent_folder"; pwd)/$(basename "$1")"
+    fi
+    unset __temp_var__parent_folder
+}

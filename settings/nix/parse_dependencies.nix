@@ -232,8 +232,8 @@
                 buildInputs = buildInputs;
                 nativeBuildInputs = nativeBuildInputs;
                 protectHomeShellCode = ''
-                    # FIXME: have this search for the project.config.sh instead of assuming it is relative to $PWD
-                    source "$PWD/settings/project.config.sh"
+                    # FIXME: have this search for the projectr_core instead of assuming it is relative to $PWD
+                    source "$PWD/settings/projectr_core"
                     
                     # ensure that the folder exists
                     mkdir -p "$(dirname "$__PROJECTR_NIX_PATH_EXPORT_FILE")"

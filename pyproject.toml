@@ -26,6 +26,8 @@ torchsampler = { git = "https://github.com/jeff-hykin/imbalanced-dataset-sampler
 Flask = "^2.0.1"
 optuna = "^2.8.0"
 silver-spectacle = "0.1.7"
+ipykernel = "^6.0.3"
+notebook = "^6.4.0"
 
 [tool.poetry.dev-dependencies]
 
