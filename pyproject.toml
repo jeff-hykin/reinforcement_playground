@@ -28,6 +28,7 @@ optuna = "^2.8.0"
 silver-spectacle = "0.1.7"
 ipykernel = "^6.0.3"
 notebook = "^6.4.0"
+ipywidgets = "^7.6.3"
 
 [tool.poetry.dev-dependencies]
 
