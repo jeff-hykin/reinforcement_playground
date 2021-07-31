@@ -4,6 +4,14 @@
 if True:
     from tools.basics import *
     import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    import torch.optim as optim
+    import torchvision
+    from tools.file_system_tools import FS
+    from torchvision import transforms
+    import torch.nn.functional as F
+    from torch.optim.optimizer import Optimizer, required
     # randomize the torch seed
     from time import time as now
     right_now = now()
@@ -584,29 +592,705 @@ if True:
         )
         return train_dataset, test_dataset, train_loader, test_loader
 
+#%% 
+# informed_vae/main.py
+# 
+if True:
+    # 
+    # ImageEncoder
+    # 
+    class ImageEncoder(ImageModelSequential):
+        '''
+        examples:
+            an_encoder = ImageEncoder()
+            from tools.all_tools import *
+            # img is just a torch tensor
+            img = read_image(mnist_dataset.path+"/img_0/data.jpg")
+            an_encoder.forward(img)
+        notes:
+            an external network is going to be the one updating the gradients
+            traditionally it would be the decoder, figuring out the best way to decode
+            however it can also be the core_agent, figuring out what features would help with its decision process
+            Ideally it will be both those things combined, or something more advanced
+        '''
+        def __init__(self, input_shape=(1, 28, 28), latent_shape=(10,), loss_function=None, **config):
+            # this statement is a helper from ImageModelSequential
+            with self.setup(input_shape=input_shape, output_shape=latent_shape, loss_function=loss_function):
+                # gives us access to
+                #     self.print()
+                #     self.input_feature_count
+                #     self.output_feature_count
+                #     self.layers
+                #     self.loss()
+                #     self.gradients
+                #     self.update_gradients()  # using self.loss
+                
+                # 
+                # Layers
+                # 
+                self.layers.add_module("layer1", nn.Linear(self.size_of_last_layer, int(self.input_feature_count/2)))
+                self.layers.add_module("layer1_activation", nn.ReLU())
+                self.layers.add_module("layer2", nn.Linear(self.size_of_last_layer, 64))
+                self.layers.add_module("layer2_activation", nn.ReLU())
+                self.layers.add_module("layer3", nn.Linear(self.size_of_last_layer, self.output_feature_count))
+                self.layers.add_module("layer3_activation", nn.Sigmoid())
+                
+                # default to squared error loss
+                def loss_function(input_batch, ideal_output_batch):
+                    actual_output_batch = self.forward(input_batch).to(self.device)
+                    ideal_output_batch = ideal_output_batch.to(self.device)
+                    return torch.mean((actual_output_batch - ideal_output_batch)**2)
+                    
+                self.loss_function = loss_function
+        
+        def update_weights(self, input_batch, ideal_outputs_batch, **config):
+            # 
+            # data used inside the update
+            # 
+            step_size = config.get("step_size", 0.000001)
+            gradients = self.compute_gradients_for(
+                input_batch=input_batch,
+                ideal_outputs_batch=ideal_outputs_batch,
+                loss_function=self.loss_function
+            )
+            
+            # 
+            # the actual update
+            # 
+            # turn off gradient tracking because things are about to be updated
+            with torch.no_grad():
+                for gradients, each_layer in zip(gradients, self.weighted_layers):
+                    weight_gradient, bias_gradient = gradients
+                    
+                    print('each_layer.weight = ', each_layer.weight)
+                    print('step_size * weight_gradient = ', step_size * weight_gradient)
+                    each_layer.weight += step_size * weight_gradient
+                    each_layer.bias   += step_size * bias_gradient
+            
+            
+            # turn gradient-tracking back on
+            for each in self.layers:
+                each.requires_grad = True
+        
+        def fit(self, input_output_pairs, **config):
+            batch_size     = config.get("batch_size"   , 32)
+            epochs         = config.get("epochs"       , 10)
+            update_options = config.get("update_options", {}) # step_size can be in here
+            
+            # convert so that input_batch is a single tensor and output_batch is a single tensor
+            all_inputs  = (each for each, _ in input_output_pairs)
+            all_outputs = (each for _   , each in input_output_pairs)
+            
+            from tools.pytorch_tools import batch_input_and_output
+            batch_number = 0
+            losses = []
+            for each_epoch in range(epochs):
+                for batch_of_inputs, batch_of_ideal_outputs in batch_input_and_output(all_inputs, all_outputs, batch_size):
+                    batch_number += 1
+                    print('batch_number = ', batch_number)
+                    losses.append(self.update_weights(batch_of_inputs, batch_of_ideal_outputs, **update_options))
+            
+            return self
+
+    from tools.dataset_tools import mnist_dataset
+    def test_encoder():
+        from tools.dataset_tools import mnist_dataset
+        from tools.pytorch_tools import read_image
+        
+        # 
+        # forward pass
+        # 
+        dummy_encoder = ImageEncoder()
+        # grab the first Mnist image
+        img = read_image(mnist_dataset.path+"/img_0/data.jpg")
+        encoded_output = dummy_encoder.forward(img)
+        print('encoded_output = ', encoded_output)
+        
+        # 
+        # training
+        # 
+        return dummy_encoder.fit(
+            # mnist_dataset is an iterable with each element being an input output pair
+            input_output_pairs=mnist_dataset,
+        )
+
+#%% 
+# informed_vae/wip.py
+# 
+if True:
+    class SGD(Optimizer):
+        r"""Implements stochastic gradient descent (optionally with momentum).
+
+        Args:
+            params (iterable): iterable of parameters to optimize or dicts defining
+                parameter groups
+            lr (float): learning rate
+            momentum (float, optional): momentum factor (default: 0)
+            weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+            dampening (float, optional): dampening for momentum (default: 0)
+
+        Example:
+            >>> optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+            >>> optimizer.zero_grad()
+            >>> loss_fn(model(input), target).backward()
+            >>> optimizer.step()
+
+        __ http://www.cs.toronto.edu/%7Ehinton/absps/momentum.pdf
+
+        .. note::
+            The implementation of SGD with Momentum subtly differs from
+            Sutskever et. al. and implementations in some other frameworks.
+
+            Considering the specific case of Momentum, the update can be written as
+
+            .. math::
+                \begin{aligned}
+                    v_{t+1} & = \mu * v_{t} + g_{t+1}, \\
+                    p_{t+1} & = p_{t} - \text{lr} * v_{t+1},
+                \end{aligned}
+
+            where :math:`p`, :math:`g`, :math:`v` and :math:`\mu` denote the
+            parameters, gradient, velocity, and momentum respectively.
+
+            This is in contrast to Sutskever et. al. and
+            other frameworks which employ an update of the form
+
+            .. math::
+                \begin{aligned}
+                    v_{t+1} & = \mu * v_{t} + \text{lr} * g_{t+1}, \\
+                    p_{t+1} & = p_{t} - v_{t+1}.
+                \end{aligned}
+
+        """
+
+        @classmethod
+        def sgd(
+            cls,
+            parameters,
+            gradients,
+            momentum_buffer_list,
+            *,
+            weight_decay: float,
+            momentum: float,
+            lr: float,
+            dampening: float,
+        ):
+            r"""
+            Functional API that performs SGD algorithm computation.
+            See :class:`~torch.optim.SGD` for details.
+            """
+            for index, parameters in enumerate(parameters):
+
+                gradient = gradients[index]
+                if weight_decay != 0:
+                    gradient = gradient.add(parameters, alpha=weight_decay)
+
+                if momentum != 0:
+                    buffer = momentum_buffer_list[index]
+
+                    if buffer is None:
+                        buffer = torch.clone(gradient).detach()
+                        momentum_buffer_list[index] = buffer
+                    else:
+                        buffer.mul_(momentum).add_(gradient, alpha=1 - dampening)
+
+                    gradient = buffer
+
+                parameters.add_(gradient, alpha=-lr)
+        
+        def __init__(self, model_parameters, lr=required, momentum=0, dampening=0, weight_decay=0):
+            if lr is not required and lr < 0.0:
+                raise ValueError("Invalid learning rate: {}".format(lr))
+            if momentum < 0.0:
+                raise ValueError("Invalid momentum value: {}".format(momentum))
+            if weight_decay < 0.0:
+                raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
+
+            defaults = dict(lr=lr, momentum=momentum, dampening=dampening, weight_decay=weight_decay)
+            super(SGD, self).__init__(model_parameters, defaults)
+
+        def __setstate__(self, state):
+            super(SGD, self).__setstate__(state)
+
+        @torch.no_grad()
+        def step(self, closure=None):
+            """Performs a single optimization step.
+
+            Args:
+                closure (callable, optional): A closure that reevaluates the model
+                    and returns the loss.
+            """
+            loss = None
+            if closure is not None:
+                with torch.enable_grad():
+                    loss = closure()
+
+            for group in self.param_groups:
+                params_with_grad = []
+                gradients = []
+                momentum_buffer_list = []
+                weight_decay = group['weight_decay']
+                momentum     = group['momentum']
+                dampening    = group['dampening']
+                lr           = group['lr']
+
+                for parameter in group['params']:
+                    if parameter.grad is not None:
+                        params_with_grad.append(parameter)
+                        gradients.append(parameter.grad)
+
+                        state = self.state[parameter]
+                        if 'momentum_buffer' not in state:
+                            momentum_buffer_list.append(None)
+                        else:
+                            momentum_buffer_list.append(state['momentum_buffer'])
+                
+                self.sgd(
+                    params_with_grad,
+                    gradients,
+                    momentum_buffer_list,
+                    weight_decay=weight_decay,
+                    momentum=momentum,
+                    lr=lr,
+                    dampening=dampening,
+                )
+
+                # update momentum_buffers in state
+                for p, momentum_buffer in zip(params_with_grad, momentum_buffer_list):
+                    state = self.state[p]
+                    state['momentum_buffer'] = momentum_buffer
+
+            return loss
+
+    class ImageEncoder(ImageModelSequential):
+        def __init__(self, **config):
+            self.input_shape   = config.get("input_shape", (1, 28, 28))
+            self.output_shape  = config.get("output_shape", (10,))
+            self.learning_rate = config.get("learning_rate", 0.01)
+            self.momentum      = config.get("momentum", 0.5)
+            self.log_interval  = config.get("log_interval", 10)
+            
+            with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+                self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
+                self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
+                self.layers.add_module("conv1_activation", nn.ReLU())
+                
+                self.layers.add_module("conv2", nn.Conv2d(10, 20, kernel_size=5))
+                self.layers.add_module("conv2_dropout", nn.Dropout2d())
+                self.layers.add_module("conv2_pool", nn.MaxPool2d(2))
+                self.layers.add_module("conv2_activation", nn.ReLU())
+                
+                self.layers.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
+                self.layers.add_module("fc1", nn.Linear(self.size_of_last_layer, 50))
+                self.layers.add_module("fc1_activation", nn.ReLU())
+                self.layers.add_module("fc1_dropout", nn.Dropout2d())
+                
+                self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
+                self.layers.add_module("fc2_activation", nn.LogSoftmax(dim=-1))
+            
+            def NLLLoss(batch_of_actual_outputs, batch_of_ideal_outputs):
+                output = batch_of_actual_outputs[range(len(batch_of_ideal_outputs)), batch_of_ideal_outputs]
+                return -output.sum()/len(output)
+            
+            self.loss_function = NLLLoss
+            self.optimizer = SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        
+        def train_and_test_on_mnist(self):
+            from tools.basics import temp_folder
+            # 
+            # training dataset
+            # 
+            train_loader = torch.utils.data.DataLoader(
+                autoencodeify(torchvision.datasets.MNIST)(
+                    f"{temp_folder}/files/",
+                    train=True,
+                    download=True,
+                    transform=torchvision.transforms.Compose(
+                        [
+                            torchvision.transforms.ToTensor(),
+                            torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                        ]
+                    ),
+                ),
+                batch_size=64,
+                shuffle=True,
+            )
+
+            # 
+            # testing dataset
+            # 
+            test_loader = torch.utils.data.DataLoader(
+                torchvision.datasets.MNIST(
+                    f"{temp_folder}/files/",
+                    train=False,
+                    download=True,
+                    transform=torchvision.transforms.Compose(
+                        [
+                            torchvision.transforms.ToTensor(),
+                            torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                        ]
+                    ),
+                ),
+                batch_size=1000,
+                shuffle=True,
+            )
+            
+            self.test(test_loader)
+            self.fit(loader=train_loader, number_of_epochs=3)
+            self.test(test_loader)
+            
+            return self
+            
+        
+    class ImageDecoder(ImageModelSequential):
+        def __init__(self, **config):
+            self.input_shape   = config.get("input_shape", (10,))
+            self.output_shape  = config.get("output_shape", (1, 28, 28))
+            self.learning_rate = config.get("learning_rate", 0.01)
+            self.momentum      = config.get("momentum", 0.5)
+            self.log_interval  = config.get("log_interval", 10)
+            
+            with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+                self.layers.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
+                self.layers.add_module("fn1_activation", nn.ReLU(True))
+                
+                self.layers.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
+                self.layers.add_module("fn2_activation", nn.ReLU(True))
+                
+                conv1_shape = [ 10, 20, 20 ] # needs to mupltiply together to be the size of the previous layer (currently 4000)
+                conv2_size = 10
+                self.layers.add_module("conv1_prep", nn.Unflatten(1, conv1_shape))
+                self.layers.add_module("conv1", nn.ConvTranspose2d(conv1_shape[0], conv2_size, kernel_size=5))
+                self.layers.add_module("conv2", nn.ConvTranspose2d(conv2_size, 1, kernel_size=5))
+                self.layers.add_module("conv2_activation", nn.Sigmoid())
+            
+                self.loss_function = nn.MSELoss()
+                self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        
+    class ImageAutoEncoder(ImageModelSequential):
+        def __init__(self, **config):
+            self.input_shape   = config.get("input_shape", (1, 28, 28))
+            self.latent_shape  = config.get("latent_shape", (10,))
+            self.output_shape  = config.get("output_shape", (1, 28, 28))
+            self.learning_rate = config.get("learning_rate", 0.01)
+            self.momentum      = config.get("momentum", 0.5)
+            self.log_interval  = config.get("log_interval", 10)
+            
+            with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+                # 
+                # encoder
+                # 
+                self.encoder = ImageEncoder(
+                    input_shape=self.input_shape,
+                    output_shape=self.latent_shape,
+                )
+                self.layers.add_module("encoder", self.encoder)
+                # 
+                # decoder
+                # 
+                self.decoder = ImageDecoder(
+                    input_shape=self.latent_shape,
+                    output_shape=self.output_shape,
+                )
+                self.layers.add_module("decoder", self.decoder)
+                
+            self.loss_function = nn.MSELoss()
+            self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        
+        def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+            self.optimizer.zero_grad()
+            batch_of_actual_outputs = self.forward(batch_of_inputs)
+            loss = self.loss_function(batch_of_actual_outputs, batch_of_inputs)
+            loss.backward()
+            self.optimizer.step()
+            return loss
+        
+        # TODO: test(self) needs to be changed, but its a bit difficult to make it useful
+        
+        def train_and_test_on_mnist(self):
+            # 
+            # modify Mnist so that the input and output are both the image
+            # 
+            from tools.basics import temp_folder
+            train_loader = torch.utils.data.DataLoader(
+                autoencodeify(torchvision.datasets.MNIST)(
+                    f"{temp_folder}/files/",
+                    train=True,
+                    download=True,
+                    transform=torchvision.transforms.Compose(
+                        [
+                            torchvision.transforms.ToTensor(),
+                            torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                        ]
+                    ),
+                ),
+                batch_size=64,
+                shuffle=True,
+            )
+            test_loader = torch.utils.data.DataLoader(
+                torchvision.datasets.MNIST(
+                    f"{temp_folder}/files/",
+                    train=False,
+                    download=True,
+                    transform=torchvision.transforms.Compose(
+                        [
+                            torchvision.transforms.ToTensor(),
+                            torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                        ]
+                    ),
+                ),
+                batch_size=1000,
+                shuffle=True,
+            )
+            
+            # FIXME: add a testing method (probably related to confusion_matrix) for auto-encoder
+            # self.test(test_loader)
+            # TODO: autoencodeify the train loader inside the fit function
+            self.fit(loader=train_loader, number_of_epochs=3)
+            # self.test(test_loader)
+            
+        
+        def generate_confusion_matrix(self, test_loader):
+            from tools.basics import product
+            number_of_outputs = product(self.latent_shape)
+            confusion_matrix = torch.zeros(number_of_outputs, number_of_outputs)
+            test_losses = []
+            test_loss = 0
+            correct = 0
+            
+            self.eval()
+            with torch.no_grad():
+                for batch_of_inputs, batch_of_ideal_outputs in test_loader:
+                    latent_space_activation_batch = self.encoder.forward(batch_of_inputs)
+                    for each_activation_space, each_ideal_output in zip(latent_space_activation_batch, batch_of_ideal_outputs):
+                        # which index was chosen
+                        predicted_index = numpy.argmax(each_activation_space)
+                        actual_index    = numpy.argmax(each_ideal_output)
+                        confusion_matrix[actual_index][predicted_index] += 1
+            
+            return confusion_matrix
+        
+        def importance_identification(self, train_dataset, test_dataset, training_size=10, testing_size=1):
+            """
+            Outputs:
+                importance_values, shap_values
+                
+                the shap_values
+                    is A list
+                    The length of list is the size of the model's output (one element per output parameter)
+                    Every element in the list is a numpy array
+                    Every element has the shape of the model's input
+                    A value of 0 means no correlation
+                    negative values means negatively correlated (similar for positive values)
+                
+                the importance values
+                    is a numpy array
+                    The shape is the same shape as the input for the model
+                    The values are the relative importance of each latent parameter
+                    All values are positive
+                    Larger values = more important
+            """
+            import shap
+            
+            # TODO: improve me, these values are converted to and from numpy values basically as a means of copying to shead information such as gradient tracking info
+            # note: the inputs are all encoded because we're trying to explain the latent/encoded space
+            latent_spaces_for_training  = to_tensor( torch.from_numpy(b.encoder(train_dataset[index][0]).cpu().detach().numpy()) for index in range(len(train_dataset)) if index < training_size)
+            latent_spaces_for_testing   = to_tensor( torch.from_numpy(b.encoder(test_dataset[index][0] ).cpu().detach().numpy()) for index in range(len(test_dataset )) if index < testing_size)
+            
+            # DeepExplainer needs the output to be flat for some reason
+            # use only the decoder explains the latent space instead of going back to the image
+            model = nn.Sequential(
+                self.decoder,
+                nn.Flatten(),
+            )
+            explainer = shap.DeepExplainer(model, latent_spaces_for_training)
+            shap_values = explainer.shap_values(latent_spaces_for_testing)
+            
+            import numpy
+            import functools
+            # sum these up elementwise
+            summed = numpy.squeeze(functools.reduce(
+                lambda each_new, existing: numpy.add(each_new, existing),
+                # take the absolute value because we just want impactful values, not just neg/pos correlated ones
+                numpy.abs(shap_values),
+                numpy.zeros_like(shap_values[0]),
+            ))
+            return summed, shap_values
 
 
+    class ImageClassifier(ImageAutoEncoder):
+        def __init__(self, **config):
+            self.input_shape   = config.get("input_shape", (1, 28, 28))
+            self.latent_shape  = config.get("latent_shape", (20,))
+            self.output_shape  = config.get("output_shape", (2,))
+            self.learning_rate = config.get("learning_rate", 0.01)
+            self.momentum      = config.get("momentum", 0.5)
+            self.log_interval  = config.get("log_interval", 10)
+            
+            with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+                # 
+                # encoder
+                # 
+                self.encoder       = config.get("encoder", ImageEncoder(
+                    input_shape=self.input_shape,
+                    output_shape=self.latent_shape,
+                ))
+                self.layers.add_module("encoder", self.encoder)
+                # 
+                # task (classifier)
+                # 
+                self.task_network = nn.Sequential(
+                    nn.Linear(product(self.latent_shape), 2), # binary classification
+                    nn.Sigmoid(),
+                )
+                self.layers.add_module("task_network", self.task_network)
+                
+            self.classifier_loss_function = self.loss_function = nn.BCELoss()
+            self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        
+        def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+            # set the gradient values to zero before accumulating them
+            self.zero_grad()
+            batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+            batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
+            task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float))
+            task_loss.backward()
+            
+            # call step after both losses have propogated backward
+            self.optimizer.step()
+            return task_loss
+
+    class ImageClassifier2(ImageAutoEncoder):
+        def __init__(self, **config):
+            self.input_shape         = config.get("input_shape"        , (1 , 28, 28))
+            self.latent_shape        = config.get("latent_shape"       , (20, ))
+            self.output_shape        = config.get("output_shape"       , (2 , ))
+            self.decoded_shape       = config.get("decoded_shape"      , (1 , 28, 28))
+            self.learning_rate       = config.get("learning_rate"      , 0.01)
+            self.momentum            = config.get("momentum"           , 0.5)
+            self.log_interval        = config.get("log_interval"       , 10)
+            self.decoding_importance = config.get("decoding_importance", 0)
+            
+            with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+                # 
+                # encoder
+                # 
+                self.encoder       = config.get("encoder", ImageEncoder(
+                    input_shape=self.input_shape,
+                    output_shape=self.latent_shape,
+                ))
+                self.layers.add_module("encoder", self.encoder)
+                # 
+                # task (classifier)
+                # 
+                self.task_network = nn.Sequential(
+                    nn.Linear(product(self.latent_shape), 2), # binary classification
+                    nn.Sigmoid(),
+                )
+                self.layers.add_module("task_network", self.task_network)
+                # 
+                # task (decoder)
+                # 
+                # self.decoder       = config.get("decoder", ImageDecoder(
+                #     input_shape=self.latent_shape,
+                #     output_shape=self.decoded_shape,
+                # ))
+                
+                
+            self.decoder_loss_function = nn.MSELoss()
+            self.classifier_loss_function = self.loss_function = nn.BCELoss()
+            self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        
+        def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+            # set the gradient values to zero before accumulating them
+            self.zero_grad()
+            batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+            # loss #1
+            # batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
+            # decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs) * self.decoding_importance
+            # decoder_loss.backward(retain_graph=True)
+            # loss #2 
+            # FIXME: figure out how to make this loss relatively more important (maybe a scalar would work?)
+            batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
+            task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float)) 
+            task_loss.backward()
+            
+            # call step after both losses have propogated backward
+            self.optimizer.step()
+            return task_loss
+            
+    class SplitAutoEncoder(ImageAutoEncoder):
+        def __init__(self, **config):
+            self.input_shape   = config.get("input_shape", (1, 28, 28))
+            self.latent_shape  = config.get("latent_shape", (20,))
+            self.output_shape  = config.get("output_shape", (2,))
+            self.decoded_shape = config.get("decoded_shape", (1, 28, 28))
+            self.learning_rate = config.get("learning_rate", 0.01)
+            self.momentum      = config.get("momentum", 0.5)
+            self.log_interval  = config.get("log_interval", 10)
+            self.decoding_importance = config.get("decoding_importance", 1)
+            
+            with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
+                # 
+                # encoder
+                # 
+                self.encoder       = config.get("encoder", ImageEncoder(
+                    input_shape=self.input_shape,
+                    output_shape=self.latent_shape,
+                ))
+                self.layers.add_module("encoder", self.encoder)
+                # 
+                # task (classifier)
+                # 
+                self.task_network = nn.Sequential(
+                    nn.Linear(product(self.latent_shape), 2), # binary classification
+                    nn.Sigmoid(),
+                )
+                self.layers.add_module("task_network", self.task_network)
+                # 
+                # task (decoder)
+                # 
+                # self.decoder       = config.get("decoder", ImageDecoder(
+                #     input_shape=self.latent_shape,
+                #     output_shape=self.decoded_shape,
+                # ))
+                
+                
+            self.decoder_loss_function = nn.MSELoss()
+            self.classifier_loss_function = self.loss_function = nn.BCELoss()
+            self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        
+        def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+            # set the gradient values to zero before accumulating them
+            self.zero_grad()
+            batch_of_latent_vectors = self.encoder.forward(batch_of_inputs)
+            # loss #1
+            # batch_of_decoded_images = self.decoder.forward(batch_of_latent_vectors)
+            # decoder_loss = self.decoder_loss_function(batch_of_decoded_images, batch_of_inputs) * self.decoding_importance
+            # decoder_loss.backward(retain_graph=True)
+            # loss #2 
+            # FIXME: figure out how to make this loss relatively more important (maybe a scalar would work?)
+            batch_of_classified_images = self.task_network.forward(batch_of_latent_vectors)
+            task_loss = self.classifier_loss_function(batch_of_classified_images.type(torch.float), batch_of_ideal_outputs.type(torch.float)) 
+            task_loss.backward()
+            
+            # call step after both losses have propogated backward
+            self.optimizer.step()
+            return task_loss    
         
 #%% 
 if True:
     __file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
     
-
-
-#%% --
-
-
+#%% 
+# test_split_network
 # 
-# train and test
-# 
-_split = None
-_classifier = None
-_classifier2 = None
-def compute(*args):
-    results = []
-    global _split
-    global _classifier
-    global _classifier2
+if True:
+
+
+    # 
+    # train and test
+    # 
     split = SplitAutoEncoder()
     classifier = ImageClassifier()
     classifier2 = ImageClassifier2()
@@ -659,100 +1343,92 @@ def compute(*args):
         
         # save
         results.append(result)
-    # make data available externally
-    _split = split
-    _classifier = classifier
-    _classifier2     = classifier2
+
     for each_iter in results:
         result_string = "results: "
         for each_key, each_network_result in each_iter.items():
             if "test" in each_key:
                 result_string += f'({each_key.replace("test", "")}: {each_network_result})  '
         print(result_string)
+
+    # TOOD:
+    #    no forgetting / not overspealized, regularizaitons possibly compare to dropout, improved transfer learning
+    #    interesting/promising results
+    #    get pseduocode -- very high level little bit of flexibility, but make sure they're confident they can implement it
+
+    # import json
+    # from os.path import join, dirname
+    # with open(join(dirname(__file__), 'data.json'), 'w') as outfile:
+    #     json.dump(to_pure(results), outfile)
+
+    # __file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
+    # import json
+    # from os.path import join, dirname
+    # with open(join(dirname(__file__), 'data.json'), 'r') as in_file:
+    #     results = json.load(in_file)
         
-    return to_pure(results)
-
-results = auto_cache(compute, "manualTest10")
-
-
-# TOOD:
-#    no forgetting / not overspealized, regularizaitons possibly compare to dropout, improved transfer learning
-#    interesting/promising results
-#    get pseduocode -- very high level little bit of flexibility, but make sure they're confident they can implement it
-
-# import json
-# from os.path import join, dirname
-# with open(join(dirname(__file__), 'data.json'), 'w') as outfile:
-#     json.dump(to_pure(results), outfile)
-
-# __file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
-# import json
-# from os.path import join, dirname
-# with open(join(dirname(__file__), 'data.json'), 'r') as in_file:
-#     results = json.load(in_file)
-    
-for each_digit in results:
-    pass
-each_digit = results[0]
-import silver_spectacle as ss
-ss.display("chartjs", {
-    "type": 'line',
-    "data": {
-        "datasets": [
-            {
-                "label": 'split_train',
-                "data": [ sum(each) for each in each_digit['split_train']],
-                "fill": True,
-                "tension": 0.1,
-                "borderColor": 'rgb(75, 192, 192)',
-            },
-            {
-                "label": 'classifier_train',
-                "data": each_digit['classifier_train'],
-                "fill": True,
-                "tension": 0.1,
-                "borderColor": 'rgb(0, 292, 192)',
-            },
-            {
-                "label": 'fresh_classifier_train',
-                "data": each_digit['fresh_classifier_train'],
-                "fill": True,
-                "tension": 0.1,
-                "borderColor": 'rgb(0, 92, 192)',
-            },
-        ]
-    },
-    "options": {
-        "pointRadius": 3,
-        "scales": {
-            "y": {
-                "min": 0,
-                "max": 0.5,
+    for each_digit in results:
+        pass
+    each_digit = results[0]
+    import silver_spectacle as ss
+    ss.display("chartjs", {
+        "type": 'line',
+        "data": {
+            "datasets": [
+                {
+                    "label": 'split_train',
+                    "data": [ sum(each) for each in each_digit['split_train']],
+                    "fill": True,
+                    "tension": 0.1,
+                    "borderColor": 'rgb(75, 192, 192)',
+                },
+                {
+                    "label": 'classifier_train',
+                    "data": each_digit['classifier_train'],
+                    "fill": True,
+                    "tension": 0.1,
+                    "borderColor": 'rgb(0, 292, 192)',
+                },
+                {
+                    "label": 'fresh_classifier_train',
+                    "data": each_digit['fresh_classifier_train'],
+                    "fill": True,
+                    "tension": 0.1,
+                    "borderColor": 'rgb(0, 92, 192)',
+                },
+            ]
+        },
+        "options": {
+            "pointRadius": 3,
+            "scales": {
+                "y": {
+                    "min": 0,
+                    "max": 0.5,
+                }
             }
         }
-    }
-})
-# 
-# importance values
-# 
-# latent_spaces_for_training  = to_tensor( torch.from_numpy(b.encoder(train_dataset[index][0]).cpu().detach().numpy()) for index in range(len(train_dataset)) if index < 10)
-# latent_spaces_for_testing   = to_tensor( torch.from_numpy(b.encoder(test_dataset[index][0]).cpu().detach().numpy()) for index in range(len(test_dataset)) if index < 1)
+    })
+    # 
+    # importance values
+    # 
+    # latent_spaces_for_training  = to_tensor( torch.from_numpy(b.encoder(train_dataset[index][0]).cpu().detach().numpy()) for index in range(len(train_dataset)) if index < 10)
+    # latent_spaces_for_testing   = to_tensor( torch.from_numpy(b.encoder(test_dataset[index][0]).cpu().detach().numpy()) for index in range(len(test_dataset)) if index < 1)
 
-# import shap
+    # import shap
 
-# model = nn.Sequential(b.decoder, nn.Flatten())
-# explainer = shap.DeepExplainer(model, latent_spaces_for_training)
-# shap_values = explainer.shap_values(latent_spaces_for_testing)
+    # model = nn.Sequential(b.decoder, nn.Flatten())
+    # explainer = shap.DeepExplainer(model, latent_spaces_for_training)
+    # shap_values = explainer.shap_values(latent_spaces_for_testing)
 
 
-# import numpy
-# import functools
-# # sum these up elementwise
-# summed = numpy.squeeze(functools.reduce(
-#     lambda each_new, existing: numpy.add(each_new, existing),
-#     # take the absolute value because we just want impactful values, not just neg/pos correlated ones
-#     numpy.abs(shap_values),
-#     numpy.zeros_like(shap_values[0]),
-# ))
+    # import numpy
+    # import functools
+    # # sum these up elementwise
+    # summed = numpy.squeeze(functools.reduce(
+    #     lambda each_new, existing: numpy.add(each_new, existing),
+    #     # take the absolute value because we just want impactful values, not just neg/pos correlated ones
+    #     numpy.abs(shap_values),
+    #     numpy.zeros_like(shap_values[0]),
+    # ))
 
-# print('summed = ', summed)
+    # print('summed = ', summed)
