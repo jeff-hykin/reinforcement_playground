@@ -555,7 +555,7 @@ if True:
                     return an_input, torch.tensor([1,0])
                 else:
                     return an_input, torch.tensor([0,1])
-            
+
         from tools.basics import temp_folder
         options = dict(
             root=f"{temp_folder}/files/",
@@ -569,7 +569,7 @@ if True:
             ),
         )
         from torchsampler import ImbalancedDatasetSampler
-        
+
         # 1/6th of the data is for testing
         dataset = Dataset(**options)
         number_of_splits = 6
@@ -577,18 +577,30 @@ if True:
         number_of_test_elements = int(test_sections * (len(dataset) / 6))
         number_of_train_elements = len(dataset) - number_of_test_elements
         train_dataset, test_dataset = torch.utils.data.random_split(Dataset(**options), [number_of_train_elements, number_of_test_elements])
+
+
+        # get_label = lambda index: to_pure(train_dataset[index][1]) == (1, 0)
+        from collections import Counter
+        total_number_of_samples = len(train_dataset)
+        class_counts = dict(Counter(tuple(each_output.tolist()) for each_input, each_output in train_dataset))
+        class_weights = { each_class_key: total_number_of_samples/each_value for each_class_key, each_value in class_counts.items() }
+        weights = [ class_weights[tuple(each_output.tolist())] for each_input, each_output in train_dataset ]
+        sampler = torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights), int(total_number_of_samples))
+
         # test_dataset = Dataset(**{**options, "train":False})
         train_loader = torch.utils.data.DataLoader(
             train_dataset,
-            sampler=ImbalancedDatasetSampler(train_dataset, callback_get_label=lambda *args:range(len(train_dataset))),
+            sampler=sampler,
+            # ImbalancedDatasetSampler(train_dataset, callback_get_label=lambda *args:range(len(train_dataset))),
             batch_size=64,
             # shuffle=True,
         )
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
+            # sampler=ImbalancedDatasetSampler(test_dataset, callback_get_label=lambda *args:range(len(test_dataset))),
             # sampler=ImbalancedDatasetSampler(test_dataset),
             batch_size=1000,
-            shuffle=True,
+            # shuffle=True,
         )
         return train_dataset, test_dataset, train_loader, test_loader
 
@@ -1281,6 +1293,7 @@ if True:
 #%% 
 if True:
     __file__ = '/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/mnist_test.py'
+
     
 #%% 
 # test_split_network
@@ -1294,6 +1307,7 @@ if True:
     split = SplitAutoEncoder()
     classifier = ImageClassifier()
     classifier2 = ImageClassifier2()
+    results = []
     for each in [9]:
         result = {}
         
@@ -1350,7 +1364,21 @@ if True:
             if "test" in each_key:
                 result_string += f'({each_key.replace("test", "")}: {each_network_result})  '
         print(result_string)
+#%% 
+# sample network output
+# 
+if True:
+    network = classifier2
+    for each_index in range(100):
+        input_data, correct_output = train_dataset[each_index]
+        # train_dataset, test_dataset, train_loader, test_loader
+        guess = [ round(each, ndigits=3) for each in to_pure(network.forward(input_data))]
+        actual = to_pure(correct_output)
+        print(f"guess: {guess},\t actual: {actual}")
 
+#%% 
+if True:
+    
     # TOOD:
     #    no forgetting / not overspealized, regularizaitons possibly compare to dropout, improved transfer learning
     #    interesting/promising results
@@ -1432,3 +1460,5 @@ if True:
     # ))
 
     # print('summed = ', summed)
+
+# %%
