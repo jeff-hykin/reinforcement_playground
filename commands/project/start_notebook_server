@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-ipython notebook --no-browser
+jupyter notebook --no-browser

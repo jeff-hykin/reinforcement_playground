@@ -127,7 +127,7 @@ if True:
                 missing_dimensions_tuple = (1,)*number_of_missing_dimensions
                 reshaped_list.append(torch.reshape(each, (*missing_dimensions_tuple, *shape)))
             
-            return torch.stack(reshaped_list)    
+            return torch.stack(reshaped_list).type(torch.float)
                 
     def onehot_argmax(tensor):
         tensor = to_tensor(tensor)
@@ -394,6 +394,7 @@ if True:
                     100.0 * correct / len(test_loader.dataset),
                 )
             )
+            self.test_losses = test_losses
             return correct
         
         def compute_gradients_for(self, input_batch, ideal_outputs_batch, loss_function=None, retain_graph=False):
@@ -579,7 +580,6 @@ if True:
         train_dataset, test_dataset = torch.utils.data.random_split(Dataset(**options), [number_of_train_elements, number_of_test_elements])
 
 
-        # get_label = lambda index: to_pure(train_dataset[index][1]) == (1, 0)
         from collections import Counter
         total_number_of_samples = len(train_dataset)
         class_counts = dict(Counter(tuple(each_output.tolist()) for each_input, each_output in train_dataset))
@@ -873,7 +873,8 @@ if True:
                     state['momentum_buffer'] = momentum_buffer
 
             return loss
-
+    
+    SGD = torch.optim.SGD
     class ImageEncoder(ImageModelSequential):
         def __init__(self, **config):
             self.input_shape   = config.get("input_shape", (1, 28, 28))
@@ -1153,11 +1154,13 @@ if True:
                 # 
                 self.task_network = nn.Sequential(
                     nn.Linear(product(self.latent_shape), 2), # binary classification
-                    nn.Sigmoid(),
+                    # nn.Sigmoid(),
                 )
                 self.layers.add_module("task_network", self.task_network)
-                
-            self.classifier_loss_function = self.loss_function = nn.BCELoss()
+            
+            binary_cross_entropy_loss = nn.BCELoss()
+            # absolute value of cross entropy loss
+            self.classifier_loss_function = self.loss_function = nn.MSELoss() # lambda *args: torch.abs(binary_cross_entropy_loss(*args))
             self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
         def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
@@ -1197,7 +1200,7 @@ if True:
                 # 
                 self.task_network = nn.Sequential(
                     nn.Linear(product(self.latent_shape), 2), # binary classification
-                    nn.Sigmoid(),
+                    # nn.Sigmoid(),
                 )
                 self.layers.add_module("task_network", self.task_network)
                 # 
@@ -1210,7 +1213,9 @@ if True:
                 
                 
             self.decoder_loss_function = nn.MSELoss()
-            self.classifier_loss_function = self.loss_function = nn.BCELoss()
+            # absolute value of cross entropy loss
+            binary_cross_entropy_loss = nn.BCELoss()
+            self.classifier_loss_function = self.loss_function = nn.MSELoss() # lambda *args: torch.abs(binary_cross_entropy_loss(*args))
             self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
         def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
@@ -1256,7 +1261,7 @@ if True:
                 # 
                 self.task_network = nn.Sequential(
                     nn.Linear(product(self.latent_shape), 2), # binary classification
-                    nn.Sigmoid(),
+                    # nn.Sigmoid(),
                 )
                 self.layers.add_module("task_network", self.task_network)
                 # 
@@ -1269,7 +1274,7 @@ if True:
                 
                 
             self.decoder_loss_function = nn.MSELoss()
-            self.classifier_loss_function = self.loss_function = nn.BCELoss()
+            self.classifier_loss_function = self.loss_function = nn.MSELoss() # nn.BCELoss()
             self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
         def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
@@ -1373,9 +1378,12 @@ if True:
     for each_index in range(100):
         input_data, correct_output = train_dataset[each_index]
         # train_dataset, test_dataset, train_loader, test_loader
-        guess = [ round(each, ndigits=3) for each in to_pure(network.forward(input_data))]
+        guess = [ round(each, ndigits=0) for each in to_pure(network.forward(to_tensor([ input_data for each in range(64)]).to(torch.device('cuda:0')) ))[0] ]
         actual = to_pure(correct_output)
-        print(f"guess: {guess},\t actual: {actual}")
+        index = max_index(guess)
+        # loss = network.loss_function(to_tensor(guess).type(torch.float), to_tensor(actual).type(torch.float))
+        # print(f"guess: {guess},\t  index: {index},\t actual: {actual}, loss {loss}")
+        print(f"guess: {guess},\t  index: {index},\t actual: {actual}")
 
 #%% 
 if True:
@@ -1436,12 +1444,8 @@ if True:
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
         model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
-            for ind, y_val in enumerate(target):
-                target[ind] = 0 if y_val < 5 else 1
-            data, target = data.to(device), target.to(device)
+            data, target = data.to(device), torch.tensor([ max_index(each) for each in target ]).to(device)
             optimizer.zero_grad()
-            print('data.shape = ', data.shape)
-            return
             output = model(data)
 
             # nll_loss = negative log likelihood loss
@@ -1462,9 +1466,7 @@ if True:
         correct = 0
         with torch.no_grad():
             for data, target in test_loader:
-                for ind, y_val in enumerate(target):
-                    target[ind] = 0 if y_val < 5 else 1
-                data, target = data.to(device), target.to(device)
+                data, target = data.to(device), torch.tensor([ max_index(each) for each in target ]).to(device)
                 output = model(data)
                 test_loss += F.nll_loss(output, target, reduction='sum').item() # sum up batch loss
                 pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
@@ -1536,7 +1538,7 @@ if True:
     torch.manual_seed(args.seed)
     model = SamNet().to(device)
     # model = AlexNet().to(device)
-
+    train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, epoch)
         test(args, model, device, test_loader)
