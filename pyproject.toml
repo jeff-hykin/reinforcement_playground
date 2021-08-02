@@ -29,6 +29,7 @@ silver-spectacle = "0.1.7"
 ipykernel = "^6.0.3"
 notebook = "^6.4.0"
 ipywidgets = "^7.6.3"
+simple-namespace = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 

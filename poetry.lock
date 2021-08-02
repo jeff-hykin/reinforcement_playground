@@ -1251,6 +1251,14 @@ python-socketio = ">=5.3.0"
 requests = ">=2.26.0"
 
 [[package]]
+name = "simple-namespace"
+version = "1.0.0"
+description = "Organize code better with namespaces"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -1498,7 +1506,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "30698e50cb9a4c98e081633efe8b182135f3776a6d225090dc718510da151481"
+content-hash = "d6dbf5a15369d43ee2eb8bb1ab7a3ba45edaf51c251e2a3fd7991400e3ed30b4"
 
 [metadata.files]
 aiohttp = [
@@ -2548,6 +2556,10 @@ send2trash = [
 silver-spectacle = [
     {file = "silver_spectacle-0.1.7-py3-none-any.whl", hash = "sha256:434fa8510a8843b1ca2ddfd18956aa66ae1c11a947d1a1af1edc2c2eef20ad18"},
     {file = "silver_spectacle-0.1.7.tar.gz", hash = "sha256:1b96d99f8b3cb4d30a74d836235bde840bc38a78fb5b1162b3c438b3c8cc03fd"},
+]
+simple-namespace = [
+    {file = "simple_namespace-1.0.0-py3-none-any.whl", hash = "sha256:abbcb832ee44a6fbf4c0fa654388ad90d11297ab71b9d3d7bc4e2e882e57173f"},
+    {file = "simple_namespace-1.0.0.tar.gz", hash = "sha256:e7e2ff6900b9809822623674fc1e45b46f1188ee3fde46330c381500420f8e9e"},
 ]
 six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},

@@ -11,6 +11,7 @@ import sys
 import numpy as np
 import gym
 import include
+from simple_namespace import namespace
 import ez_yaml
 
 # import tensorflow as tf
