@@ -1370,22 +1370,8 @@ if True:
                 result_string += f'({each_key.replace("test", "")}: {each_network_result})  '
         print(result_string)
 #%% 
-# sample network output
+# Working Network
 # 
-if True:
-    from tools.basics import *
-    network = model
-    for each_index in range(100):
-        input_data, correct_output = train_dataset[each_index]
-        # train_dataset, test_dataset, train_loader, test_loader
-        guess = [ round(each, ndigits=0) for each in to_pure(network.forward(to_tensor([ input_data for each in range(64)]).to(torch.device('cuda:0')) ))[0] ]
-        actual = to_pure(correct_output)
-        index = max_index(guess)
-        # loss = network.loss_function(to_tensor(guess).type(torch.float), to_tensor(actual).type(torch.float))
-        # print(f"guess: {guess},\t  index: {index},\t actual: {actual}, loss {loss}")
-        print(f"guess: {guess},\t  index: {index},\t actual: {actual}")
-
-#%% 
 if True:
     import argparse
     import torch
@@ -1396,8 +1382,20 @@ if True:
 
 
     class SamNet(nn.Module):
-        def __init__(self):
+        def __init__(self, **config):
             super(SamNet, self).__init__()
+            
+            self.batch_size      = config.get("batch_size"     , 64  )
+            self.test_batch_size = config.get("test_batch_size", 1000)
+            self.epochs          = config.get("epochs"         , 3   )
+            self.lr              = config.get("lr"             , 0.01)
+            self.momentum        = config.get("momentum"       , 0.5 )
+            self.seed            = config.get("seed"           , 1   )
+            self.log_interval    = config.get("log_interval"   , 10  )
+            self.device          = config.get("device"         , torch.device("cuda" if use_cuda else "cpu"))
+            self.suppress_output = config.get("suppress_output", False)
+            self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
+            
             # 1 input image, 10 output channels, 5x5 square convolution kernel
             self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
             # 10 input channels, 10 output channels, 5x5 square convolution kernel
@@ -1405,6 +1403,15 @@ if True:
             self.conv2_drop = nn.Dropout2d()
             # Only need 2 neurons for output
             self.fc1 = nn.Linear(160, 2)
+            
+            # create an optimizer
+            self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
+            
+            def loss_function(model_output, ideal_output):
+                # convert from one-hot into number, and send tensor to device
+                ideal_output = torch.tensor([ max_index(each) for each in ideal_output ]).to(self.device)
+                return F.nll_loss(model_output, ideal_output)
+            self.loss_function = loss_function
 
         def forward(self, x):
             """
@@ -1413,14 +1420,135 @@ if True:
             autograd. You can use any of the Tensor operations in the
             forward function.
             """
+            x = x.to(self.device)
             # Max pooling over a 2x2 window
             x = F.relu(F.max_pool2d(self.conv1(x), 2))
             x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
             x = x.view(-1, 160)
             x = self.fc1(x)
             return F.log_softmax(x, dim=1)
+        
+        def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+            self.optimizer.zero_grad()
+            output = self(batch_of_inputs)
+            loss = self.loss_function(output, batch_of_ideal_outputs)
+            loss.backward()
+            self.optimizer.step()
+            return loss
+            
+        def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
+            """
+            Examples:
+                model.fit(
+                    dataset=torchvision.datasets.MNIST(<mnist args>),
+                    epochs=4,
+                    batch_size=64,
+                )
+                
+                model.fit(
+                    loader=torch.utils.data.DataLoader(<dataloader args>),
+                    epochs=4,
+                )
+            """
+            # TODO: test input_output_pairs
+            if input_output_pairs is not None:
+                # creates batches
+                def bundle(iterable, bundle_size):
+                    next_bundle = []
+                    for each in iterable:
+                        next_bundle.append(each)
+                        if len(next_bundle) == bundle_size:
+                            yield tuple(next_bundle)
+                            next_bundle = []
+                    # return any half-made bundles
+                    if len(next_bundle) > 0:
+                        yield tuple(next_bundle)
+                # unpair, batch, then re-pair the inputs and outputs
+                input_generator        = (each for each, _ in input_output_pairs)
+                ideal_output_generator = (each for _   , each in input_output_pairs)
+                seperated_batches = zip(bundle(input_generator, batch_size), bundle(ideal_output_generator, batch_size))
+                loader = ((to_tensor(each_input_batch), to_tensor(each_output_batch)) for each_input_batch, each_output_batch in seperated_batches)
+                # NOTE: shuffling isn't possible when there is no length (and generators don't have lengths). So maybe think of an alternative
+            else:
+                # convert the dataset into a loader (assumming loader was not given)
+                if isinstance(dataset, torch.utils.data.Dataset):
+                    loader = torch.utils.data.DataLoader(
+                        dataset,
+                        batch_size=batch_size,
+                        shuffle=shuffle,
+                    )
+            # 
+            # for batch_idx, (data, target) in enumerate(train_loader):
+            #     data, target = data.to(device), torch.tensor([ max_index(each) for each in target ]).to(device)
+            #     optimizer.zero_grad()
+            #     output = model(data)
 
-
+            #     # nll_loss = negative log likelihood loss
+            #     # output = tensor of N x C x H x W in this case of 2D loss
+            #     # target = tensor of ground truth
+            #     loss = F.nll_loss(output, target)
+            #     loss.backward()
+            #     optimizer.step()
+            #     if batch_idx % args.log_interval == 0:
+            #         print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            #             epoch, batch_idx * len(data), len(train_loader.dataset),
+            #             100. * batch_idx / len(train_loader), loss.item()))
+            
+            train_losses = []
+            for epoch_index in range(number_of_epochs):
+                self.train()
+                for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
+                    batch_of_inputs.to(self.device)
+                    loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
+                    from tools.basics import to_pure
+                    if batch_index % self.log_interval == 0:
+                        self.print(
+                            "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
+                                epoch_index+1,
+                                batch_index * len(batch_of_inputs),
+                                len(loader.dataset),
+                                100.0 * batch_index / len(loader),
+                                to_pure(loss),
+                            )
+                        )
+                        train_losses.append(loss)
+                        # TODO: add/allow checkpoints
+                        # import os
+                        # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
+                        # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
+                        # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
+            return train_losses
+        
+        def test(self, test_loader):
+            from tools.basics import max_index
+            from tools.pytorch_tools import onehot_argmax
+            # TODO: change this to use the full loss instead of exact equivlence
+            test_losses = []
+            self.eval()
+            test_loss = 0
+            correct = 0
+            with torch.no_grad():
+                for batch_of_inputs, batch_of_ideal_outputs in test_loader:
+                    actual_output = self.forward(batch_of_inputs)
+                    test_loss += self.loss_function(actual_output.type(torch.float), batch_of_ideal_outputs.type(torch.float)).item()
+                    correct += sum(
+                        1 if torch.equal(onehot_argmax(each_output).float(), onehot_argmax(each_ideal_output).float()) else 0
+                            for each_output, each_ideal_output in zip(actual_output.float(), batch_of_ideal_outputs.float())
+                    )
+            test_loss /= len(test_loader.dataset)
+            test_losses.append(test_loss)
+            print(
+                "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+                    test_loss,
+                    correct,
+                    len(test_loader.dataset),
+                    100.0 * correct / len(test_loader.dataset),
+                )
+            )
+            self.test_losses = test_losses
+            return correct
+        
+        
     class AlexNet(nn.Module):
         def __init__(self):
             super(AlexNet, self).__init__()
@@ -1538,10 +1666,27 @@ if True:
     torch.manual_seed(args.seed)
     model = SamNet().to(device)
     # model = AlexNet().to(device)
-    train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
+    train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, epoch)
+        model.fit(loader=train_loader, number_of_epochs=1)
+        # train(args, model, device, train_loader, epoch)
         test(args, model, device, test_loader)
+
+#%% 
+# sample network output
+# 
+if True:
+    from tools.basics import *
+    network = model
+    for each_index in range(100):
+        input_data, correct_output = train_dataset[each_index]
+        # train_dataset, test_dataset, train_loader, test_loader
+        guess = [ round(each, ndigits=0) for each in to_pure(network.forward(to_tensor([ input_data for each in range(64)]).to(torch.device('cuda:0')) ))[0] ]
+        actual = to_pure(correct_output)
+        index = max_index(guess)
+        # loss = network.loss_function(to_tensor(guess).type(torch.float), to_tensor(actual).type(torch.float))
+        # print(f"guess: {guess},\t  index: {index},\t actual: {actual}, loss {loss}")
+        print(f"guess: {guess},\t  index: {index},\t actual: {actual}")
 
 #%% 
 if True:
