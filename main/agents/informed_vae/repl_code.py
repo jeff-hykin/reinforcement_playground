@@ -167,6 +167,11 @@ if True:
         
         def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
             """
+            Uses:
+                self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
+                self.print(args)
+                self.train() # provided by pytorch's `nn.Module`
+            
             Examples:
                 model.fit(
                     dataset=torchvision.datasets.MNIST(<mnist args>),
@@ -231,6 +236,32 @@ if True:
                         # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
             return train_losses
             
+        def default_test(self, loader, correctness_function=None, loss_function=None):
+            correctness_function = correctness_function or self.correctness_function
+            loss_function = loss_function or self.loss_function
+            self.eval()
+            test_loss = 0
+            correct = 0
+            with torch.no_grad():
+                for batch_of_inputs, batch_of_ideal_outputs in loader:
+                    actual_output = self.forward(batch_of_inputs)
+                    batch_of_inputs = actual_output.type(torch.float).to(self.device)
+                    batch_of_ideal_outputs = batch_of_ideal_outputs.type(torch.float).to(self.device)
+                    test_loss += loss_function(batch_of_inputs, batch_of_ideal_outputs)
+                    correct += correctness_function(batch_of_inputs, batch_of_ideal_outputs)
+            
+            # convert to regular non-tensor data
+            test_loss = test_loss.item()
+            test_loss /= len(loader.dataset)
+            self.print(
+                "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+                    test_loss,
+                    correct,
+                    len(loader.dataset),
+                    100.0 * correct / len(loader.dataset),
+                )
+            )
+            return correct
         
         return locals()
     
@@ -1501,11 +1532,17 @@ if True:
             # create an optimizer
             self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
             
-            def loss_function(model_output, ideal_output):
-                # convert from one-hot into number, and send tensor to device
-                ideal_output = torch.tensor([ max_index(each) for each in ideal_output ]).to(self.device)
-                return F.nll_loss(model_output, ideal_output)
-            self.loss_function = loss_function
+        def loss_function(self, model_output, ideal_output):
+            # convert from one-hot into number, and send tensor to device
+            ideal_output = torch.tensor([ max_index(each) for each in ideal_output ]).to(self.device)
+            return F.nll_loss(model_output, ideal_output)
+        
+        def correctness_function(self, model_batch_output, ideal_batch_output):
+            # get the max index on each sample (first dimension)
+            model_batch_output = model_batch_output.max(1, keepdim=True).indices
+            ideal_batch_output = ideal_batch_output.max(1, keepdim=True).indices
+            number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
+            return number_correct
 
         def forward(self, x):
             """
@@ -1528,118 +1565,14 @@ if True:
         def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
             return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
         
-        def test(self, test_loader):
-            from tools.basics import max_index
-            from tools.pytorch_tools import onehot_argmax
-            # TODO: change this to use the full loss instead of exact equivlence
-            test_losses = []
-            self.eval()
-            test_loss = 0
-            correct = 0
-            with torch.no_grad():
-                for batch_of_inputs, batch_of_ideal_outputs in test_loader:
-                    actual_output = self.forward(batch_of_inputs)
-                    test_loss += self.loss_function(actual_output.type(torch.float), batch_of_ideal_outputs.type(torch.float)).item()
-                    correct += sum(
-                        1 if torch.equal(onehot_argmax(each_output).float(), onehot_argmax(each_ideal_output).float()) else 0
-                            for each_output, each_ideal_output in zip(actual_output.float(), batch_of_ideal_outputs.float())
-                    )
-            test_loss /= len(test_loader.dataset)
-            test_losses.append(test_loss)
-            print(
-                "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-                    test_loss,
-                    correct,
-                    len(test_loader.dataset),
-                    100.0 * correct / len(test_loader.dataset),
-                )
-            )
-            self.test_losses = test_losses
-            return correct
+        def test(self, loader, correctness_function=None):
+            return Network.default_test(self, loader)
         
-        
-    # class AlexNet(nn.Module):
-    #     def __init__(self):
-    #         super(AlexNet, self).__init__()
-    #         self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-    #         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-    #         self.conv2_drop = nn.Dropout2d()
-    #         self.fc1 = nn.Linear(320, 50)
-    #         self.fc2 = nn.Linear(50, 10)
-    #
-    #     def forward(self, x):
-    #         x = F.relu(F.max_pool2d(self.conv1(x), 2))
-    #         x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-    #         x = x.view(-1, 320)
-    #         x = F.relu(self.fc1(x))
-    #         x = F.dropout(x, training=self.training)
-    #         x = self.fc2(x)
-    #         return F.log_softmax(x, dim=1)
-
-    def test(args, model, device, test_loader):
-        model.eval()
-        test_loss = 0
-        correct = 0
-        with torch.no_grad():
-            for data, target in test_loader:
-                data, target = data.to(device), torch.tensor([ max_index(each) for each in target ]).to(device)
-                output = model(data)
-                test_loss += F.nll_loss(output, target, reduction='sum').item() # sum up batch loss
-                pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
-                correct += pred.eq(target.view_as(pred)).sum().item()
-
-        test_loss /= len(test_loader.dataset)
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-            test_loss, correct, len(test_loader.dataset),
-            100. * correct / len(test_loader.dataset)))
-
-
-    def parse_args():
-        # Training settings
-        parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-        parser.add_argument('--batch-size', type=int, default=64, metavar='N', help='input batch size for training (default: 64)')
-        parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N', help='input batch size for testing (default: 1000)')
-        parser.add_argument('--epochs', type=int, default=3, metavar='N', help='number of epochs to train (default: 10)')
-        parser.add_argument('--lr', type=float, default=0.01, metavar='LR', help='learning rate (default: 0.01)')
-        parser.add_argument('--momentum', type=float, default=0.5, metavar='M', help='SGD momentum (default: 0.5)')
-        parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed (default: 1)')
-        parser.add_argument('--log-interval', type=int, default=10, metavar='N', help='how many batches to wait before logging training status')
-        
-        batch_size = 64 
-        test_batch_size = 1000 
-        epochs = 3 
-        lr = 0.01 
-        momentum = 0.5 
-        seed = 1 
-        log_interval = 10 
-        return parser.parse_args()
-
-    import dataclasses
-    @dataclasses.dataclass
-    class Args:
-        batch_size = 64 
-        test_batch_size = 1000 
-        epochs = 3 
-        lr = 0.01 
-        momentum = 0.5 
-        seed = 1 
-        log_interval = 10 
-        
-        # type coersion
-        def __post_init__(self):
-            for field in dataclasses.fields(self): setattr(self, field.name, field.type(getattr(self, field.name)))
-
-    args = Args()
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-    torch.manual_seed(args.seed)
-    model = SamNet().to(device)
+    model = SamNet()
     # model = AlexNet().to(device)
     train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
-    for epoch in range(1, args.epochs + 1):
-        model.fit(loader=train_loader, number_of_epochs=1)
-        # train(args, model, device, train_loader, epoch)
-        test(args, model, device, test_loader)
+    model.fit(loader=train_loader, number_of_epochs=3)
+    model.test(loader=test_loader)
 
 #%% 
 # sample network output
