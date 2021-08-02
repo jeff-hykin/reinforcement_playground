@@ -116,7 +116,7 @@ def binary_mnist(numbers):
                 return an_input, torch.tensor([1,0])
             else:
                 return an_input, torch.tensor([0,1])
-        
+
     from tools.basics import temp_folder
     options = dict(
         root=f"{temp_folder}/files/",
@@ -129,28 +129,39 @@ def binary_mnist(numbers):
             ]
         ),
     )
-    from torchsampler import ImbalancedDatasetSampler
-    
+
+    #
+    # test/train split
+    # 
     # 1/6th of the data is for testing
     dataset = Dataset(**options)
     number_of_splits = 6
     test_sections = 1
-    number_of_test_elements = int(test_sections * (len(dataset) / 6))
+    number_of_test_elements = int(test_sections * (len(dataset) / number_of_splits))
     number_of_train_elements = len(dataset) - number_of_test_elements
-    train_dataset, test_dataset = torch.utils.data.random_split(Dataset(**options), [number_of_train_elements, number_of_test_elements])
-    # test_dataset = Dataset(**{**options, "train":False})
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset,[number_of_train_elements, number_of_test_elements])
+    
+    # 
+    # weighted sampling setup
+    # 
+    from collections import Counter
+    total_number_of_samples = len(train_dataset)
+    class_counts = dict(Counter(tuple(each_output.tolist()) for each_input, each_output in train_dataset))
+    class_weights = { each_class_key: total_number_of_samples/each_value for each_class_key, each_value in class_counts.items() }
+    weights = [ class_weights[tuple(each_output.tolist())] for each_input, each_output in train_dataset ]
+    sampler = torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights), int(total_number_of_samples))
+    
+    # 
+    # create the loaders
+    # 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        sampler=ImbalancedDatasetSampler(train_dataset, callback_get_label=lambda *args:range(len(train_dataset))),
+        sampler=sampler,
         batch_size=64,
-        # shuffle=True,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
-        # sampler=ImbalancedDatasetSampler(test_dataset),
         batch_size=1000,
-        shuffle=True,
     )
     return train_dataset, test_dataset, train_loader, test_loader
-
 

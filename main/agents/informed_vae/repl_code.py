@@ -23,10 +23,8 @@ if True:
 # pytorch_tools
 # 
 if True:
-
     import torch
     import torch.nn as nn
-
     from tools.basics import product, bundle
     
     default_seed = 1
@@ -138,6 +136,16 @@ if True:
             if each_value == the_max:
                 onehot_tensor[each_index] = 1
         return onehot_tensor
+    
+    def from_onehot_batch(tensor_batch):
+        # make sure its a tensor
+        tensor_batch = to_tensor(tensor_batch)
+        return tensor_batch.max(1, keepdim=True).indices.squeeze()
+    
+    def from_onehot(tensor):
+        # make sure its a tensor
+        tensor = to_tensor(tensor)
+        return tensor.max(0, keepdim=True).indices.squeeze().item()
 
     def batch_input_and_output(inputs, outputs, batch_size):
         from tools.basics import bundle
@@ -150,20 +158,106 @@ if True:
     @namespace
     def Network():
         
+        def default_forward(self, input_data):
+            """
+            Uses:
+                Self.layers
+                Self.input_shape
+                Self.output_shape
+            Arguments:
+                input_data:
+                    either an input image or batch of images
+                    should be a torch tensor with a shape of (batch_size, channels, height, width)
+            Ouptut:
+                a torch tensor the shape of the latent space
+            Examples:
+                obj.forward(torch.tensor([
+                    # first image in batch
+                    [
+                        # red layer
+                        [
+                            [ 1, 2, 3 ],
+                            [ 4, 5, 6] 
+                        ], 
+                        # blue layer
+                        [
+                            [ 1, 2, 3 ],
+                            [ 4, 5, 6] 
+                        ], 
+                        # green layer
+                        [
+                            [ 1, 2, 3 ],
+                            [ 4, 5, 6] 
+                        ],
+                    ] 
+                ]))
+            
+            """
+            # converts to torch if needed
+            input_data = to_tensor(input_data)
+            
+            # 
+            # batch or not?
+            # 
+            if len(input_data.shape) == 3: 
+                batch_size = None
+                output_shape = self.output_shape
+                # convert images into batches
+                input_data = torch.reshape(input_data, (1, *input_data.shape))
+            else:
+                batch_size = tuple(input_data.shape)[0]
+                output_shape = (batch_size, *self.output_shape)
+            
+            # TODO: consider the possibility of being givent a single 2D image
+            
+            # force into batches even if that means just adding a dimension
+            from tools.basics import product
+            batch_length = 1 if batch_size == None else batch_size
+            input_data = torch.reshape(input_data, shape=(batch_length, *self.input_shape))
+            input_data = input_data.type(torch.float)
+            
+            neuron_activations = input_data.to(self.device)
+            for each_layer in self.layers:
+                neuron_activations = each_layer(neuron_activations)
+            
+            # force the output to be the correct shape
+            return torch.reshape(neuron_activations, output_shape)
+        
+        
         def default_setup(self, config):
             self.seed            = config.get("seed"           , default_seed)
             self.log_interval    = config.get("log_interval"   , 10)
             self.suppress_output = config.get("suppress_output", False)
-            self.device          = config.get("device"         , torch.device("cuda" if use_cuda else "cpu"))
+            self.device          = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
             self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
-                    
+            self.layers = nn.Sequential()
+            
         def default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+            """
+            Uses:
+                self.optimizer # pytorch optimizer class
+                self.forward(batch_of_inputs)
+                self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
+            """
             self.optimizer.zero_grad()
             batch_of_actual_outputs = self.forward(batch_of_inputs)
             loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
             loss.backward()
             self.optimizer.step()
             return loss
+        
+        def onehot_correctness_function(self, model_batch_output, ideal_batch_output):
+            """
+            Summary:
+                This assumes both the output of the network and the output of the dataset
+                are one-hot encoded.
+            """
+            # convert to a batch of real-numbered outputs
+            model_batch_output = from_onehot_batch(model_batch_output)
+            ideal_batch_output = from_onehot_batch(ideal_batch_output)
+            # element-wise compare how many are equal, then sum them up into a scalar
+            number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
+            return number_correct
         
         def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
             """
@@ -237,6 +331,19 @@ if True:
             return train_losses
             
         def default_test(self, loader, correctness_function=None, loss_function=None):
+            """
+            Uses:
+                self.forward(batch_of_inputs)
+                self.print(args)
+                self.eval() # provided by pytorch's `nn.Module`
+                self.device # a pytorch device
+            
+            Optionally Uses:
+                # returns the pytorch loss
+                self.loss_function(batch_of_inputs, batch_of_ideal_outputs)
+                # returns a number (number of correct guesses)
+                self.correctness_function(batch_of_inputs, batch_of_ideal_outputs)
+            """
             correctness_function = correctness_function or self.correctness_function
             loss_function = loss_function or self.loss_function
             self.eval()
@@ -1500,6 +1607,7 @@ if True:
     import torch.nn.functional as F
     import torch.optim as optim
     from torchvision import datasets, transforms
+    from tools.basics import product
     
     class SamNet(nn.Module):
         def __init__(self, **config):
@@ -1508,6 +1616,8 @@ if True:
             # options
             # 
             Network.default_setup(self, config)
+            self.input_shape     = config.get("input_shape"    , (1, 28, 28))
+            self.output_shape    = config.get("output_shape"   , (2,))
             self.batch_size      = config.get("batch_size"     , 64  )
             self.test_batch_size = config.get("test_batch_size", 1000)
             self.epochs          = config.get("epochs"         , 3   )
@@ -1518,12 +1628,16 @@ if True:
             # layers
             # 
             # 1 input image, 10 output channels, 5x5 square convolution kernel
-            self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-            # 10 input channels, 10 output channels, 5x5 square convolution kernel
-            self.conv2 = nn.Conv2d(10, 10, kernel_size=5)
-            self.conv2_drop = nn.Dropout2d()
-            # Only need 2 neurons for output
-            self.fc1 = nn.Linear(160, 2)
+            self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
+            self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
+            self.layers.add_module("conv1_activation", nn.ReLU())
+            self.layers.add_module("conv2", nn.Conv2d(10, 10, kernel_size=5))
+            self.layers.add_module("conv2_drop", nn.Dropout2d())
+            self.layers.add_module("conv2_pool", nn.MaxPool2d(2))
+            self.layers.add_module("conv2_activation", nn.ReLU())
+            self.layers.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
+            self.layers.add_module("fc1", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
+            self.layers.add_module("fc1_activation", nn.LogSoftmax(dim=1))
             
             # 
             # support (optimizer, loss)
@@ -1531,33 +1645,35 @@ if True:
             self.to(self.device)
             # create an optimizer
             self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
+        
+        @property
+        def size_of_last_layer(self):
+            return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.input_shape, self.layers)[-1])
             
         def loss_function(self, model_output, ideal_output):
             # convert from one-hot into number, and send tensor to device
-            ideal_output = torch.tensor([ max_index(each) for each in ideal_output ]).to(self.device)
+            ideal_output = from_onehot_batch(ideal_output).to(self.device)
             return F.nll_loss(model_output, ideal_output)
         
         def correctness_function(self, model_batch_output, ideal_batch_output):
-            # get the max index on each sample (first dimension)
-            model_batch_output = model_batch_output.max(1, keepdim=True).indices
-            ideal_batch_output = ideal_batch_output.max(1, keepdim=True).indices
-            number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
-            return number_correct
+            return Network.onehot_correctness_function(self, model_batch_output, ideal_batch_output)
 
-        def forward(self, x):
-            """
-            You just have to define the forward function, and the backward function
-            (where gradients are computed) is automatically defined for you using
-            autograd. You can use any of the Tensor operations in the
-            forward function.
-            """
-            x = x.to(self.device)
-            # Max pooling over a 2x2 window
-            x = F.relu(F.max_pool2d(self.conv1(x), 2))
-            x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-            x = x.view(-1, 160)
-            x = self.fc1(x)
-            return F.log_softmax(x, dim=1)
+        def forward(self, input_data):
+            return Network.default_forward(self, input_data)
+        
+        #     """
+        #     You just have to define the forward function, and the backward function
+        #     (where gradients are computed) is automatically defined for you using
+        #     autograd. You can use any of the Tensor operations in the
+        #     forward function.
+        #     """
+        #     x = x.to(self.device)
+        #     # Max pooling over a 2x2 window
+        #     x = F.relu(F.max_pool2d(self.layers.conv1(x), 2))
+        #     x = F.relu(F.max_pool2d(self.layers.conv2_drop(self.layers.conv2(x)), 2))
+        #     x = x.view(-1, 160)
+        #     x = self.layers.fc1(x)
+        #     return F.log_softmax(x, dim=1)
         
         def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
             return Network.default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
@@ -1573,7 +1689,7 @@ if True:
     train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
     model.fit(loader=train_loader, number_of_epochs=3)
     model.test(loader=test_loader)
-
+    
 #%% 
 # sample network output
 # 
