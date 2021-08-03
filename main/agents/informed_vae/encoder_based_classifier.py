@@ -5,10 +5,13 @@ from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
 
+# Encoder
+from agents.informed_vae.encoder import ImageEncoder
+
 # %% 
-class SimpleClassifier(nn.Module):
+class EncoderBasedClassifier(nn.Module):
     def __init__(self, **config):
-        super(SimpleClassifier, self).__init__()
+        super(EncoderBasedClassifier, self).__init__()
         # 
         # options
         # 
@@ -21,17 +24,7 @@ class SimpleClassifier(nn.Module):
         # 
         # layers
         # 
-        # 1 input image, 10 output channels, 5x5 square convolution kernel
-        self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
-        self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
-        self.layers.add_module("conv1_activation", nn.ReLU())
-        self.layers.add_module("conv2", nn.Conv2d(10, 10, kernel_size=5))
-        self.layers.add_module("conv2_drop", nn.Dropout2d())
-        self.layers.add_module("conv2_pool", nn.MaxPool2d(2))
-        self.layers.add_module("conv2_activation", nn.ReLU())
-        self.layers.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module("fc1", nn.Linear(self.size_of_last_layer, 10))
-        self.layers.add_module("fc1_activation", nn.ReLU())
+        self.layers.add_module("encoder", ImageEncoder(input_shape=self.input_shape, output_shape=(10,)))
         self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
         self.layers.add_module("fc2_activation", nn.LogSoftmax(dim=1))
         
@@ -74,7 +67,7 @@ if __name__ == "__main__":
     # 
     # perform test on mnist dataset if run directly
     # 
-    model = SimpleClassifier()
+    model = EncoderBasedClassifier()
     train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
     model.fit(loader=train_loader, number_of_epochs=3)
     model.test(loader=test_loader)

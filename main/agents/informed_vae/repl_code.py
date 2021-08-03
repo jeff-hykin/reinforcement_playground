@@ -641,7 +641,7 @@ if True:
             # FIXME: implment
             pass
 
-    def autoencodeify(dataset):
+    def autoencoder_ify(dataset):
         class AutoDataset(dataset):
             def __init__(self, *args, **kwargs):
                 super(AutoDataset, self).__init__(*args, **kwargs)

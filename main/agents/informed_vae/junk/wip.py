@@ -170,7 +170,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from tools.basics import temp_folder
-from tools.pytorch_tools import autoencodeify
+from tools.pytorch_tools import autoencoder_ify
 
 class ImageEncoder(ImageModelSequential):
     def __init__(self, **config):
@@ -211,7 +211,7 @@ class ImageEncoder(ImageModelSequential):
         # training dataset
         # 
         train_loader = torch.utils.data.DataLoader(
-            autoencodeify(torchvision.datasets.MNIST)(
+            autoencoder_ify(torchvision.datasets.MNIST)(
                 f"{temp_folder}/files/",
                 train=True,
                 download=True,
@@ -323,7 +323,7 @@ class ImageAutoEncoder(ImageModelSequential):
         # 
         from tools.basics import temp_folder
         train_loader = torch.utils.data.DataLoader(
-            autoencodeify(torchvision.datasets.MNIST)(
+            autoencoder_ify(torchvision.datasets.MNIST)(
                 f"{temp_folder}/files/",
                 train=True,
                 download=True,
@@ -355,7 +355,7 @@ class ImageAutoEncoder(ImageModelSequential):
         
         # FIXME: add a testing method (probably related to confusion_matrix) for auto-encoder
         # self.test(test_loader)
-        # TODO: autoencodeify the train loader inside the fit function
+        # TODO: autoencoder_ify the train loader inside the fit function
         self.fit(loader=train_loader, number_of_epochs=3)
         # self.test(test_loader)
         
