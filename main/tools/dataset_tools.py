@@ -3,7 +3,7 @@ import os
 import torch
 temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/common_format_datasets"
 
-class SimpleDataset(torch.utils.data.Dataset):
+class BaseDataset(torch.utils.data.Dataset):
     """
     When inheriting from this, make sure to define the following
         __init__(self, **kwargs):
@@ -25,7 +25,8 @@ class SimpleDataset(torch.utils.data.Dataset):
         _, output_1 = self[0]
         return tuple(output_1.shape)
     
-    def __init__(self, transform_input=None, transform_output=None):
+    def __init__(self, transform_input=None, transform_output=None, **kwargs):
+        super(torch.utils.data.Dataset, self).__init__(**kwargs)
         # save these for later
         self.transform_input  = transform_input
         self.transform_output = transform_output
@@ -47,8 +48,100 @@ class SimpleDataset(torch.utils.data.Dataset):
         # return
         return an_input, corrisponding_output
 
+def SimpleDataset(length, getters, data=None, groups=None):
+    """
+    Arguments:
+        getters is a dictionary
+        it needs to at least have keys for
+            get_input
+            get_output
+        every value is a function, with two arguments
+        as an example
+            get_input: lambda self, index: return data[index]
+    Example:
+        transformed_mnist = torchvision.datasets.MNIST(
+            root=f"{temp_folder}/files/",
+            train=True,
+            download=True,
+            transform=torchvision.transforms.Compose(
+                [
+                    torchvision.transforms.ToTensor(),
+                    torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                ]
+            )
+        )
+        train, test = SimpleDataset(
+            length=len(transformed_mnist),
+            groups=[5, 1],
+            getters={
+                "get_input": lambda self, index: transformed_mnist[index][0],
+                "get_output": lambda self, index: transformed_mnist[index][1],
+                "get_onehot_output": lambda self, index: onehot_argmax(transformed_mnist[index][1]),
+            },
+        )
+        
+    """
+    class QuickDataset(torch.utils.data.Dataset):
+        def __len__(self):
+            return self.length if not callable(length) else length()
+        
+        def __getitem__(self, index):
+            return self.get_input(index), self.get_output(index)
+        
+        def get_original_index(self, index):
+            return index if self.mapping is None else self.mapping[index]
+        
+        def __init__(self, length, getters, data=None, mapping=None, **kwargs):
+            super(QuickDataset).__init__()
+            self.length = length
+            self.data = data
+            self.mapping = mapping
+            # create all the getters
+            for each_key in getters:
+                # exists because of python scoping issues
+                def scope_fixer():
+                    nonlocal self
+                    key_copy = str(each_key)
+                    setattr(self, each_key, lambda index, *args, **kwargs: getters[key_copy](self, self.get_original_index(index), *args, **kwargs))
+                scope_fixer()
+        
+    
+    main_dataset = QuickDataset(length=length, getters=getters, data=data)
+    if groups is None:
+        return main_dataset
+    else:
+        from random import random, sample, choices
+        grand_total = len(main_dataset)
+        number_of_groups = sum(groups)
+        proportions = [ each/number_of_groups for each in groups ]
+        total_values = [ int(each * length) for each in proportions ]
+        # have the last one be the sum to avoid division/rounding issues
+        total_values[-1] = length - sum(total_values[0:-1])
+        
+        # create a mapping from the new datasets to the original one
+        mappings = {}
+        indicies_not_yet_used = set(range(grand_total))
+        for each_split_index, each_length in enumerate(total_values):
+            print('len(indicies_not_yet_used) = ', len(indicies_not_yet_used))
+            print('each_length = ', each_length)
+            values_for_this_split = set(sample(indicies_not_yet_used, each_length))
+            indicies_not_yet_used = indicies_not_yet_used - values_for_this_split
+            mappings[each_split_index] = {}
+            for each_new_index, each_old_index in enumerate(values_for_this_split):
+                mappings[each_split_index][each_new_index] = each_old_index
+        
+        outputs = []
+        for each_split_index, each_length in enumerate(total_values):
+            outputs.append(QuickDataset(
+                getters=getters,
+                data=data,
+                length=each_length,
+                mapping=mappings[each_split_index],
+            ))
+        return outputs
+        
 # FIXME: the images are corrupt for some reason
-class Mnist(SimpleDataset):
+class Mnist(BaseDataset):
     """
     file structure:
         $DATASET_FOLDER/
