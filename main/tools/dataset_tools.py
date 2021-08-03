@@ -1,54 +1,8 @@
-import gdown
 import os
 import torch
 temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/common_format_datasets"
 
-class BaseDataset(torch.utils.data.Dataset):
-    """
-    When inheriting from this, make sure to define the following
-        __init__(self, **kwargs):
-            super(self.__class__, self).__init__(**kwargs)
-        
-        __len__(self):
-        
-        get_input(self, index):
-        
-        get_output(self, index):
-    """
-    @property
-    def input_shape(self):
-        input_1, _ = self[0]
-        return tuple(input_1.shape)
-
-    @property
-    def output_shape(self):
-        _, output_1 = self[0]
-        return tuple(output_1.shape)
-    
-    def __init__(self, transform_input=None, transform_output=None, **kwargs):
-        super(torch.utils.data.Dataset, self).__init__(**kwargs)
-        # save these for later
-        self.transform_input  = transform_input
-        self.transform_output = transform_output
-        
-    def __getitem__(self, index):
-        # 
-        # input
-        # 
-        an_input = self.get_input(index)
-        if self.transform_input:
-            an_input = self.transform_input(an_input)
-        # 
-        # output
-        # 
-        corrisponding_output = self.get_output(index)
-        if self.transform_output:
-            corrisponding_output = self.transform_output(corrisponding_output)
-        
-        # return
-        return an_input, corrisponding_output
-
-def SimpleDataset(length, getters, data=None, groups=None):
+def QuickDataset(length, getters, attributes, data=None, groups=None):
     """
     Arguments:
         getters is a dictionary
@@ -70,7 +24,7 @@ def SimpleDataset(length, getters, data=None, groups=None):
                 ]
             )
         )
-        train, test = SimpleDataset(
+        train, test = QuickDataset(
             length=len(transformed_mnist),
             groups=[5, 1],
             getters={
@@ -81,7 +35,7 @@ def SimpleDataset(length, getters, data=None, groups=None):
         )
         
     """
-    class QuickDataset(torch.utils.data.Dataset):
+    class QuickDatasetClass(torch.utils.data.Dataset):
         def __len__(self):
             return self.length if not callable(length) else length()
         
@@ -91,11 +45,13 @@ def SimpleDataset(length, getters, data=None, groups=None):
         def get_original_index(self, index):
             return index if self.mapping is None else self.mapping[index]
         
-        def __init__(self, length, getters, data=None, mapping=None, **kwargs):
-            super(QuickDataset).__init__()
+        def __init__(self, length, getters, attributes=None, data=None, mapping=None, **kwargs):
+            super(QuickDatasetClass).__init__()
             self.length = length
             self.data = data
             self.mapping = mapping
+            attributes = attributes or {}
+            self.args = dict(length=length, getters=getters, attributes=attributes, data=data, mapping=mapping)
             # create all the getters
             for each_key in getters:
                 # exists because of python scoping issues
@@ -104,9 +60,12 @@ def SimpleDataset(length, getters, data=None, groups=None):
                     key_copy = str(each_key)
                     setattr(self, each_key, lambda index, *args, **kwargs: getters[key_copy](self, self.get_original_index(index), *args, **kwargs))
                 scope_fixer()
+            
+            for each_key, each_value in attributes.items():
+                setattr(self, each_key, each_value)
         
     
-    main_dataset = QuickDataset(length=length, getters=getters, data=data)
+    main_dataset = QuickDatasetClass(length=length, getters=getters, attributes=attributes, data=data)
     if groups is None:
         return main_dataset
     else:
@@ -122,8 +81,6 @@ def SimpleDataset(length, getters, data=None, groups=None):
         mappings = {}
         indicies_not_yet_used = set(range(grand_total))
         for each_split_index, each_length in enumerate(total_values):
-            print('len(indicies_not_yet_used) = ', len(indicies_not_yet_used))
-            print('each_length = ', each_length)
             values_for_this_split = set(sample(indicies_not_yet_used, each_length))
             indicies_not_yet_used = indicies_not_yet_used - values_for_this_split
             mappings[each_split_index] = {}
@@ -132,73 +89,73 @@ def SimpleDataset(length, getters, data=None, groups=None):
         
         outputs = []
         for each_split_index, each_length in enumerate(total_values):
-            outputs.append(QuickDataset(
+            outputs.append(QuickDatasetClass(
                 getters=getters,
+                attributes=attributes,
                 data=data,
                 length=each_length,
                 mapping=mappings[each_split_index],
             ))
         return outputs
-        
-# FIXME: the images are corrupt for some reason
-class Mnist(BaseDataset):
-    """
-    file structure:
-        $DATASET_FOLDER/
-            mnist/
-                img_0/
-                    data.jpg
-                    data.integer
-                img_1/
-                    data.jpg
-                    data.integer
-                ...
-    
-    """
-    number_of_classes = 10
-    _path = None
-    @classmethod
-    def get_path(cls, quiet=True):
-        """
-        returns the mnist folder, downloading the mnist data if needed
-        """
-        if cls._path is None:
-            url = 'https://drive.google.com/uc?id=1im9_agM-hHl8dKQU5uWh054rScjPINtz' # jeff hykin's google drive copy of mnist
-            output = f'{temp_folder_path}/mnist.zip'
-            gdown.cached_download(url, output, postprocess=gdown.extractall, quiet=quiet)
-            
-            cls._path = temp_folder_path+"/mnist"
-        return cls._path
-        
-    def __init__(self, **kwargs):
-        super(Mnist, self).__init__(**kwargs)
-        self.folder_path = self.get_path()
-        
-        from tools.file_system_tools import FS
-        # ignore hidden files/folders (start with a .)
-        self.ids = [ each for each in FS.list_folders(self.folder_path) if each[0] != '.' ]
 
-    def __len__(self):
-        return len(self.ids)
+def create_weighted_sampler_for(dataset):
+    from collections import Counter
+    total_number_of_samples = len(dataset)
+    class_counts = dict(Counter(tuple(each_output.tolist()) for each_input, each_output in dataset))
+    class_weights = { each_class_key: total_number_of_samples/each_value for each_class_key, each_value in class_counts.items() }
+    weights = [ class_weights[tuple(each_output.tolist())] for each_input, each_output in dataset ]
+    return torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights), int(total_number_of_samples))
         
-    def get_input(self, index):
-        from torchvision.io import read_image
-        item_folder =  self.folder_path +"/"+ self.ids[index]
-        return read_image(item_folder+"/data.jpg")
-
-    def get_output(self, index):
-        from tools.file_system_tools import FS
-        from tools.pytorch_tools import to_tensor
-        import torch.nn.functional as F
-        
-        item_folder =  self.folder_path +"/"+ self.ids[index]
-        return int(FS.read(item_folder+"/data.integer"))
-
-mnist_dataset = Mnist()
-
+def quick_mnist(groups=None):
+    original_mnist = torchvision.datasets.MNIST(root=f"{temp_folder}/files/", train=True, download=True,)
+    transformed_mnist = torchvision.datasets.MNIST(
+        root=f"{temp_folder}/files/",
+        train=True,
+        download=True,
+        transform=torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+            ]
+        )
+    )
+    from tools.pytorch_tools import onehot_argmax
+    import torchvision.transforms.functional as TF
+    return QuickDataset(
+        length=len(original_mnist),
+        groups=groups,
+        attributes=dict(
+            number_of_classes=10
+        ),
+        getters=dict(
+            # normalized
+            get_input= lambda self, index: transformed_mnist[index][0],
+            # onehot-ified
+            get_output= lambda self, index: onehot_argmax(transformed_mnist[index][1]),
+            # misc
+            get_image= lambda self, index: original_mnist[index][0],
+            get_image_tensor= lambda self, index: TF.to_tensor(original_mnist[index][0]),
+            get_value= lambda self, index: original_mnist[index][1],
+        ),
+    )
 
 def binary_mnist(numbers):
-    import torchvision
+    data = quick_mnist()
+    
+    QuickDataset(
+        **data.args,
+        getters=dict(
+            **data.args.getters
+            # normalized
+            get_input= lambda self, index: transformed_mnist[index][0],
+            # onehot-ified
+            get_output= lambda self, index: onehot_argmax(transformed_mnist[index][1]),
+            # misc
+            get_image= lambda self, index: original_mnist[index][0],
+            get_image_tensor= lambda self, index: TF.to_tensor(original_mnist[index][0]),
+            get_value= lambda self, index: original_mnist[index][1],
+        ),
+    )
     class Dataset(torchvision.datasets.MNIST):
         number_of_classes = 10
         def __init__(self, *args, **kwargs):
