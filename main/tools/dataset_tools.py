@@ -2,75 +2,74 @@ import os
 import torch
 temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/common_format_datasets"
 
-def QuickDataset(length, getters, attributes, data=None, groups=None):
+class QuickDataset(torch.utils.data.Dataset):
     """
     Arguments:
-        getters is a dictionary
-        it needs to at least have keys for
-            get_input
-            get_output
-        every value is a function, with two arguments
-        as an example
-            get_input: lambda self, index: return data[index]
+        length: (required)
+            length of the dataset
+        getters: (required)
+            a dictionary
+            it needs to at least have keys for
+                get_input
+                get_output
+            every value is a function, with two arguments
+            as an example
+                get_input: lambda self, index: return data[index]
+        attributes: (optional)
+            a dictionary of values that will be attached to 
+            the dataset, and all splits of the dataset
     Example:
-        transformed_mnist = torchvision.datasets.MNIST(
-            root=f"{temp_folder}/files/",
-            train=True,
-            download=True,
-            transform=torchvision.transforms.Compose(
-                [
-                    torchvision.transforms.ToTensor(),
-                    torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-                ]
-            )
-        )
+        mnist = torchvision.datasets.MNIST(*args)
         train, test = QuickDataset(
-            length=len(transformed_mnist),
-            groups=[5, 1],
-            getters={
-                "get_input": lambda self, index: transformed_mnist[index][0],
-                "get_output": lambda self, index: transformed_mnist[index][1],
-                "get_onehot_output": lambda self, index: onehot_argmax(transformed_mnist[index][1]),
-            },
-        )
+            length=len(mnist),
+            getters=dict(
+                get_input= lambda self, index: mnist[index][0],
+                get_output= lambda self, index: mnist[index][1],
+                get_onehot_output= lambda self, index: onehotify(mnist[index][1]),
+            ),
+        ).split([5,1]) # ratio of 5 to 1 for train, test
         
     """
-    class QuickDatasetClass(torch.utils.data.Dataset):
-        def __len__(self):
-            return self.length if not callable(length) else length()
+    def __init__(self, length, getters, attributes=None, data=None, mapping=None, **kwargs):
+        super(QuickDataset).__init__()
+        self.length = length
+        self.data = data
+        self.mapping = mapping
+        attributes = attributes or {}
+        self.args = dict(length=length, getters=getters, attributes=attributes, data=data, mapping=mapping)
+        # create all the getters
+        for each_key in getters:
+            # exists because of python scoping issues
+            def scope_fixer():
+                nonlocal self
+                key_copy = str(each_key)
+                setattr(self, each_key, lambda index, *args, **kwargs: getters[key_copy](self, self.get_original_index(index), *args, **kwargs))
+            scope_fixer()
         
-        def __getitem__(self, index):
-            return self.get_input(index), self.get_output(index)
-        
-        def get_original_index(self, index):
-            return index if self.mapping is None else self.mapping[index]
-        
-        def __init__(self, length, getters, attributes=None, data=None, mapping=None, **kwargs):
-            super(QuickDatasetClass).__init__()
-            self.length = length
-            self.data = data
-            self.mapping = mapping
-            attributes = attributes or {}
-            self.args = dict(length=length, getters=getters, attributes=attributes, data=data, mapping=mapping)
-            # create all the getters
-            for each_key in getters:
-                # exists because of python scoping issues
-                def scope_fixer():
-                    nonlocal self
-                    key_copy = str(each_key)
-                    setattr(self, each_key, lambda index, *args, **kwargs: getters[key_copy](self, self.get_original_index(index), *args, **kwargs))
-                scope_fixer()
-            
-            for each_key, each_value in attributes.items():
-                setattr(self, each_key, each_value)
-        
+        for each_key, each_value in attributes.items():
+            setattr(self, each_key, each_value)
     
-    main_dataset = QuickDatasetClass(length=length, getters=getters, attributes=attributes, data=data)
-    if groups is None:
-        return main_dataset
-    else:
+    def __len__(self):
+        return self.length if not callable(length) else length()
+    
+    def __getitem__(self, index):
+        return self.get_input(index), self.get_output(index)
+    
+    def get_original_index(self, index):
+        return index if self.mapping is None else self.mapping[index]
+    
+    def extend(self, **new_getters):
+        return QuickDataset(**{
+            **self.args,
+            "getters": {
+                **self.args["getters"],
+                **new_getters
+            }
+        })
+    
+    def split(self, groups):
         from random import random, sample, choices
-        grand_total = len(main_dataset)
+        grand_total = len(self)
         number_of_groups = sum(groups)
         proportions = [ each/number_of_groups for each in groups ]
         total_values = [ int(each * length) for each in proportions ]
@@ -89,10 +88,10 @@ def QuickDataset(length, getters, attributes, data=None, groups=None):
         
         outputs = []
         for each_split_index, each_length in enumerate(total_values):
-            outputs.append(QuickDatasetClass(
-                getters=getters,
-                attributes=attributes,
-                data=data,
+            outputs.append(QuickDataset(
+                getters=self.args["getters"],
+                attributes=self.args["attributes"],
+                data=self.args["data"],
                 length=each_length,
                 mapping=mappings[each_split_index],
             ))
@@ -106,7 +105,7 @@ def create_weighted_sampler_for(dataset):
     weights = [ class_weights[tuple(each_output.tolist())] for each_input, each_output in dataset ]
     return torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights), int(total_number_of_samples))
         
-def quick_mnist(groups=None):
+def quick_mnist():
     original_mnist = torchvision.datasets.MNIST(root=f"{temp_folder}/files/", train=True, download=True,)
     transformed_mnist = torchvision.datasets.MNIST(
         root=f"{temp_folder}/files/",
@@ -123,7 +122,6 @@ def quick_mnist(groups=None):
     import torchvision.transforms.functional as TF
     return QuickDataset(
         length=len(original_mnist),
-        groups=groups,
         attributes=dict(
             number_of_classes=10
         ),
@@ -135,51 +133,16 @@ def quick_mnist(groups=None):
             # misc
             get_image= lambda self, index: original_mnist[index][0],
             get_image_tensor= lambda self, index: TF.to_tensor(original_mnist[index][0]),
-            get_value= lambda self, index: original_mnist[index][1],
+            get_number_value= lambda self, index: original_mnist[index][1],
         ),
     )
 
 def binary_mnist(numbers):
-    data = quick_mnist()
+    # overwrite the output to be binary classification
+    binary_dataset = quick_mnist().extend(
+        get_output= lambda self, index: 1 if self.get_number_value(index) in numbers else 0,
+    )
     
-    QuickDataset(
-        **data.args,
-        getters=dict(
-            **data.args.getters
-            # normalized
-            get_input= lambda self, index: transformed_mnist[index][0],
-            # onehot-ified
-            get_output= lambda self, index: onehot_argmax(transformed_mnist[index][1]),
-            # misc
-            get_image= lambda self, index: original_mnist[index][0],
-            get_image_tensor= lambda self, index: TF.to_tensor(original_mnist[index][0]),
-            get_value= lambda self, index: original_mnist[index][1],
-        ),
-    )
-    class Dataset(torchvision.datasets.MNIST):
-        number_of_classes = 10
-        def __init__(self, *args, **kwargs):
-            super(Dataset, self).__init__(*args, **kwargs)
-        def __getitem__(self, index):
-            an_input, corrisponding_output = super(Dataset, self).__getitem__(index)
-            if corrisponding_output in numbers:
-                return an_input, torch.tensor([1,0])
-            else:
-                return an_input, torch.tensor([0,1])
-
-    from tools.basics import temp_folder
-    options = dict(
-        root=f"{temp_folder}/files/",
-        train=True,
-        download=True,
-        transform=torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-            ]
-        ),
-    )
-
     #
     # test/train split
     # 
