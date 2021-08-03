@@ -103,6 +103,25 @@ def to_tensor(an_object):
         
         return torch.stack(reshaped_list).type(torch.float)
             
+class OneHotifier():
+    def __init__(self, possible_values):
+        # convert to tuple if needed
+        if not hasattr(possible_values, "__len__"):
+            possible_values = tuple(possible_values)
+        self.possible_values = possible_values
+    
+    def to_onehot(self, value):
+        index = self.possible_values.index(value)
+        return torch.nn.functional.one_hot(
+            torch.tensor(index),
+            len(self.possible_values)
+        )
+    
+    def from_onehot(self, vector):
+        vector = to_tensor(vector)
+        index_value = vector.max(0).indices
+        return self.possible_values[index_value]
+        
 def onehot_argmax(tensor):
     tensor = to_tensor(tensor)
     the_max = max(each for each in tensor)
