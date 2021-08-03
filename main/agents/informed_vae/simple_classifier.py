@@ -1,10 +1,11 @@
+# %% 
 from tools.all_tools import *
 
 from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
 
-
+# %% 
 class SimpleClassifier(nn.Module):
     def __init__(self, **config):
         super(SimpleClassifier, self).__init__()
@@ -32,8 +33,10 @@ class SimpleClassifier(nn.Module):
         self.layers.add_module("conv2_pool", nn.MaxPool2d(2))
         self.layers.add_module("conv2_activation", nn.ReLU())
         self.layers.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module("fc1", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
-        self.layers.add_module("fc1_activation", nn.LogSoftmax(dim=1))
+        self.layers.add_module("fc1", nn.Linear(self.size_of_last_layer, 10))
+        self.layers.add_module("fc1_activation", nn.ReLU())
+        self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
+        self.layers.add_module("fc2_activation", nn.LogSoftmax(dim=1))
         
         # 
         # support (optimizer, loss)
@@ -91,3 +94,5 @@ if __name__ == "__main__":
         actual = to_pure(correct_output)
         index = max_index(guess)
         print(f"guess: {guess},\t  index: {index},\t actual: {actual}")
+
+# %%
