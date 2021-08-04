@@ -94,7 +94,6 @@ if __name__ == '__main__':
                 1
             )
         )
-        print(sample)
         samples.append(sample)
 
 # %%
