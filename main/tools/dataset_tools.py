@@ -1,5 +1,6 @@
 import os
 import torch
+from tools.basics import *
 temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/common_format_datasets"
 
 class QuickDataset(torch.utils.data.Dataset):
@@ -140,6 +141,7 @@ def create_weighted_sampler_for(dataset):
     return torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights), int(total_number_of_samples))
         
 def quick_mnist(cache=False):
+    import torchvision
     original_mnist = torchvision.datasets.MNIST(root=f"{temp_folder}/files/", train=True, download=True,)
     transformed_mnist = torchvision.datasets.MNIST(
         root=f"{temp_folder}/files/",
