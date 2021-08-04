@@ -17,16 +17,16 @@ class ImageDecoder(nn.Module):
         # 
         # layers
         # 
-        self.layers.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
-        self.layers.add_module("fn1_activation", nn.ReLU(True))
-        self.layers.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
-        self.layers.add_module("fn2_activation", nn.ReLU(True))
+        self.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
+        self.add_module("fn1_activation", nn.ReLU(True))
+        self.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
+        self.add_module("fn2_activation", nn.ReLU(True))
         conv1_shape = [ 10, 20, 20 ] # needs to mupltiply together to be the size of the previous layer (currently 4000)
         conv2_size = 10
-        self.layers.add_module("conv1_prep", nn.Unflatten(1, conv1_shape))
-        self.layers.add_module("conv1", nn.ConvTranspose2d(conv1_shape[0], conv2_size, kernel_size=5))
-        self.layers.add_module("conv2", nn.ConvTranspose2d(conv2_size, 1, kernel_size=5))
-        self.layers.add_module("conv2_activation", nn.Sigmoid())
+        self.add_module("conv1_prep", nn.Unflatten(1, conv1_shape))
+        self.add_module("conv1", nn.ConvTranspose2d(conv1_shape[0], conv2_size, kernel_size=5))
+        self.add_module("conv2", nn.ConvTranspose2d(conv2_size, 1, kernel_size=5))
+        self.add_module("conv2_activation", nn.Sigmoid())
         
         # 
         # support (optimizer, loss)
@@ -37,7 +37,7 @@ class ImageDecoder(nn.Module):
     
     @property
     def size_of_last_layer(self):
-        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.input_shape, self.layers)[-1])
+        return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
         
     def forward(self, input_data):
         return Network.default_forward(self, input_data)

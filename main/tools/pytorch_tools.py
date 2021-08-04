@@ -1,6 +1,8 @@
+#%% 
 import torch
 import torch.nn as nn
 from tools.basics import product, bundle
+#%% 
 
 default_seed = 1
 torch.manual_seed(default_seed)
@@ -9,24 +11,23 @@ torch.manual_seed(default_seed)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # returns list of tensor sizes
-def layer_output_shapes(input_shape, network):
+def layer_output_shapes(network, input_shape=None):
+    # convert OrderedDict's to just lists
+    from collections import OrderedDict
+    if isinstance(network, OrderedDict):
+        network = list(network.values())
     # convert lists to sequences
     if isinstance(network, list):
         network = nn.Sequential(*network)
     
-    class Model(nn.Module):
-        def __init__(self):
-            super(Model, self).__init__()
-            self.network = network
-        
-        def forward(self, x):
-            sizes = []
-            for layer in self.network:
-                x = layer(x)
-                sizes.append(x.size())
-            return sizes
+    # run a forward pass to figure it out
+    neuron_activations = torch.ones((1, *input_shape))
+    sizes = []
+    for layer in network:
+        neuron_activations = layer(neuron_activations)
+        sizes.append(neuron_activations.size())
     
-    return Model().forward(torch.ones((1, *input_shape)))
+    return sizes
 
 def read_image(file_path):
     from PIL import Image
@@ -136,9 +137,14 @@ def onehot_argmax(tensor):
     return onehot_tensor
 
 def from_onehot_batch(tensor_batch):
+    device = None
+    if isinstance(tensor_batch, torch.Tensor):
+        device = tensor_batch.device
     # make sure its a tensor
     tensor_batch = to_tensor(tensor_batch)
-    return tensor_batch.max(1, keepdim=True).indices.squeeze()
+    output = tensor_batch.max(1, keepdim=True).indices.squeeze()
+    # send to same device
+    return output.to(device) if device else output
 
 def from_onehot(tensor):
     # make sure its a tensor
@@ -165,9 +171,9 @@ def Network():
     def default_forward(self, input_data):
         """
         Uses:
-            Self.layers
-            Self.input_shape
-            Self.output_shape
+            self.device
+            self.input_shape
+            self.output_shape
         Arguments:
             input_data:
                 either an input image or batch of images
@@ -217,7 +223,7 @@ def Network():
         # forward pass
         # 
         neuron_activations = input_data
-        for each_layer in self.layers:
+        for each_layer in self._modules.values():
             neuron_activations = each_layer(neuron_activations)
         
         # force the output to be the correct shape
@@ -226,11 +232,15 @@ def Network():
     
     def default_setup(self, config):
         self.seed            = config.get("seed"           , default_seed)
-        self.log_interval    = config.get("log_interval"   , 10)
         self.suppress_output = config.get("suppress_output", False)
         self.device          = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        if hasattr(self, "print"): print = self.print
         self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
-        self.layers = nn.Sequential()
+        try:
+            import pytorch_lightning as pl
+            self.trainer = pl.Trainer()
+        except Exception as error:
+            pass
         
     def default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         """
@@ -383,3 +393,6 @@ def log_image(image_tensor):
     image_path = f"./logs.dont-sync/display_{_image_log_count}.png"
     F.to_pil_image(image_tensor).save(image_path)
     print("image logged: "+image_path)
+
+
+#%% 

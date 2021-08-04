@@ -18,26 +18,26 @@ class EncoderBasedClassifier(nn.Module):
         Network.default_setup(self, config)
         self.input_shape     = config.get("input_shape"    , (1, 28, 28))
         self.output_shape    = config.get("output_shape"   , (2,))
-        self.lr              = config.get("lr"             , 0.01)
+        self.learning_rate   = config.get("lr"             , 0.01)
         self.momentum        = config.get("momentum"       , 0.5 )
         
         # 
         # layers
         # 
-        self.layers.add_module("encoder", ImageEncoder(input_shape=self.input_shape, output_shape=(10,)))
-        self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
-        self.layers.add_module("fc2_activation", nn.LogSoftmax(dim=1))
+        self.add_module("encoder", ImageEncoder(input_shape=self.input_shape, output_shape=(10,)))
+        self.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
+        self.add_module("fc2_activation", nn.LogSoftmax(dim=1))
         
         # 
         # support (optimizer, loss)
         # 
         self.to(self.device)
         # create an optimizer
-        self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
+        self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
     @property
     def size_of_last_layer(self):
-        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.input_shape, self.layers)[-1])
+        return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
         
     def loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device

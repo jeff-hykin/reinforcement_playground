@@ -9,7 +9,6 @@ from tools.pytorch_tools import Network
 from agents.informed_vae.encoder import ImageEncoder
 # Decoder
 from agents.informed_vae.decoder import ImageDecoder
-
 # %%
 
 class ImageAutoEncoder(nn.Module):
@@ -22,36 +21,36 @@ class ImageAutoEncoder(nn.Module):
         self.input_shape     = config.get('input_shape'    , (1, 28, 28))
         self.latent_shape    = config.get('latent_shape'   , (30,))
         self.output_shape    = config.get('output_shape'   , (1, 28, 28))
-        self.lr              = config.get('lr'             , 0.01)
+        self.learning_rate   = config.get('lr'             , 0.01)
         self.momentum        = config.get('momentum'       , 0.5 )
         
         # 
         # layers
         # 
-        self.layers.add_module('encoder', ImageEncoder(input_shape=self.input_shape, output_shape=self.latent_shape))
-        self.layers.add_module('decoder', ImageDecoder(input_shape=self.latent_shape, output_shape=self.output_shape))
+        self.add_module('encoder', ImageEncoder(input_shape=self.input_shape, output_shape=self.latent_shape))
+        self.add_module('decoder', ImageDecoder(input_shape=self.latent_shape, output_shape=self.output_shape))
         
         # 
         # support (optimizer, loss)
         # 
         self.to(self.device)
         # create an optimizer
-        self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
+        self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
         # use mean squared error
         self.loss_function = nn.MSELoss()
     
     @property
     def size_of_last_layer(self):
-        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.input_shape, self.layers)[-1])
+        return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
     
     def loss_function(self, model_output, ideal_output):
         return F.mse_loss(model_output.to(self.device), ideal_output.to(self.device))
         
     def forward(self, input_data):
         input_data.to(self.device)
-        latent_space = self.layers.encoder.forward(input_data)
-        output = self.layers.decoder.forward(latent_space)
+        latent_space = self.encoder.forward(input_data)
+        output = self.decoder.forward(latent_space)
         return output
         # return Network.default_forward(self, input_data)
     

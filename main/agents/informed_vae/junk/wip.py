@@ -181,22 +181,22 @@ class ImageEncoder(ImageModelSequential):
         self.log_interval  = config.get("log_interval", 10)
         
         with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
-            self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
-            self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
-            self.layers.add_module("conv1_activation", nn.ReLU())
+            self.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
+            self.add_module("conv1_pool", nn.MaxPool2d(2))
+            self.add_module("conv1_activation", nn.ReLU())
             
-            self.layers.add_module("conv2", nn.Conv2d(10, 20, kernel_size=5))
-            self.layers.add_module("conv2_dropout", nn.Dropout2d())
-            self.layers.add_module("conv2_pool", nn.MaxPool2d(2))
-            self.layers.add_module("conv2_activation", nn.ReLU())
+            self.add_module("conv2", nn.Conv2d(10, 20, kernel_size=5))
+            self.add_module("conv2_dropout", nn.Dropout2d())
+            self.add_module("conv2_pool", nn.MaxPool2d(2))
+            self.add_module("conv2_activation", nn.ReLU())
             
-            self.layers.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-            self.layers.add_module("fc1", nn.Linear(self.size_of_last_layer, 50))
-            self.layers.add_module("fc1_activation", nn.ReLU())
-            self.layers.add_module("fc1_dropout", nn.Dropout2d())
+            self.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
+            self.add_module("fc1", nn.Linear(self.size_of_last_layer, 50))
+            self.add_module("fc1_activation", nn.ReLU())
+            self.add_module("fc1_dropout", nn.Dropout2d())
             
-            self.layers.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
-            self.layers.add_module("fc2_activation", nn.LogSoftmax(dim=-1))
+            self.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
+            self.add_module("fc2_activation", nn.LogSoftmax(dim=-1))
         
         def NLLLoss(batch_of_actual_outputs, batch_of_ideal_outputs):
             output = batch_of_actual_outputs[range(len(batch_of_ideal_outputs)), batch_of_ideal_outputs]
@@ -261,18 +261,18 @@ class ImageDecoder(ImageModelSequential):
         self.log_interval  = config.get("log_interval", 10)
         
         with self.setup(input_shape=self.input_shape, output_shape=self.output_shape):
-            self.layers.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
-            self.layers.add_module("fn1_activation", nn.ReLU(True))
+            self.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
+            self.add_module("fn1_activation", nn.ReLU(True))
             
-            self.layers.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
-            self.layers.add_module("fn2_activation", nn.ReLU(True))
+            self.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
+            self.add_module("fn2_activation", nn.ReLU(True))
             
             conv1_shape = [ 10, 20, 20 ] # needs to mupltiply together to be the size of the previous layer (currently 4000)
             conv2_size = 10
-            self.layers.add_module("conv1_prep", nn.Unflatten(1, conv1_shape))
-            self.layers.add_module("conv1", nn.ConvTranspose2d(conv1_shape[0], conv2_size, kernel_size=5))
-            self.layers.add_module("conv2", nn.ConvTranspose2d(conv2_size, 1, kernel_size=5))
-            self.layers.add_module("conv2_activation", nn.Sigmoid())
+            self.add_module("conv1_prep", nn.Unflatten(1, conv1_shape))
+            self.add_module("conv1", nn.ConvTranspose2d(conv1_shape[0], conv2_size, kernel_size=5))
+            self.add_module("conv2", nn.ConvTranspose2d(conv2_size, 1, kernel_size=5))
+            self.add_module("conv2_activation", nn.Sigmoid())
         
             self.loss_function = nn.MSELoss()
             self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
@@ -294,7 +294,7 @@ class ImageAutoEncoder(ImageModelSequential):
                 input_shape=self.input_shape,
                 output_shape=self.latent_shape,
             )
-            self.layers.add_module("encoder", self.encoder)
+            self.add_module("encoder", self.encoder)
             # 
             # decoder
             # 
@@ -302,7 +302,7 @@ class ImageAutoEncoder(ImageModelSequential):
                 input_shape=self.latent_shape,
                 output_shape=self.output_shape,
             )
-            self.layers.add_module("decoder", self.decoder)
+            self.add_module("decoder", self.decoder)
             
         self.loss_function = nn.MSELoss()
         self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
@@ -445,7 +445,7 @@ class ImageClassifier(ImageAutoEncoder):
                 input_shape=self.input_shape,
                 output_shape=self.latent_shape,
             ))
-            self.layers.add_module("encoder", self.encoder)
+            self.add_module("encoder", self.encoder)
             # 
             # task (classifier)
             # 
@@ -453,7 +453,7 @@ class ImageClassifier(ImageAutoEncoder):
                 nn.Linear(product(self.latent_shape), 2), # binary classification
                 nn.Sigmoid(),
             )
-            self.layers.add_module("task_network", self.task_network)
+            self.add_module("task_network", self.task_network)
             
         self.classifier_loss_function = self.loss_function = nn.BCELoss()
         self.optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
@@ -489,7 +489,7 @@ class ImageClassifier2(ImageAutoEncoder):
                 input_shape=self.input_shape,
                 output_shape=self.latent_shape,
             ))
-            self.layers.add_module("encoder", self.encoder)
+            self.add_module("encoder", self.encoder)
             # 
             # task (classifier)
             # 
@@ -497,7 +497,7 @@ class ImageClassifier2(ImageAutoEncoder):
                 nn.Linear(product(self.latent_shape), 2), # binary classification
                 nn.Sigmoid(),
             )
-            self.layers.add_module("task_network", self.task_network)
+            self.add_module("task_network", self.task_network)
             # 
             # task (decoder)
             # 
@@ -548,7 +548,7 @@ class SplitAutoEncoder(ImageAutoEncoder):
                 input_shape=self.input_shape,
                 output_shape=self.latent_shape,
             ))
-            self.layers.add_module("encoder", self.encoder)
+            self.add_module("encoder", self.encoder)
             # 
             # task (classifier)
             # 
@@ -556,7 +556,7 @@ class SplitAutoEncoder(ImageAutoEncoder):
                 nn.Linear(product(self.latent_shape), 2), # binary classification
                 nn.Sigmoid(),
             )
-            self.layers.add_module("task_network", self.task_network)
+            self.add_module("task_network", self.task_network)
             # 
             # task (decoder)
             # 

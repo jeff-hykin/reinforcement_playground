@@ -20,23 +20,23 @@ class SplitClassifier(nn.Module):
         self.input_shape     = config.get("input_shape"    , (1, 28, 28))
         self.latent_shape    = config.get("latent_shape"   , (10,))
         self.output_shape    = config.get("output_shape"   , (2,))
-        self.lr              = config.get("lr"             , 0.01)
+        self.learning_rate   = config.get("lr"             , 0.01)
         self.momentum        = config.get("momentum"       , 0.5 )
         
         # 
         # layers
         # 
         # 1 input image, 10 output channels, 5x5 square convolution kernel
-        self.layers.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
-        self.layers.add_module("conv1_pool", nn.MaxPool2d(2))
-        self.layers.add_module("conv1_activation", nn.ReLU())
-        self.layers.add_module("conv2", nn.Conv2d(10, 10, kernel_size=5))
-        self.layers.add_module("conv2_drop", nn.Dropout2d())
-        self.layers.add_module("conv2_pool", nn.MaxPool2d(2))
-        self.layers.add_module("conv2_activation", nn.ReLU())
-        self.layers.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module("fc1", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
-        self.layers.add_module("fc1_activation", nn.LogSoftmax(dim=1))
+        self.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
+        self.add_module("conv1_pool", nn.MaxPool2d(2))
+        self.add_module("conv1_activation", nn.ReLU())
+        self.add_module("conv2", nn.Conv2d(10, 10, kernel_size=5))
+        self.add_module("conv2_drop", nn.Dropout2d())
+        self.add_module("conv2_pool", nn.MaxPool2d(2))
+        self.add_module("conv2_activation", nn.ReLU())
+        self.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
+        self.add_module("fc1", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
+        self.add_module("fc1_activation", nn.LogSoftmax(dim=1))
         
         # TODO: FIXME pick an area as a latent space
         self.decoder = ImageDecoder(input_shape=self.latent_shape, output_shape=self.input_shape)
@@ -46,11 +46,11 @@ class SplitClassifier(nn.Module):
         # 
         self.to(self.device)
         # create an optimizer
-        self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
+        self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
     @property
     def size_of_last_layer(self):
-        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.input_shape, self.layers)[-1])
+        return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
         
     def loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device

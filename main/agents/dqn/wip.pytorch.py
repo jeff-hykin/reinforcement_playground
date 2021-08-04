@@ -93,7 +93,7 @@ class Model():
             self.bn3   = nn.BatchNorm2d(self.conv3.out_channels)
             
             layers = [ self.conv1, self.bn1, self.conv2, self.bn2, self.conv3, self.bn3, ]
-            shape_of_last_layer = layer_output_shapes(input_shape, layers)[-1]
+            shape_of_last_layer = layer_output_shapes(layers, input_shape)[-1]
             self.head = nn.Linear(product(*shape_of_last_layer), product(output_shape))
 
         # Called with either one element to determine next action, or a batch

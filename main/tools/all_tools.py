@@ -18,6 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
+import pytorch_lightning as pl
 
 # import tensorflow as tf
 # from stable_baselines.common import set_global_seeds
