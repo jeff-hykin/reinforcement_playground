@@ -16,7 +16,6 @@ class Agent:
         self.wants_to_quit = False
         self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
-        # standard
     
     def on_episode_start(self, initial_observation):
         """
@@ -25,7 +24,6 @@ class Agent:
         """
         return
         
-    # optional
     def decide(observation, reward, is_last_timestep):
         """
         returns an action from the action space
