@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # perform test on mnist dataset if run directly
     # 
     model = SimpleClassifier()
-    train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
+    train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
     model.fit(loader=train_loader, number_of_epochs=3)
     model.test(loader=test_loader)
     
