@@ -25,7 +25,7 @@ class Agent:
         """
         return
         
-    # this may not be used
+    # optional
     def decide(observation, reward, is_last_timestep):
         """
         returns an action from the action space
