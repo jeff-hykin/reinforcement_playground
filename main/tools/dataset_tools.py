@@ -30,29 +30,63 @@ class QuickDataset(torch.utils.data.Dataset):
         ).split([5,1]) # ratio of 5 to 1 for train, test
         
     """
-    def __init__(self, length, getters, attributes=None, data=None, mapping=None, **kwargs):
+    class CacheMiss: pass
+    def __init__(self, length, getters, attributes=None, data=None, mapping=None, use_cache=False, **kwargs):
         super(QuickDataset).__init__()
+        self._cache = {}
         self.length = length
         self.data = data
         self.mapping = mapping
+        self.use_cache = use_cache
         attributes = attributes or {}
-        self.args = dict(length=length, getters=getters, attributes=attributes, data=data, mapping=mapping)
+        self._already_getting_something = False
+        self.args = dict(length=length, getters=getters, attributes=attributes, data=data, mapping=mapping, use_cache=use_cache)
         # create all the getters
         for each_key in getters:
             # exists because of python scoping issues
             def scope_fixer():
                 nonlocal self
-                key_copy = str(each_key)
-                setattr(self, each_key, lambda index, *args, **kwargs: getters[key_copy](self, self.get_original_index(index), *args, **kwargs))
+                key_copy = hash(each_key)
+                core_getter = getters[each_key]
+                def getter(index, *args, **kwargs):
+                    # cached values return instantly
+                    if self.use_cache:
+                        value = self._cache.get((key_copy, index), CacheMiss())
+                        if type(value) != CacheMiss:
+                            return value
+                    
+                    # handle recursive case
+                    it_was_false = self._already_getting_something == False
+                    # use the mapping most of the time
+                    if not self._already_getting_something:
+                        index =  self.get_original_index(index)
+                    # when calling again (recursive) don't re-map the index
+                    else:
+                        index = index
+                    self._already_getting_something = True
+                    
+                    # actuall run the function
+                    output = core_getter(self, index, *args, **kwargs)
+                    
+                    # cache
+                    if self.use_cache: self._cache[key_copy, index] = output
+                    # leave it how you found it
+                    if it_was_false: self._already_getting_something = False
+                    
+                    return output
+                setattr(self, each_key, getter)
             scope_fixer()
         
         for each_key, each_value in attributes.items():
             setattr(self, each_key, each_value)
     
     def __len__(self):
-        return self.length if not callable(length) else length()
+        return self.length if not callable(self.length) else self.length(self)
     
     def __getitem__(self, index):
+        # dont let iterators go out of bounds
+        if index >= len(self):
+            raise StopIteration
         return self.get_input(index), self.get_output(index)
     
     def get_original_index(self, index):
@@ -72,9 +106,9 @@ class QuickDataset(torch.utils.data.Dataset):
         grand_total = len(self)
         number_of_groups = sum(groups)
         proportions = [ each/number_of_groups for each in groups ]
-        total_values = [ int(each * length) for each in proportions ]
+        total_values = [ int(each * self.length) for each in proportions ]
         # have the last one be the sum to avoid division/rounding issues
-        total_values[-1] = length - sum(total_values[0:-1])
+        total_values[-1] = self.length - sum(total_values[0:-1])
         
         # create a mapping from the new datasets to the original one
         mappings = {}
@@ -100,12 +134,12 @@ class QuickDataset(torch.utils.data.Dataset):
 def create_weighted_sampler_for(dataset):
     from collections import Counter
     total_number_of_samples = len(dataset)
-    class_counts = dict(Counter(tuple(each_output.tolist()) for each_input, each_output in dataset))
+    class_counts = dict(Counter(to_pure(each_output) for each_input, each_output in dataset))
     class_weights = { each_class_key: total_number_of_samples/each_value for each_class_key, each_value in class_counts.items() }
-    weights = [ class_weights[tuple(each_output.tolist())] for each_input, each_output in dataset ]
+    weights = [ class_weights[to_pure(each_output)] for each_input, each_output in dataset ]
     return torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights), int(total_number_of_samples))
         
-def quick_mnist():
+def quick_mnist(cache=False):
     original_mnist = torchvision.datasets.MNIST(root=f"{temp_folder}/files/", train=True, download=True,)
     transformed_mnist = torchvision.datasets.MNIST(
         root=f"{temp_folder}/files/",
@@ -125,6 +159,7 @@ def quick_mnist():
         attributes=dict(
             number_of_classes=10
         ),
+        use_cache=cache,
         getters=dict(
             # normalized
             get_input= lambda self, index: transformed_mnist[index][0],
@@ -139,41 +174,21 @@ def quick_mnist():
 
 def binary_mnist(numbers):
     # overwrite the output to be binary classification
-    binary_dataset = quick_mnist().extend(
-        get_output= lambda self, index: 1 if self.get_number_value(index) in numbers else 0,
-    )
-    
-    #
-    # test/train split
-    # 
-    # 1/6th of the data is for testing
-    dataset = Dataset(**options)
-    number_of_splits = 6
-    test_sections = 1
-    number_of_test_elements = int(test_sections * (len(dataset) / number_of_splits))
-    number_of_train_elements = len(dataset) - number_of_test_elements
-    train_dataset, test_dataset = torch.utils.data.random_split(dataset,[number_of_train_elements, number_of_test_elements])
-    
-    # 
-    # weighted sampling setup
-    # 
-    from collections import Counter
-    total_number_of_samples = len(train_dataset)
-    class_counts = dict(Counter(tuple(each_output.tolist()) for each_input, each_output in train_dataset))
-    class_weights = { each_class_key: total_number_of_samples/each_value for each_class_key, each_value in class_counts.items() }
-    weights = [ class_weights[tuple(each_output.tolist())] for each_input, each_output in train_dataset ]
-    sampler = torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights), int(total_number_of_samples))
+    train_dataset, test_dataset = quick_mnist(cache=True).extend(
+        get_output= lambda self, index: torch.tensor([1,0]) if self.get_number_value(index) in numbers else torch.tensor([0,1]),
+    ).split([5, 1])
     
     # 
     # create the loaders
     # 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        sampler=sampler,
+        sampler=create_weighted_sampler_for(train_dataset),
         batch_size=64,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
+        sampler=create_weighted_sampler_for(test_dataset),
         batch_size=1000,
     )
     return train_dataset, test_dataset, train_loader, test_loader
