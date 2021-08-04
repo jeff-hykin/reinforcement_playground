@@ -34,6 +34,10 @@ def read_image(file_path):
     image = Image.open(file_path)
     return TF.to_tensor(image)
 
+def tensor_to_image(tensor):
+    import torchvision.transforms.functional as TF
+    return TF.to_pil_image(tensor)
+
 def to_tensor(an_object):
     from tools.basics import is_iterable
     
@@ -147,6 +151,12 @@ def batch_input_and_output(inputs, outputs, batch_size):
     for each_input_batch, each_output_batch in batches:
         yield to_tensor(each_input_batch), to_tensor(each_output_batch)
 
+def unnormalize(mean, std, image):
+    import torchvision.transforms as transforms
+    normalizer = transforms.Normalize((-mean / std), (1.0 / std))
+    return normalizer(image)
+
+
 from simple_namespace import namespace
 
 @namespace
@@ -188,29 +198,25 @@ def Network():
         
         """
         # converts to torch if needed
-        input_data = to_tensor(input_data)
+        input_data = to_tensor(input_data).type(torch.float).to(self.device)
         
         # 
         # batch or not?
         # 
-        if len(input_data.shape) == 3: 
-            batch_size = None
-            output_shape = self.output_shape
+        is_a_batch = len(input_data.shape) > len(self.input_shape)
+        if not is_a_batch: 
+            batch_size = 1
             # convert images into batches
             input_data = torch.reshape(input_data, (1, *input_data.shape))
+            output_shape = self.output_shape
         else:
             batch_size = tuple(input_data.shape)[0]
             output_shape = (batch_size, *self.output_shape)
         
-        # TODO: consider the possibility of being givent a single 2D image
-        
-        # force into batches even if that means just adding a dimension
-        from tools.basics import product
-        batch_length = 1 if batch_size == None else batch_size
-        input_data = torch.reshape(input_data, shape=(batch_length, *self.input_shape))
-        input_data = input_data.type(torch.float)
-        
-        neuron_activations = input_data.to(self.device)
+        # 
+        # forward pass
+        # 
+        neuron_activations = input_data
         for each_layer in self.layers:
             neuron_activations = each_layer(neuron_activations)
         

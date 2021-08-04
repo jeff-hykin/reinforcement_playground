@@ -143,6 +143,7 @@ def create_weighted_sampler_for(dataset):
 def quick_mnist(cache=False):
     import torchvision
     original_mnist = torchvision.datasets.MNIST(root=f"{temp_folder}/files/", train=True, download=True,)
+    mean, std_deviation = 0.1307, 0.3081
     transformed_mnist = torchvision.datasets.MNIST(
         root=f"{temp_folder}/files/",
         train=True,
@@ -150,16 +151,18 @@ def quick_mnist(cache=False):
         transform=torchvision.transforms.Compose(
             [
                 torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+                torchvision.transforms.Normalize((mean,), (std_deviation,)),
             ]
         )
     )
-    from tools.pytorch_tools import onehot_argmax
+    from tools.pytorch_tools import onehot_argmax, unnormalize
     import torchvision.transforms.functional as TF
     return QuickDataset(
         length=len(original_mnist),
         attributes=dict(
-            number_of_classes=10
+            number_of_classes=10,
+            normalizer=torchvision.transforms.Normalize((mean,), (std_deviation,)),
+            unnormalizer=lambda image: unnormalize(mean, std_deviation, image),
         ),
         use_cache=cache,
         getters=dict(
@@ -174,11 +177,9 @@ def quick_mnist(cache=False):
         ),
     )
 
-def binary_mnist(numbers):
+def quick_loader(dataset, split, train_batch_size=64, test_batch_size=1000):
     # overwrite the output to be binary classification
-    train_dataset, test_dataset = quick_mnist(cache=True).extend(
-        get_output= lambda self, index: torch.tensor([1,0]) if self.get_number_value(index) in numbers else torch.tensor([0,1]),
-    ).split([5, 1])
+    train_dataset, test_dataset = dataset.split(split)
     
     # 
     # create the loaders
@@ -186,12 +187,16 @@ def binary_mnist(numbers):
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         sampler=create_weighted_sampler_for(train_dataset),
-        batch_size=64,
+        batch_size=train_batch_size,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         sampler=create_weighted_sampler_for(test_dataset),
-        batch_size=1000,
+        batch_size=test_batch_size,
     )
     return train_dataset, test_dataset, train_loader, test_loader
 
+def binary_mnist(numbers):
+    return quick_mnist(cache=True).extend(
+        get_output= lambda self, index: torch.tensor([1,0]) if self.get_number_value(index) in numbers else torch.tensor([0,1]),
+    )
