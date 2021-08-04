@@ -641,15 +641,6 @@ if True:
             # FIXME: implment
             pass
 
-    def autoencoder_ify(dataset):
-        class AutoDataset(dataset):
-            def __init__(self, *args, **kwargs):
-                super(AutoDataset, self).__init__(*args, **kwargs)
-            
-            def __getitem__(self, index):
-                an_input, corrisponding_output = super(AutoDataset, self).__getitem__(index)
-                return an_input, an_input
-
     _image_log_count = 0
     def log_image(image_tensor):
         global _image_log_count
@@ -914,7 +905,7 @@ if True:
     results = []
     for each in [9]:
         result = {}
-        train_dataset, test_dataset, train_loader, test_loader = binary_mnist([each])
+        train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([each]), [5, 1])
         
         # 
         # split
