@@ -5,10 +5,13 @@ from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
 
+# Encoder
+from agents.informed_vae.encoder import ImageEncoder
+
 # %% 
-class SimpleClassifier(nn.Module):
+class AltSplitClassifier(nn.Module):
     def __init__(self, **config):
-        super(SimpleClassifier, self).__init__()
+        super(AltSplitClassifier, self).__init__()
         # 
         # options
         # 
@@ -21,17 +24,7 @@ class SimpleClassifier(nn.Module):
         # 
         # layers
         # 
-        # 1 input image, 10 output channels, 5x5 square convolution kernel
-        self.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
-        self.add_module("conv1_pool", nn.MaxPool2d(2))
-        self.add_module("conv1_activation", nn.ReLU())
-        self.add_module("conv2", nn.Conv2d(10, 10, kernel_size=5))
-        self.add_module("conv2_drop", nn.Dropout2d())
-        self.add_module("conv2_pool", nn.MaxPool2d(2))
-        self.add_module("conv2_activation", nn.ReLU())
-        self.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.add_module("fc1", nn.Linear(self.size_of_last_layer, 10))
-        self.add_module("fc1_activation", nn.ReLU())
+        self.add_module("encoder", ImageEncoder(input_shape=self.input_shape, output_shape=(10,)))
         self.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
         self.add_module("fc2_activation", nn.LogSoftmax(dim=1))
         
@@ -54,27 +47,57 @@ class SimpleClassifier(nn.Module):
     def correctness_function(self, model_batch_output, ideal_batch_output):
         return Network.onehot_correctness_function(self, model_batch_output, ideal_batch_output)
 
-    def forward(self, input_data):
-        return Network.default_forward(self, input_data)
-    
-    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
-        return Network.default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
-        
     def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
         return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
     
     def test(self, loader, correctness_function=None):
         return Network.default_test(self, loader)
 
+    def forward(self, input_data):
+        input_data.to(self.device)
+        latent_space   = self.encoder.forward(input_data)
+        x = self.fc2.forward(latent_space)
+        x = self.fc2_activation.forward(x)
+        return x
 
-#%%
+    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+        self.optimizer.zero_grad()
+        
+        # batch_of_actual_outputs = self.forward(batch_of_inputs)
+        batch_of_inputs.to(self.device)
+        latent_space   = self.encoder.forward(batch_of_inputs)
+        x = self.fc2.forward(latent_space)
+        x = self.fc2_activation.forward(x)
+        batch_of_actual_outputs = x
+        
+        loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
+        loss.backward()
+        self.optimizer.step()
+        return loss
+        
+    # def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+    #     self.optimizer.zero_grad()
+    #     latent_space         = self.encoder.forward(input_data)
+        
+    #     x = self.fc2.forward(latent_space)
+    #     x = self.fc2_activation.forward(x)
+    #     classifier_loss = self.loss_function(x, batch_of_ideal_outputs)
+    #     classifier_loss.backward()
+        
+    #     # image_representation = self.decoder.forward(latent_space)
+    #     # autoencoder_loss     = self.decoder_loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
+    #     # autoencoder_loss.backward()
+        
+    #     self.optimizer.step()
+    #     return loss
+
 if __name__ == "__main__":
     from tools.dataset_tools import binary_mnist
     
     # 
     # perform test on mnist dataset if run directly
     # 
-    model = SimpleClassifier()
+    model = AltSplitClassifier()
     train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
     model.fit(loader=train_loader, number_of_epochs=3)
     model.test(loader=test_loader)
@@ -83,10 +106,11 @@ if __name__ == "__main__":
     # test inputs/outputs
     # 
     from tools.basics import *
+    network = model
     for each_index in range(100):
         input_data, correct_output = train_dataset[each_index]
         # train_dataset, test_dataset, train_loader, test_loader
-        guess = [ round(each, ndigits=0) for each in to_pure(model.forward(input_data)) ]
+        guess = [ round(each, ndigits=0) for each in to_pure(network.forward(input_data)) ]
         actual = to_pure(correct_output)
         index = max_index(guess)
         print(f"guess: {guess},\t  index: {index},\t actual: {actual}")

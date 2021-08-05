@@ -15,7 +15,7 @@ class LitSimpleClassifier(pl.LightningModule):
         # 
         self.input_shape     = config.get("input_shape"    , (1, 28, 28))
         self.output_shape    = config.get("output_shape"   , (2,))
-        self.learning_rate   = config.get("lr"             , 0.01)
+        self.learning_rate   = config.get("learning_rate"  , 0.01)
         self.momentum        = config.get("momentum"       , 0.5 )
         self.suppress_output = config.get("suppress_output", False)
         self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None

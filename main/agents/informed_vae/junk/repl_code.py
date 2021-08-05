@@ -839,7 +839,7 @@ if True:
             self.batch_size      = config.get("batch_size"     , 64  )
             self.test_batch_size = config.get("test_batch_size", 1000)
             self.epochs          = config.get("epochs"         , 3   )
-            self.learning_rate   = config.get("lr"             , 0.01)
+            self.learning_rate   = config.get("learning_rate"  , 0.01)
             self.momentum        = config.get("momentum"       , 0.5 )
             
             # 
@@ -970,7 +970,7 @@ if True:
             self.batch_size      = config.get("batch_size"     , 64  )
             self.test_batch_size = config.get("test_batch_size", 1000)
             self.epochs          = config.get("epochs"         , 3   )
-            self.learning_rate   = config.get("lr"             , 0.01)
+            self.learning_rate   = config.get("learning_rate"  , 0.01)
             self.momentum        = config.get("momentum"       , 0.5 )
             
             # 

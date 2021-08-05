@@ -18,7 +18,7 @@ class EncoderBasedClassifier(nn.Module):
         Network.default_setup(self, config)
         self.input_shape     = config.get("input_shape"    , (1, 28, 28))
         self.output_shape    = config.get("output_shape"   , (2,))
-        self.learning_rate   = config.get("lr"             , 0.01)
+        self.learning_rate   = config.get("learning_rate"  , 0.01)
         self.momentum        = config.get("momentum"       , 0.5 )
         
         # 
