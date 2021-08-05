@@ -6,6 +6,6 @@ def show(*, image_tensor, format='png'):
     buffer = BytesIO()
     image = tensor_to_image(image_tensor)
     # save to stream
-    image.save(buffer, fmt)
+    image.save(buffer, format)
     # display stream as if it was a file
     IPython.display.display(IPython.display.Image(data=buffer.getvalue()))
