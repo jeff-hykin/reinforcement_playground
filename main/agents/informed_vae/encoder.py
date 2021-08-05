@@ -1,8 +1,10 @@
+#%% encoder
 from tools.all_tools import *
 
 from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
+#%%
 
 class ImageEncoder(nn.Module):
     def __init__(self, **config):
@@ -53,3 +55,4 @@ class ImageEncoder(nn.Module):
     def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
         return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
 
+#%%

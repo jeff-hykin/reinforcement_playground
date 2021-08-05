@@ -1,6 +1,9 @@
+#%%
 import os
 import torch
 from tools.basics import *
+#%% dataset_tools
+
 temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/common_format_datasets"
 
 class QuickDataset(torch.utils.data.Dataset):
@@ -200,3 +203,5 @@ def binary_mnist(numbers):
     return quick_mnist(cache=True).extend(
         get_output= lambda self, index: torch.tensor([1,0]) if self.get_number_value(index) in numbers else torch.tensor([0,1]),
     )
+
+#%%

@@ -1,8 +1,8 @@
-#%% 
+#%% pytorch_tools
 import torch
 import torch.nn as nn
 from tools.basics import product, bundle
-#%% 
+#%% pytorch_tools
 
 default_seed = 1
 torch.manual_seed(default_seed)
@@ -223,19 +223,20 @@ def Network():
         # forward pass
         # 
         neuron_activations = input_data
-        for each_layer in self._modules.values():
-            neuron_activations = each_layer(neuron_activations)
+        for each_layer in self.children():
+            # if its not a loss function
+            if not isinstance(each_layer, torch.nn.modules.loss._Loss):
+                neuron_activations = each_layer(neuron_activations)
         
         # force the output to be the correct shape
         return torch.reshape(neuron_activations, output_shape)
     
-    
     def default_setup(self, config):
         self.seed            = config.get("seed"           , default_seed)
         self.suppress_output = config.get("suppress_output", False)
+        self.log_interval    = config.get("log_interval"   , 10)
         self.device          = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-        if hasattr(self, "print"): print = self.print
-        self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
+        if not hasattr(self, "print"): self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
         try:
             import pytorch_lightning as pl
             self.trainer = pl.Trainer()

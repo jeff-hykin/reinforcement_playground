@@ -1,3 +1,4 @@
+#%% basics
 from collections import Counter # frequency count
 import os
 import sys
@@ -431,3 +432,4 @@ if os.environ.get('PROJECTR_FOLDER', None):
     temp_folder = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
 else:
     temp_folder = f"/tmp/"
+#%%

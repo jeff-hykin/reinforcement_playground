@@ -59,13 +59,14 @@ class ImageAutoEncoder(nn.Module):
         
     def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
         return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
-    
-# 
+
+# %%
 # perform test if run directly
 # 
 if __name__ == '__main__':
     from tools.dataset_tools import binary_mnist
     from tools.basics import *
+    from tools.ipython_tools import show
     
     model = ImageAutoEncoder()
     try:
@@ -75,7 +76,7 @@ if __name__ == '__main__':
         train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
     
     model.fit(loader=train_loader, number_of_epochs=3)
-    
+        
     # 
     # sample inputs/outputs
     # 
@@ -84,15 +85,14 @@ if __name__ == '__main__':
     for each_index in range(100):
         input_data, correct_output = train_dataset[each_index]
         output = model.forward(input_data)
-        sample = tensor_to_image(
-            torch.cat(
-                (
-                    train_dataset.unnormalizer(input_data.to(model.device)),
-                    train_dataset.unnormalizer(output.to(model.device)),
-                ), 
-                1
-            )
+        sample =  torch.cat(
+            (
+                train_dataset.unnormalizer(input_data.to(model.device)),
+                train_dataset.unnormalizer(output.to(model.device)),
+            ), 
+            1
         )
+        show(image_tensor=sample)
         samples.append(sample)
 
 # %%
