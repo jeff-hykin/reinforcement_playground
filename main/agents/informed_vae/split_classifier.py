@@ -79,8 +79,8 @@ class SplitClassifier(nn.Module):
         self.optimizer.step()
         return classifier_loss
     
-    def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
-        return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
+    def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True, **kwargs):
+        return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle, **kwargs)
 
     def correctness_function(self, model_batch_output, ideal_batch_output):
         return Network.onehot_correctness_function(self, model_batch_output, ideal_batch_output)

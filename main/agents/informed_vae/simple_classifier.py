@@ -69,13 +69,8 @@ class SimpleClassifier(pl.LightningModule):
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         return Network.default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
     
-    def fit(self, *, loader=None, **kwargs):
-        # TODO: create default function that handles various argument inputs and outputs a data loader
-        self.prev_trainer = self.new_trainer(**kwargs)
-        output = self.prev_trainer.fit(self, loader)
-        # go back to the hardware to unto the changes made by pytorch lightning
-        self.to(self.hardware)
-        return output
+    def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True, **kwargs):
+        return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle, **kwargs)
     
     def correctness_function(self, model_batch_output, ideal_batch_output):
         return Network.onehot_correctness_function(self, model_batch_output, ideal_batch_output)
@@ -92,7 +87,7 @@ if __name__ == "__main__":
     # 
     model = SimpleClassifier()
     if not 'train_dataset' in locals(): train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
-    model.fit(loader=train_loader, max_epochs=1)
+    model.fit(loader=train_loader, max_epochs=3)
     model.test(loader=test_loader)
     
     # 
