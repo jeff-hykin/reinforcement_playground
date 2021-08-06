@@ -35,7 +35,7 @@ class ImageEncoder(nn.Module):
         # 
         # support (optimizer, loss)
         # 
-        self.to(self.device)
+        self.to(self.hardware)
     
     @property
     def size_of_last_layer(self):
@@ -43,7 +43,7 @@ class ImageEncoder(nn.Module):
         
     def loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
-        ideal_output = from_onehot_batch(ideal_output).to(self.device)
+        ideal_output = from_onehot_batch(ideal_output).to(self.hardware)
         return F.nll_loss(model_output, ideal_output)
 
     def forward(self, input_data):

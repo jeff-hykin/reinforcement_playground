@@ -83,7 +83,7 @@ class Agent:
         self.config = config
         self.action_space = action_space
         self.wants_to_quit = False
-        self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+        self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
         self.input_shape = config.get("input_shape", (3, 32, 32)) # default shape of (3, 32, 32)
         self.latent_shape = config.get("latent_shape", (32)) # default shape of (3, 32, 32)
@@ -107,18 +107,18 @@ class Agent:
         # 
         path = self.config.get("path", None)
         if type(path) == str and path != "":
-            self.print("VAE: Loading pretrained")
+            self.show("VAE: Loading pretrained")
             from os.path import isfile
             assert not isfile(path), f"VAE: trying to load, but no file found at {path}"
             self.vae = VAEController(z_size=None)
             self.vae.load(path)
-            self.print("VAE: Loaded")
+            self.show("VAE: Loaded")
         else:
-            self.print(f"VAE: Randomly initializing with size {self.z_size}")
+            self.show(f"VAE: Randomly initializing with size {self.z_size}")
             self.vae = VAEController(z_size=self.z_size)
             # Save network if randomly initilizing
             self.should_save = True
-        self.print(f"VAE: number of latent variables (z_size): {self.vae.z_size}")
+        self.show(f"VAE: number of latent variables (z_size): {self.vae.z_size}")
     
     def on_episode_start(self):
         """

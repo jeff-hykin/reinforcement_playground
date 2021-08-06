@@ -24,8 +24,10 @@ def layer_output_shapes(network, input_shape=None):
     neuron_activations = torch.ones((1, *input_shape))
     sizes = []
     for layer in network:
-        neuron_activations = layer(neuron_activations)
-        sizes.append(neuron_activations.size())
+        # if its not a loss function
+        if not isinstance(layer, torch.nn.modules.loss._Loss):
+            neuron_activations = layer(neuron_activations)
+            sizes.append(neuron_activations.size())
     
     return sizes
 
@@ -232,17 +234,34 @@ def Network():
         return torch.reshape(neuron_activations, output_shape)
     
     def default_setup(self, config):
+        # check for pytorch lightning
+        try:
+            import pytorch_lightning as pl
+            LightningModule = pl.LightningModule
+            Trainer = pl.Trainer
+        except Exception as error:
+            LightningModule = None
+            Trainer = None
+        
         self.seed            = config.get("seed"           , default_seed)
         self.suppress_output = config.get("suppress_output", False)
         self.log_interval    = config.get("log_interval"   , 10)
-        self.device          = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-        if not hasattr(self, "print"): self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
-        try:
-            import pytorch_lightning as pl
-            self.trainer = pl.Trainer()
-        except Exception as error:
-            pass
-        
+        self.hardware        = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        self.show = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
+        self.to(self.hardware)
+        if not isinstance(self, LightningModule):
+            self.device = self.hardware
+        else:
+            self._is_lightning_module = True
+            self.new_trainer = lambda *args, **kwargs: Trainer(*args, **{
+                # default values
+                **{
+                    "gpus": torch.cuda.device_count(),
+                    "auto_select_gpus": True,
+                },
+                **kwargs,
+            })
+            
     def default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         """
         Uses:
@@ -270,11 +289,11 @@ def Network():
         number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
         return number_correct
     
-    def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
+    def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True, **kwargs):
         """
         Uses:
             self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
-            self.print(args)
+            self.show(args)
             self.train() # provided by pytorch's `nn.Module`
         
         Examples:
@@ -317,37 +336,45 @@ def Network():
                     shuffle=shuffle,
                 )
         
-        train_losses = []
-        for epoch_index in range(number_of_epochs):
-            self.train()
-            for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
-                loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
-                from tools.basics import to_pure
-                if batch_index % self.log_interval == 0:
-                    self.print(
-                        "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
-                            epoch_index+1,
-                            batch_index * len(batch_of_inputs),
-                            len(loader.dataset),
-                            100.0 * batch_index / len(loader),
-                            to_pure(loss),
+        if hasattr(self, "_is_lightning_module"):
+            self.prev_trainer = self.new_trainer(**kwargs)
+            output = self.prev_trainer.fit(self, loader)
+            # go back to the hardware to unto the changes made by pytorch lightning
+            self.to(self.hardware)
+            self.
+            return output
+        else:
+            train_losses = []
+            for epoch_index in range(number_of_epochs):
+                self.train()
+                for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
+                    loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
+                    from tools.basics import to_pure
+                    if batch_index % self.log_interval == 0:
+                        self.show(
+                            "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
+                                epoch_index+1,
+                                batch_index * len(batch_of_inputs),
+                                len(loader.dataset),
+                                100.0 * batch_index / len(loader),
+                                to_pure(loss),
+                            )
                         )
-                    )
-                    train_losses.append(loss)
-                    # TODO: add/allow checkpoints
-                    # import os
-                    # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
-                    # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
-                    # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
-        return train_losses
+                        train_losses.append(loss)
+                        # TODO: add/allow checkpoints
+                        # import os
+                        # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
+                        # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
+                        # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
+            return train_losses
         
     def default_test(self, loader, correctness_function=None, loss_function=None):
         """
         Uses:
             self.forward(batch_of_inputs)
-            self.print(args)
+            self.show(args)
             self.eval() # provided by pytorch's `nn.Module`
-            self.device # a pytorch device
+            self.hardware # a pytorch device
         
         Optionally Uses:
             # returns the pytorch loss
@@ -363,15 +390,15 @@ def Network():
         with torch.no_grad():
             for batch_of_inputs, batch_of_ideal_outputs in loader:
                 actual_output = self.forward(batch_of_inputs)
-                batch_of_inputs = actual_output.type(torch.float).to(self.device)
+                actual_output = actual_output.type(torch.float).to(self.device)
                 batch_of_ideal_outputs = batch_of_ideal_outputs.type(torch.float).to(self.device)
-                test_loss += loss_function(batch_of_inputs, batch_of_ideal_outputs)
-                correct += correctness_function(batch_of_inputs, batch_of_ideal_outputs)
+                test_loss += loss_function(actual_output, batch_of_ideal_outputs)
+                correct += correctness_function(actual_output, batch_of_ideal_outputs)
         
         # convert to regular non-tensor data
         test_loss = test_loss.item()
         test_loss /= len(loader.dataset)
-        self.print(
+        print(
             "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
                 test_loss,
                 correct,

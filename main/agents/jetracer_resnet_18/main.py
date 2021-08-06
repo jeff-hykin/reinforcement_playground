@@ -18,7 +18,7 @@ class Agent:
         #
         # logger
         # 
-        self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+        self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
         # based on https://github.com/NVIDIA-AI-IOT/jetracer/blob/master/notebooks/interactive_regression.ipynb
         
@@ -31,9 +31,9 @@ class Agent:
         if torch.cuda.is_available():
             device = torch.device('cuda')
             self.model = model.to(device)
-            self.print('agent is using cuda')
+            self.show('agent is using cuda')
         else:
-            self.print('cuda doesnt seem to be available')
+            self.show('cuda doesnt seem to be available')
     
     # this may not be used
     def decide(observation, reward, is_last_timestep):
@@ -60,7 +60,7 @@ class Agent:
         self.model.load_state_dict(torch.load(self.checkpoint_path))
         
     def save_model(self):
-        self.print("saving model")
+        self.show("saving model")
         torch.save(self.model.state_dict(), self.checkpoint_path)
         
     def train(self):

@@ -7,6 +7,8 @@ from tools.pytorch_tools import Network
 
 # Encoder
 from agents.informed_vae.encoder import ImageEncoder
+# Classifier
+from agents.informed_vae.classifier_output import ClassifierOutput
 # Decoder
 from agents.informed_vae.decoder import ImageDecoder
 # %%
@@ -27,19 +29,14 @@ class SplitClassifier(nn.Module):
         # 
         # layers
         # 
-        self.add_module('encoder', ImageEncoder(input_shape=self.input_shape, output_shape=self.latent_shape))
-        self.add_module('classifier',
-            nn.Sequential(
-                nn.Linear(self.size_of_last_layer, product(self.output_shape)),
-                nn.LogSoftmax(dim=1),
-            )
-        )
-        self.add_module('decoder', ImageDecoder(input_shape=self.latent_shape, output_shape=self.input_shape))
+        self.add_module('encoder'   , ImageEncoder(input_shape=self.input_shape, output_shape=self.latent_shape))
+        self.add_module('classifier', ClassifierOutput(input_shape=self.latent_shape, output_shape=self.output_shape))
+        self.add_module('decoder'   , ImageDecoder(input_shape=self.latent_shape, output_shape=self.input_shape))
         
         # 
         # support (optimizer, loss)
         # 
-        self.to(self.device)
+        self.to(self.hardware)
         # create an optimizer
         self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
@@ -48,18 +45,24 @@ class SplitClassifier(nn.Module):
         return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
     
     def decoder_loss_function(self, model_output, ideal_output):
-        return F.mse_loss(model_output.to(self.device), ideal_output.to(self.device))
+        return F.mse_loss(model_output.to(self.hardware), ideal_output.to(self.hardware))
     
     def classifier_loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
-        ideal_output = from_onehot_batch(ideal_output).to(self.device)
+        ideal_output = from_onehot_batch(ideal_output).to(self.hardware)
         return F.nll_loss(model_output, ideal_output)
         
-    def forward(self, input_data):
-        input_data.to(self.device)
-        latent_space   = self.encoder.forward(input_data)
-        classification = self.classifier.forward(latent_space)
-        return classification
+    def forward(self, batch_of_inputs):
+        batch_of_inputs          = batch_of_inputs.to(self.hardware)
+        batch_of_latent_spaces   = self.encoder.forward(batch_of_inputs)
+        batch_of_classifications = self.classifier.forward(batch_of_latent_spaces)
+        return batch_of_classifications
+    
+    def autoencoder_forward(self, batch_of_inputs):
+        batch_of_inputs         = batch_of_inputs.to(self.hardware)
+        batch_of_latent_spaces  = self.encoder.forward(batch_of_inputs)
+        batch_of_decoded_images = self.decoder.forward(batch_of_latent_spaces)
+        return batch_of_decoded_images
     
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.optimizer.zero_grad()
@@ -76,22 +79,6 @@ class SplitClassifier(nn.Module):
         self.optimizer.step()
         return classifier_loss
     
-    # def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
-    #     self.optimizer.zero_grad()
-        
-    #     # batch_of_actual_outputs = self.forward(batch_of_inputs)
-    #     batch_of_inputs.to(self.device)
-    #     latent_space   = self.encoder.forward(batch_of_inputs)
-    #     x = self.fc2.forward(latent_space)
-    #     x = self.fc2_activation.forward(x)
-    #     batch_of_actual_outputs = x
-        
-    #     classifier_loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
-    #     classifier_loss.backward()
-    #     self.optimizer.step()
-        
-    #     return loss
-        
     def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
         return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
 
@@ -114,12 +101,7 @@ if __name__ == "__main__":
     # perform test on mnist dataset if run directly
     # 
     model = SplitClassifier()
-    try:
-        train_dataset[0]
-    except Exception as error:
-        # doesn't matter that its binary mnist cause the autoencoder only uses input anyways
-        train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
-    
+    if not 'train_dataset' in locals(): train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
     model.fit(loader=train_loader, number_of_epochs=3)
     model.test(loader=test_loader)
     
@@ -135,21 +117,21 @@ if __name__ == "__main__":
         index = max_index(guess)
         print(f"guess: {guess},\t  index: {index},\t actual: {actual}")
         
-    # # 
-    # # sample inputs/outputs
-    # # 
-    # print("showing samples")
-    # samples = []
-    # for each_index in range(100):
-    #     input_data, correct_output = train_dataset[each_index]
-    #     output = model.forward(input_data)
-    #     sample =  torch.cat(
-    #         (
-    #             train_dataset.unnormalizer(input_data.to(model.device)),
-    #             train_dataset.unnormalizer(output.to(model.device)),
-    #         ), 
-    #         1
-    #     )
-    #     show(image_tensor=sample)
-    #     samples.append(sample)
+    # 
+    # sample inputs/outputs
+    # 
+    print("showing samples")
+    samples = []
+    for each_index in range(15):
+        input_data, correct_output = train_dataset[each_index]
+        output = model.autoencoder_forward(input_data)
+        sample =  torch.cat(
+            (
+                train_dataset.unnormalizer(input_data.to(model.device)),
+                train_dataset.unnormalizer(output.to(model.device)),
+            ), 
+            1
+        )
+        show(image_tensor=sample)
+        samples.append(sample)
 # %%

@@ -216,7 +216,7 @@ if True:
             input_data = torch.reshape(input_data, shape=(batch_length, *self.input_shape))
             input_data = input_data.type(torch.float)
             
-            neuron_activations = input_data.to(self.device)
+            neuron_activations = input_data.to(self.hardware)
             for each_layer in self.layers:
                 neuron_activations = each_layer(neuron_activations)
             
@@ -228,8 +228,8 @@ if True:
             self.seed            = config.get("seed"           , default_seed)
             self.log_interval    = config.get("log_interval"   , 10)
             self.suppress_output = config.get("suppress_output", False)
-            self.device          = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-            self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
+            self.hardware          = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            self.show = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
             self.layers = nn.Sequential()
             
         def default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
@@ -263,7 +263,7 @@ if True:
             """
             Uses:
                 self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
-                self.print(args)
+                self.show(args)
                 self.train() # provided by pytorch's `nn.Module`
             
             Examples:
@@ -313,7 +313,7 @@ if True:
                     loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
                     from tools.basics import to_pure
                     if batch_index % self.log_interval == 0:
-                        self.print(
+                        self.show(
                             "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
                                 epoch_index+1,
                                 batch_index * len(batch_of_inputs),
@@ -334,9 +334,9 @@ if True:
             """
             Uses:
                 self.forward(batch_of_inputs)
-                self.print(args)
+                self.show(args)
                 self.eval() # provided by pytorch's `nn.Module`
-                self.device # a pytorch device
+                self.hardware # a pytorch device
             
             Optionally Uses:
                 # returns the pytorch loss
@@ -352,15 +352,15 @@ if True:
             with torch.no_grad():
                 for batch_of_inputs, batch_of_ideal_outputs in loader:
                     actual_output = self.forward(batch_of_inputs)
-                    batch_of_inputs = actual_output.type(torch.float).to(self.device)
-                    batch_of_ideal_outputs = batch_of_ideal_outputs.type(torch.float).to(self.device)
+                    batch_of_inputs = actual_output.type(torch.float).to(self.hardware)
+                    batch_of_ideal_outputs = batch_of_ideal_outputs.type(torch.float).to(self.hardware)
                     test_loss += loss_function(batch_of_inputs, batch_of_ideal_outputs)
                     correct += correctness_function(batch_of_inputs, batch_of_ideal_outputs)
             
             # convert to regular non-tensor data
             test_loss = test_loss.item()
             test_loss /= len(loader.dataset)
-            self.print(
+            self.show(
                 "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
                     test_loss,
                     correct,
@@ -422,9 +422,9 @@ if True:
                     # 
                     real_super(ImageModelSequential, self).__init__()
                     self.suppress_output = config.get("suppress_output", False)
-                    self.print = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
-                    # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-                    self.device = torch.device('cpu') # FIXME: I had to do this to get the loss function working
+                    self.show = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
+                    # self.hardware = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                    self.hardware = torch.device('cpu') # FIXME: I had to do this to get the loss function working
                     
                     self.layers = layers or nn.Sequential()
                     self.loss = loss
@@ -446,7 +446,7 @@ if True:
                 def __exit__(_, *args, **kwargs):
                     # TODO: check that there is at least one layer
                     # TODO: check that the input/output layer have the right input/output sizes/shapes
-                    self.to(self.device)
+                    self.to(self.hardware)
             
             return Setup
             
@@ -507,7 +507,7 @@ if True:
             input_data = torch.reshape(input_data, shape=(batch_length, *self.input_shape))
             input_data = input_data.type(torch.float)
             
-            neuron_activations = input_data.to(self.device)
+            neuron_activations = input_data.to(self.hardware)
             for each_layer in self.layers:
                 neuron_activations = each_layer(neuron_activations)
             
@@ -579,7 +579,7 @@ if True:
                     loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
                     from tools.basics import to_pure
                     if batch_index % self.log_interval == 0:
-                        self.print(
+                        self.show(
                             "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
                                 epoch_index+1,
                                 batch_index * len(batch_of_inputs),
@@ -860,7 +860,7 @@ if True:
             # 
             # support (optimizer, loss)
             # 
-            self.to(self.device)
+            self.to(self.hardware)
             # create an optimizer
             self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
@@ -870,7 +870,7 @@ if True:
             
         def loss_function(self, model_output, ideal_output):
             # convert from one-hot into number, and send tensor to device
-            ideal_output = from_onehot_batch(ideal_output).to(self.device)
+            ideal_output = from_onehot_batch(ideal_output).to(self.hardware)
             return F.nll_loss(model_output, ideal_output)
         
         def correctness_function(self, model_batch_output, ideal_batch_output):
@@ -991,7 +991,7 @@ if True:
             # 
             # support (optimizer, loss)
             # 
-            self.to(self.device)
+            self.to(self.hardware)
             # create an optimizer
             self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
@@ -1001,7 +1001,7 @@ if True:
             
         def loss_function(self, model_output, ideal_output):
             # convert from one-hot into number, and send tensor to device
-            ideal_output = from_onehot_batch(ideal_output).to(self.device)
+            ideal_output = from_onehot_batch(ideal_output).to(self.hardware)
             return F.nll_loss(model_output, ideal_output)
         
         def correctness_function(self, model_batch_output, ideal_batch_output):
@@ -1016,7 +1016,7 @@ if True:
         #     autograd. You can use any of the Tensor operations in the
         #     forward function.
         #     """
-        #     x = x.to(self.device)
+        #     x = x.to(self.hardware)
         #     # Max pooling over a 2x2 window
         #     x = F.relu(F.max_pool2d(self.layers.conv1(x), 2))
         #     x = F.relu(F.max_pool2d(self.layers.conv2_drop(self.layers.conv2(x)), 2))

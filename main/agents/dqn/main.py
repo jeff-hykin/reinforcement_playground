@@ -18,7 +18,7 @@ class DQN:
         self.config = config
         self.action_space = action_space
         self.wants_to_quit = False
-        self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+        self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
         assert str(self.action_space).startswith("Discrete") or str(
             self.action_space

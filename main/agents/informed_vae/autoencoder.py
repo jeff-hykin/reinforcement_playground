@@ -33,7 +33,7 @@ class ImageAutoEncoder(nn.Module):
         # 
         # support (optimizer, loss)
         # 
-        self.to(self.device)
+        self.to(self.hardware)
         # create an optimizer
         self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
         
@@ -45,10 +45,10 @@ class ImageAutoEncoder(nn.Module):
         return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
     
     def loss_function(self, model_output, ideal_output):
-        return F.mse_loss(model_output.to(self.device), ideal_output.to(self.device))
+        return F.mse_loss(model_output.to(self.hardware), ideal_output.to(self.hardware))
         
     def forward(self, input_data):
-        input_data.to(self.device)
+        input_data.to(self.hardware)
         latent_space = self.encoder.forward(input_data)
         output = self.decoder.forward(latent_space)
         return output

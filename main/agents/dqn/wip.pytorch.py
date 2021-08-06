@@ -31,7 +31,7 @@ class Agent:
         self.config = config
         self.action_space = action_space
         self.wants_to_quit = False
-        self.print = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
+        self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
     
     def on_episode_start(self, starting_observation):

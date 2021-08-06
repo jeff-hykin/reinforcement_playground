@@ -5,10 +5,15 @@ from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
 
+# Encoder
+from agents.informed_vae.encoder import ImageEncoder
+# Classifier
+from agents.informed_vae.classifier_output import ClassifierOutput
 # %% 
-class SimpleClassifier(nn.Module):
+
+class SimpleClassifier(pl.LightningModule):
     def __init__(self, **config):
-        super(SimpleClassifier, self).__init__()
+        super().__init__()
         # 
         # options
         # 
@@ -21,53 +26,64 @@ class SimpleClassifier(nn.Module):
         # 
         # layers
         # 
-        # 1 input image, 10 output channels, 5x5 square convolution kernel
-        self.add_module("conv1", nn.Conv2d(1, 10, kernel_size=5))
-        self.add_module("conv1_pool", nn.MaxPool2d(2))
-        self.add_module("conv1_activation", nn.ReLU())
-        self.add_module("conv2", nn.Conv2d(10, 10, kernel_size=5))
-        self.add_module("conv2_drop", nn.Dropout2d())
-        self.add_module("conv2_pool", nn.MaxPool2d(2))
-        self.add_module("conv2_activation", nn.ReLU())
-        self.add_module("flatten", nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.add_module("fc1", nn.Linear(self.size_of_last_layer, 10))
-        self.add_module("fc1_activation", nn.ReLU())
-        self.add_module("fc2", nn.Linear(self.size_of_last_layer, product(self.output_shape)))
-        self.add_module("fc2_activation", nn.LogSoftmax(dim=1))
+        self.add_module("encoder", ImageEncoder(input_shape=self.input_shape, output_shape=(30,)))
+        self.add_module("classifier", ClassifierOutput(input_shape=(self.size_of_last_layer,), output_shape=self.output_shape))
         
-        # 
-        # support (optimizer, loss)
-        # 
-        self.to(self.device)
-        # create an optimizer
-        self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
-    
+        
     @property
     def size_of_last_layer(self):
-        return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
-        
-    def loss_function(self, model_output, ideal_output):
-        # convert from one-hot into number, and send tensor to device
-        ideal_output = from_onehot_batch(ideal_output).to(self.device)
-        return F.nll_loss(model_output, ideal_output)
+        output = None
+        try:
+            output = product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
+        except Exception as error:
+            print("Error getting self.size_of_last_layer", self)
+            print('error = ', error)
+        return output
     
-    def correctness_function(self, model_batch_output, ideal_batch_output):
-        return Network.onehot_correctness_function(self, model_batch_output, ideal_batch_output)
-
+    # [pl.LightningModule]
     def forward(self, input_data):
         return Network.default_forward(self, input_data)
     
+    # [pl.LightningModule]
+    def training_step(self, batch, batch_index):
+        batch_of_inputs, batch_of_ideal_outputs = batch
+        batch_of_guesses = self(batch_of_inputs)
+        batch_of_ideal_number_outputs = from_onehot_batch(batch_of_ideal_outputs)
+        return F.nll_loss(batch_of_guesses, batch_of_ideal_number_outputs)
+    
+    # [pl.LightningModule]
+    def configure_optimizers(self):
+        optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        return optimizer
+    
+    @property
+    def optimizer(self):
+        if not hasattr(self, "_optimizer"): self._optimizer = self.configure_optimizers()
+        return self._optimizer
+        
+    def loss_function(self, model_output, ideal_output):
+        # convert from one-hot into number, and send tensor to device
+        ideal_output = from_onehot_batch(ideal_output)
+        return F.nll_loss(model_output, ideal_output)
+
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         return Network.default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
-        
-    def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
-        return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
     
+    def fit(self, *, loader=None, **kwargs):
+        # TODO: create default function that handles various argument inputs and outputs a data loader
+        self.prev_trainer = self.new_trainer(**kwargs)
+        output = self.prev_trainer.fit(self, loader)
+        # go back to the hardware to unto the changes made by pytorch lightning
+        self.to(self.hardware)
+        return output
+    
+    def correctness_function(self, model_batch_output, ideal_batch_output):
+        return Network.onehot_correctness_function(self, model_batch_output, ideal_batch_output)
+        
     def test(self, loader, correctness_function=None):
         return Network.default_test(self, loader)
 
-
-#%%
+# %% 
 if __name__ == "__main__":
     from tools.dataset_tools import binary_mnist
     
@@ -75,8 +91,8 @@ if __name__ == "__main__":
     # perform test on mnist dataset if run directly
     # 
     model = SimpleClassifier()
-    train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
-    model.fit(loader=train_loader, number_of_epochs=3)
+    if not 'train_dataset' in locals(): train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
+    model.fit(loader=train_loader, max_epochs=1)
     model.test(loader=test_loader)
     
     # 

@@ -183,7 +183,9 @@ def quick_mnist(cache=False):
 def quick_loader(dataset, split, train_batch_size=64, test_batch_size=1000):
     # overwrite the output to be binary classification
     train_dataset, test_dataset = dataset.split(split)
-    
+    import os
+    number_of_cores_available = len(os.sched_getaffinity(0))
+
     # 
     # create the loaders
     # 
@@ -191,11 +193,13 @@ def quick_loader(dataset, split, train_batch_size=64, test_batch_size=1000):
         train_dataset,
         sampler=create_weighted_sampler_for(train_dataset),
         batch_size=train_batch_size,
+        num_workers=number_of_cores_available,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         sampler=create_weighted_sampler_for(test_dataset),
         batch_size=test_batch_size,
+        num_workers=number_of_cores_available,
     )
     return train_dataset, test_dataset, train_loader, test_loader
 

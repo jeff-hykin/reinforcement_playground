@@ -33,7 +33,7 @@ class ImageDecoder(nn.Module):
         # 
         # support (optimizer, loss)
         # 
-        self.to(self.device)
+        self.to(self.hardware)
         # create an optimizer
         self.loss_function = nn.MSELoss()
     
