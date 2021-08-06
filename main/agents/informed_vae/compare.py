@@ -35,6 +35,8 @@ if __name__ == "__main__":
             model.number_correct = model.test(loader=test_loader)
         
         result_string += f'{each}:\n'+''.join([f'    {each.name}: {each.number_correct}\n' for each in models])
+        # give intermediate results
+        print(result_string)
     
     print(result_string)
     
