@@ -414,7 +414,7 @@ def auto_cache(function, *args, **kwargs):
             print("running the function manually instead (failsafe)")
         return result
 
-
+# print that can be indented
 original_print = print
 def print(*args, **kwargs):
     from io import StringIO

@@ -341,7 +341,6 @@ def Network():
             output = self.prev_trainer.fit(self, loader)
             # go back to the hardware to unto the changes made by pytorch lightning
             self.to(self.hardware)
-            self.
             return output
         else:
             train_losses = []
@@ -398,7 +397,7 @@ def Network():
         # convert to regular non-tensor data
         test_loss = test_loss.item()
         test_loss /= len(loader.dataset)
-        print(
+        self.print(
             "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
                 test_loss,
                 correct,

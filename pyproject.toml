@@ -31,6 +31,7 @@ notebook = "^6.4.0"
 ipywidgets = "^7.6.3"
 simple-namespace = "^1.0.0"
 pytorch-lightning = "^1.4.1"
+super-map = "1.0.2"
 
 [tool.poetry.dev-dependencies]
 

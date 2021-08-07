@@ -12,8 +12,9 @@ import sys
 import numpy as np
 import gym
 import include
-from simple_namespace import namespace
 import ez_yaml
+from simple_namespace import namespace
+from super_map import Map
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

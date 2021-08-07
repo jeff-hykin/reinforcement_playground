@@ -4,6 +4,7 @@ from tools.all_tools import *
 from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
+from super_map import Map
 
 # Encoder
 from agents.informed_vae.encoder import ImageEncoder
@@ -47,9 +48,24 @@ class SimpleClassifier(pl.LightningModule):
     # [pl.LightningModule]
     def training_step(self, batch, batch_index):
         batch_of_inputs, batch_of_ideal_outputs = batch
+        output = Map()
+        output.get = lambda item, *args, **kwargs: output[item]
+        output.items = lambda *args, **kwargs: (each for each in output if not callable(each[1]))
+        
+        # calculate loss
         batch_of_guesses = self(batch_of_inputs)
         batch_of_ideal_number_outputs = from_onehot_batch(batch_of_ideal_outputs)
-        return F.nll_loss(batch_of_guesses, batch_of_ideal_number_outputs)
+        output.loss = F.nll_loss(batch_of_guesses, batch_of_ideal_number_outputs)
+        
+        
+        # calculate correctness
+        if hasattr(self, "correctness_function") and callable(self.correctness_function):
+            output.correct += self.correctness_function(batch_of_guesses, batch_of_ideal_outputs)
+            output.total = len(batch_of_guesses)
+        
+        output.log.training_loss = output.loss
+        output.log.accuracy = round((output.correct / output.total)*100, ndigits=2)
+        return output[Map.Dict]
     
     # [pl.LightningModule]
     def configure_optimizers(self):

@@ -927,6 +927,9 @@ category = "main"
 optional = false
 python-versions = ">=3.6"
 
+[package.dependencies]
+numpy = ">=1.17.3"
+
 [[package]]
 name = "optuna"
 version = "2.8.0"
@@ -1529,6 +1532,14 @@ importlib-metadata = {version = ">=1.7.0", markers = "python_version < \"3.8\""}
 pbr = ">=2.0.0,<2.1.0 || >2.1.0"
 
 [[package]]
+name = "super-map"
+version = "1.0.2"
+description = "Like dict, but easier"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "tensorboard"
 version = "2.4.1"
 description = "TensorBoard lets you watch Tensors Flow"
@@ -1769,7 +1780,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "e5afb7ce4d77bf923dd44ec9479f8e69388987aeb1fe0d57f2a403f083888433"
+content-hash = "3ebee9b591022a7da2cfde4b3c1c44cc54704c9be5c87e2f9f27a9d1a5452867"
 
 [metadata.files]
 absl-py = [
@@ -3020,6 +3031,10 @@ sqlalchemy = [
 stevedore = [
     {file = "stevedore-3.3.0-py3-none-any.whl", hash = "sha256:50d7b78fbaf0d04cd62411188fa7eedcb03eb7f4c4b37005615ceebe582aa82a"},
     {file = "stevedore-3.3.0.tar.gz", hash = "sha256:3a5bbd0652bf552748871eaa73a4a8dc2899786bc497a2aa1fcb4dcdb0debeee"},
+]
+super-map = [
+    {file = "super_map-1.0.2-py3-none-any.whl", hash = "sha256:652c82e65cf079b5850182a8db86a9b46ef6586ebc29ef239a7836fdd438863d"},
+    {file = "super_map-1.0.2.tar.gz", hash = "sha256:0e7426819bf45c08513c4948885209fbba839c5cd8fbf1f1fbf390a87c397c1b"},
 ]
 tensorboard = [
     {file = "tensorboard-2.4.1-py3-none-any.whl", hash = "sha256:7b8c53c396069b618f6f276ec94fc45d17e3282d668979216e5d30be472115e4"},

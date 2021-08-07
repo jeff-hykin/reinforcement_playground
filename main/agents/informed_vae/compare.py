@@ -20,9 +20,9 @@ if __name__ == "__main__":
     # perform test on mnist dataset if run directly
     # 
     result_string = ""
-    split = SplitClassifier(); split.name = "split"
+    split = SplitClassifier(suppress_output=True); split.name = "split"
     simple = SimpleClassifier(); simple.name = "simple"
-    for each in [9,8,3]:
+    for each in [9,8,3,5,0,7,1]:
         # doesn't matter that its binary mnist cause the autoencoder only uses input anyways
         train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([each]), [5, 1])
         
@@ -39,6 +39,8 @@ if __name__ == "__main__":
         print(result_string)
     
     print(result_string)
+    # save to file encase connection dies
+    FS.write(result_string, to="./log.dont-sync.txt")
     
     # 
     # test inputs/outputs
