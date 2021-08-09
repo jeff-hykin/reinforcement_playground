@@ -20,11 +20,15 @@ class SplitClassifier(nn.Module):
         # options
         # 
         Network.default_setup(self, config)
-        self.input_shape     = config.get('input_shape'    , (1, 28, 28))
-        self.latent_shape    = config.get('latent_shape'   , (30,))
-        self.output_shape    = config.get('output_shape'   , (2, ))
-        self.learning_rate   = config.get('lr'             , 0.01)
-        self.momentum        = config.get('momentum'       , 0.5 )
+        self.input_shape        = config.get('input_shape'       , (1, 28, 28))
+        self.latent_shape       = config.get('latent_shape'      , (30,))
+        self.output_shape       = config.get('output_shape'      , (2, ))
+        self.learning_rate      = config.get('learning_rate'     , 0.01)
+        self.momentum           = config.get('momentum'          , 0.5 )
+        self.decoder_importance = config.get('decoder_importance', 0.10 )
+        model_parameters = ["input_shape", "latent_shape", "output_shape", "learning_rate", "momentum", "decoder_importance"]
+        self.record_keeper = self.record_keeper.sub_record_keeper(**{ each: getattr(self, each) for each in model_parameters })
+        self.training_record = self.record_keeper.sub_record_keeper(training=True)
         
         # 
         # layers
@@ -45,7 +49,7 @@ class SplitClassifier(nn.Module):
         return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
     
     def decoder_loss_function(self, model_output, ideal_output):
-        return F.mse_loss(model_output.to(self.hardware), ideal_output.to(self.hardware))
+        return self.decoder_importance * F.mse_loss(model_output.to(self.hardware), ideal_output.to(self.hardware))
     
     def classifier_loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
@@ -66,16 +70,26 @@ class SplitClassifier(nn.Module):
     
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.optimizer.zero_grad()
-        latent_space         = self.encoder.forward(batch_of_inputs)
+        self.training_record["batch_index"] = batch_index
+        self.training_record["epoch_index"] = epoch_index
         
-        classification       = self.classifier.forward(latent_space)
-        classifier_loss      = self.classifier_loss_function(classification, batch_of_ideal_outputs)
+        latent_space             = self.encoder.forward(batch_of_inputs)
+        
+        batch_of_classifications = self.classifier.forward(latent_space)
+        classifier_loss          = self.classifier_loss_function(batch_of_classifications, batch_of_ideal_outputs)
         classifier_loss.backward(retain_graph=True)
+        self.training_record["classifier_loss"] = classifier_loss.item()
         
         image_representation = self.decoder.forward(latent_space)
         autoencoder_loss     = self.decoder_loss_function(image_representation, batch_of_inputs)
         autoencoder_loss.backward()
-        
+        self.training_record["autoencoder_loss"] = autoencoder_loss.item()
+        if hasattr(self, "correctness_function") and callable(self.correctness_function):
+            self.training_record["correct"]  = self.correctness_function(batch_of_classifications, batch_of_ideal_outputs)
+            self.training_record["total"]    = len(batch_of_classifications)
+            self.training_record["accuracy"] = round((self.training_record["correct"] / self.training_record["total"])*100, ndigits = 2)
+            
+        self.training_record.start_next_record()
         self.optimizer.step()
         return classifier_loss
     
@@ -83,6 +97,8 @@ class SplitClassifier(nn.Module):
         return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle, **kwargs)
 
     def correctness_function(self, model_batch_output, ideal_batch_output):
+        model_batch_output.to(self.hardware)
+        ideal_batch_output.to(self.hardware)
         return Network.onehot_correctness_function(self, model_batch_output, ideal_batch_output)
 
     def test(self, loader, correctness_function=None):

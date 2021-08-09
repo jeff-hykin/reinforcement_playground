@@ -1532,6 +1532,17 @@ importlib-metadata = {version = ">=1.7.0", markers = "python_version < \"3.8\""}
 pbr = ">=2.0.0,<2.1.0 || >2.1.0"
 
 [[package]]
+name = "super-hash"
+version = "0.1.0"
+description = "hash the unhashable, hash everything"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+simple-namespace = "1.0.0"
+
+[[package]]
 name = "super-map"
 version = "1.0.2"
 description = "Like dict, but easier"
@@ -1780,7 +1791,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "3ebee9b591022a7da2cfde4b3c1c44cc54704c9be5c87e2f9f27a9d1a5452867"
+content-hash = "84ddd6934749fd9b60230251998ef32b6895eaaa2657236ae02e72ace5256c94"
 
 [metadata.files]
 absl-py = [
@@ -3031,6 +3042,10 @@ sqlalchemy = [
 stevedore = [
     {file = "stevedore-3.3.0-py3-none-any.whl", hash = "sha256:50d7b78fbaf0d04cd62411188fa7eedcb03eb7f4c4b37005615ceebe582aa82a"},
     {file = "stevedore-3.3.0.tar.gz", hash = "sha256:3a5bbd0652bf552748871eaa73a4a8dc2899786bc497a2aa1fcb4dcdb0debeee"},
+]
+super-hash = [
+    {file = "super_hash-0.1.0-py3-none-any.whl", hash = "sha256:681f7758f2759bb34cba1a0d9c0cdff30a0d50efea0761ee3853631c43335814"},
+    {file = "super_hash-0.1.0.tar.gz", hash = "sha256:416c44a5522f591150979e9abd7ad4af2472d983f6ed6de316c6dbc2a912dac6"},
 ]
 super-map = [
     {file = "super_map-1.0.2-py3-none-any.whl", hash = "sha256:652c82e65cf079b5850182a8db86a9b46ef6586ebc29ef239a7836fdd438863d"},

@@ -1,6 +1,8 @@
 paths:
     cache_folder: ./settings/.cache
     visualizer: ./main/tools/visualizer.js
+    logs: ./logs
+    tensorboard_logs: ./logs/tensorboard
 
 parameters:
     environment: {}

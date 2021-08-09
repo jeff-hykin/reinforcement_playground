@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 from tools.basics import product, bundle
+from tools.record_keeper import RecordKeeper
 #%% pytorch_tools
 
 default_seed = 1
@@ -247,6 +248,7 @@ def Network():
         self.suppress_output = config.get("suppress_output", False)
         self.log_interval    = config.get("log_interval"   , 10)
         self.hardware        = config.get("device"         , torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        self.record_keeper   = config.get("record_keeper"  , RecordKeeper()).sub_record_keeper(model=self.__class__.__name__)
         self.show = lambda *args, **kwargs: print(*args, **kwargs) if not self.suppress_output else None
         self.to(self.hardware)
         if not isinstance(self, LightningModule):
@@ -286,6 +288,11 @@ def Network():
         model_batch_output = from_onehot_batch(model_batch_output)
         ideal_batch_output = from_onehot_batch(ideal_batch_output)
         # element-wise compare how many are equal, then sum them up into a scalar
+        model_batch_output = model_batch_output.to(self.hardware)
+        ideal_batch_output = ideal_batch_output.to(self.hardware)
+        print('model_batch_output.device = ', model_batch_output.device)
+        print('ideal_batch_output.device = ', ideal_batch_output.device)
+        print('self.hardware = ', self.hardware)
         number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
         return number_correct
     
@@ -397,7 +404,7 @@ def Network():
         # convert to regular non-tensor data
         test_loss = test_loss.item()
         test_loss /= len(loader.dataset)
-        self.print(
+        self.show(
             "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
                 test_loss,
                 correct,
@@ -420,6 +427,5 @@ def log_image(image_tensor):
     image_path = f"./logs.dont-sync/display_{_image_log_count}.png"
     F.to_pil_image(image_tensor).save(image_path)
     print("image logged: "+image_path)
-
 
 #%% 

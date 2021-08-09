@@ -1,9 +1,11 @@
 #%%
+from random import random, sample, choices
 from tools.all_tools import *
 
 from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
+from tools.record_keeper import RecordKeeper
 
 from tools.basics import *
 from tools.ipython_tools import show
@@ -13,30 +15,36 @@ from agents.informed_vae.simple_classifier import SimpleClassifier
 from agents.informed_vae.split_classifier import SplitClassifier
 from agents.informed_vae.classifier_output import ClassifierOutput
 #%%
-
+permute = lambda a_list: sample(a_list, k=len(tuple(a_list)))
 if __name__ == "__main__":
+    
+    from pytorch_lightning.loggers import TensorBoardLogger
+    logger = TensorBoardLogger("lightning_logs", name="vae_compare")
+    records_keeper = RecordKeeper(test="compare_transfer_v1").sub_record_keeper()
     
     # 
     # perform test on mnist dataset if run directly
     # 
     result_string = ""
-    split = SplitClassifier(suppress_output=True); split.name = "split"
-    simple = SimpleClassifier(); simple.name = "simple"
-    for each in [9,8,3,5,0,7,1]:
+    split = SplitClassifier(suppress_output=True, records_keeper=records_keeper); split.name = "split"
+    simple = SimpleClassifier(records_keeper=records_keeper); simple.name = "simple"
+    for index, each_number in enumerate(permute(range(10))):
+        records_keeper.parent_should_include(binary_classification_of=each_number, transfer_index=index)
         # doesn't matter that its binary mnist cause the autoencoder only uses input anyways
-        train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([each]), [5, 1])
+        train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([each_number]), [5, 1])
         
-        fresh = SimpleClassifier(); fresh.name = "fresh"
+        fresh = SimpleClassifier(records_keeper=records_keeper, fresh=True); fresh.name = "fresh"
         
         models = [split, simple, fresh]
         for model in models:
             model.classifier = ClassifierOutput(input_shape=(30,), output_shape=(2,))
-            model.fit(loader=train_loader, max_epochs=3)
+            model.fit(loader=train_loader, max_epochs=3, logger=logger)
             model.number_correct = model.test(loader=test_loader)
         
         result_string += f'{each}:\n'+''.join([f'    {each.name}: {each.number_correct}\n' for each in models])
         # give intermediate results
         print(result_string)
+        records_keeper.save("./log/records.dont-sync.json")
     
     print(result_string)
     # save to file encase connection dies

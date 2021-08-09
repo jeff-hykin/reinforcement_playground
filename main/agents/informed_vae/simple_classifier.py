@@ -1,6 +1,9 @@
 # %% 
 from tools.all_tools import *
 
+import torch
+from torch.utils.tensorboard import SummaryWriter
+from tools.config_tools import PATHS
 from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
@@ -12,6 +15,9 @@ from agents.informed_vae.encoder import ImageEncoder
 from agents.informed_vae.classifier_output import ClassifierOutput
 # %% 
 
+
+writer = SummaryWriter(PATHS["tensorboard_logs"])
+    
 class SimpleClassifier(pl.LightningModule):
     def __init__(self, **config):
         super().__init__()
@@ -20,14 +26,21 @@ class SimpleClassifier(pl.LightningModule):
         # 
         Network.default_setup(self, config)
         self.input_shape     = config.get("input_shape"    , (1, 28, 28))
+        self.mid_shape       = config.get("mid_shape"      , (30,))
         self.output_shape    = config.get("output_shape"   , (2,))
         self.learning_rate   = config.get("learning_rate"  , 0.01)
         self.momentum        = config.get("momentum"       , 0.5 )
+        self.fresh           = config.get("fresh"          , False)
+        # consider this as a different network, rather than a network setting
+        self.record_keeper.parent_should_include(fresh=self.fresh)
+        model_parameters = ["input_shape", "mid_shape", "output_shape", "learning_rate", "momentum", ]
+        self.record_keeper = self.record_keeper.sub_record_keeper(**{ each: getattr(self, each) for each in model_parameters })
+        self.training_record = self.record_keeper.sub_record_keeper(training=True)
         
         # 
         # layers
         # 
-        self.add_module("encoder", ImageEncoder(input_shape=self.input_shape, output_shape=(30,)))
+        self.add_module("encoder", ImageEncoder(input_shape=self.input_shape, output_shape=self.mid_shape))
         self.add_module("classifier", ClassifierOutput(input_shape=(self.size_of_last_layer,), output_shape=self.output_shape))
         
         
@@ -35,10 +48,11 @@ class SimpleClassifier(pl.LightningModule):
     def size_of_last_layer(self):
         output = None
         try:
-            output = product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
+            output = product(self.input_shape if len(tuple(self.children())) == 0 else layer_output_shapes(self.children(), self.input_shape)[-1])
         except Exception as error:
             print("Error getting self.size_of_last_layer", self)
             print('error = ', error)
+            raise error
         return output
     
     # [pl.LightningModule]
@@ -48,24 +62,24 @@ class SimpleClassifier(pl.LightningModule):
     # [pl.LightningModule]
     def training_step(self, batch, batch_index):
         batch_of_inputs, batch_of_ideal_outputs = batch
-        output = Map()
-        output.get = lambda item, *args, **kwargs: output[item]
-        output.items = lambda *args, **kwargs: (each for each in output if not callable(each[1]))
+        self.training_record["batch_index"] = batch_index
         
         # calculate loss
         batch_of_guesses = self(batch_of_inputs)
         batch_of_ideal_number_outputs = from_onehot_batch(batch_of_ideal_outputs)
-        output.loss = F.nll_loss(batch_of_guesses, batch_of_ideal_number_outputs)
-        
+        loss = F.nll_loss(batch_of_guesses, batch_of_ideal_number_outputs)
+        self.training_record["classifier_loss"] = loss.item()
         
         # calculate correctness
         if hasattr(self, "correctness_function") and callable(self.correctness_function):
-            output.correct += self.correctness_function(batch_of_guesses, batch_of_ideal_outputs)
-            output.total = len(batch_of_guesses)
+            self.training_record["correct"]  = self.correctness_function(batch_of_guesses     , batch_of_ideal_outputs)
+            self.training_record["total"]    = len(batch_of_guesses)
+            self.training_record["accuracy"] = round((output["correct"] / output["total"])*100, ndigits = 2)
+            writer.add_scalar("training_loss", output["loss"].detach(), batch_index)
+            writer.add_scalar("accuracy", round((self.training_record["correct"] / self.training_record["total"])*100, ndigits=2), batch_index)
         
-        output.log.training_loss = output.loss
-        output.log.accuracy = round((output.correct / output.total)*100, ndigits=2)
-        return output[Map.Dict]
+        self.training_record.start_next_record()
+        return loss
     
     # [pl.LightningModule]
     def configure_optimizers(self):
@@ -97,14 +111,19 @@ class SimpleClassifier(pl.LightningModule):
 # %% 
 if __name__ == "__main__":
     from tools.dataset_tools import binary_mnist
+    from pytorch_lightning.loggers import TensorBoardLogger
     
     # 
     # perform test on mnist dataset if run directly
     # 
     model = SimpleClassifier()
     if not 'train_dataset' in locals(): train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
-    model.fit(loader=train_loader, max_epochs=3)
+    logger = TensorBoardLogger("lightning_logs", name="simple_classifier")
+    
+    model.fit(loader=train_loader, max_epochs=3, logger=logger)
     model.test(loader=test_loader)
+    writer.flush()
+    writer.close()
     
     # 
     # test inputs/outputs
