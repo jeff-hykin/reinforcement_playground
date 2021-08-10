@@ -15,6 +15,10 @@ from agents.informed_vae.simple_classifier import SimpleClassifier
 from agents.informed_vae.split_classifier import SplitClassifier
 from agents.informed_vae.classifier_output import ClassifierOutput
 #%%
+import silver_spectacle as ss
+from time import time as now
+torch.manual_seed(now())
+
 permute = lambda a_list: sample(a_list, k=len(tuple(a_list)))
 if __name__ == "__main__":
     
@@ -26,14 +30,17 @@ if __name__ == "__main__":
     # perform test on mnist dataset if run directly
     # 
     result_string = ""
-    split = SplitClassifier(suppress_output=True, records_keeper=records_keeper); split.name = "split"
-    simple = SimpleClassifier(records_keeper=records_keeper); simple.name = "simple"
+    split = SplitClassifier(suppress_output=True, records_keeper=records_keeper); split.name = "split"  ; split.chart  = dict(label="split", backgroundColor='rgb( 0,  92, 192, 0.9)', borderColor='rgb( 0,  92, 192, 0.9)')
+    simple = SimpleClassifier(                    records_keeper=records_keeper); simple.name = "simple"; simple.chart = dict(label="simple",backgroundColor='rgb(75, 192, 192, 0.9)', borderColor='rgb(75, 192, 192, 0.9)')
+    labels = []
+    data = {}
+    datasets = []
     for index, each_number in enumerate(permute(range(10))):
         records_keeper.parent_should_include(binary_classification_of=each_number, transfer_index=index)
         # doesn't matter that its binary mnist cause the autoencoder only uses input anyways
         train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([each_number]), [5, 1])
         
-        fresh = SimpleClassifier(records_keeper=records_keeper, fresh=True); fresh.name = "fresh"
+        fresh = SimpleClassifier(records_keeper=records_keeper, fresh=True); fresh.name = "fresh"; fresh.chart = dict(label="fresh",backgroundColor='rgb(0, 292, 192, 0.9)', borderColor='rgb(0, 292, 192, 0.9)')
         
         models = [split, simple, fresh]
         for model in models:
@@ -41,10 +48,36 @@ if __name__ == "__main__":
             model.fit(loader=train_loader, max_epochs=3, logger=logger)
             model.number_correct = model.test(loader=test_loader)
         
-        result_string += f'{each}:\n'+''.join([f'    {each.name}: {each.number_correct}\n' for each in models])
+        result_string += f'{each_number}:\n'+''.join([f'    {each_model.name}: {each_model.number_correct}\n' for each_model in models])
+        labels += [each_number]
+        for each_model in models:
+            data[each_model.name] = data[each_model.name] if each_model.name in data else []
+            data[each_model.name].append(each_model.number_correct)
+        datasets = [ dict(**each_model.chart, data=data[each_model.name]) for each_model in models ]
+        import json
+        from os.path import join
+        with open('./logs/datasets.dont-sync.json', 'w') as outfile:
+            json.dump(dict(labels=labels, datasets=datasets), outfile)
+        ss.DisplayCard("chartjs", {
+            "type": 'line',
+            "options": {
+                "pointRadius": 3, # the size of the dots
+                "scales": {
+                    "y": {
+                        "min": 9700,
+                        "max": 10000,
+                    },
+                }
+            },
+            "data": {
+                "labels": labels,
+                "datasets": datasets,
+            }
+        })
         # give intermediate results
         print(result_string)
-        records_keeper.save("./log/records.dont-sync.json")
+        records_keeper.save("./logs/records.dont-sync.json")
+    
     
     print(result_string)
     # save to file encase connection dies

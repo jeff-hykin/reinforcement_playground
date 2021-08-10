@@ -290,9 +290,6 @@ def Network():
         # element-wise compare how many are equal, then sum them up into a scalar
         model_batch_output = model_batch_output.to(self.hardware)
         ideal_batch_output = ideal_batch_output.to(self.hardware)
-        print('model_batch_output.device = ', model_batch_output.device)
-        print('ideal_batch_output.device = ', ideal_batch_output.device)
-        print('self.hardware = ', self.hardware)
         number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
         return number_correct
     

@@ -70,5 +70,8 @@ class RecordKeeper():
             item  = { key : value for key, value in item.items() if type(key) == str }
             output.append(item)
         # save to file
+        import os
+        from os.path import isabs, isfile, isdir, join, dirname, basename, exists, splitext, relpath
+        os.makedirs(dirname(path), exist_ok=True)
         with open(path, 'w') as outfile:
             json.dump(output, outfile)

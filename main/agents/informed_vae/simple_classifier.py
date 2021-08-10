@@ -74,9 +74,7 @@ class SimpleClassifier(pl.LightningModule):
         if hasattr(self, "correctness_function") and callable(self.correctness_function):
             self.training_record["correct"]  = self.correctness_function(batch_of_guesses     , batch_of_ideal_outputs)
             self.training_record["total"]    = len(batch_of_guesses)
-            self.training_record["accuracy"] = round((output["correct"] / output["total"])*100, ndigits = 2)
-            writer.add_scalar("training_loss", output["loss"].detach(), batch_index)
-            writer.add_scalar("accuracy", round((self.training_record["correct"] / self.training_record["total"])*100, ndigits=2), batch_index)
+            self.training_record["accuracy"] = round((self.training_record["correct"] / self.training_record["total"])*100, ndigits = 2)
         
         self.training_record.start_next_record()
         return loss
