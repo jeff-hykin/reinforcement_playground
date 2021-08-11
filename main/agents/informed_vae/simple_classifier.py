@@ -16,8 +16,6 @@ from agents.informed_vae.classifier_output import ClassifierOutput
 # %% 
 
 
-writer = SummaryWriter(PATHS["tensorboard_logs"])
-    
 class SimpleClassifier(pl.LightningModule):
     def __init__(self, **config):
         super().__init__()
@@ -120,8 +118,6 @@ if __name__ == "__main__":
     
     model.fit(loader=train_loader, max_epochs=3, logger=logger)
     model.test(loader=test_loader)
-    writer.flush()
-    writer.close()
     
     # 
     # test inputs/outputs

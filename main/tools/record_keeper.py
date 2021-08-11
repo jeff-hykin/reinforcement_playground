@@ -1,5 +1,5 @@
+#%%
 from super_hash import super_hash
-
 all_records = []
 class RecordKeeper():
     def __init__(self, *args, **kwargs):
@@ -11,7 +11,7 @@ class RecordKeeper():
         self.parent["$ancestors"] += self.parent
         self.current_record = None
         self._SelfKey = _SelfKey
-        self.parent[self._SelfKey] = True
+        self.parent[self._SelfKey] = id(self)
     
     def parent_should_include(self, **kwargs):
         # add it to the current element
@@ -75,3 +75,4 @@ class RecordKeeper():
         os.makedirs(dirname(path), exist_ok=True)
         with open(path, 'w') as outfile:
             json.dump(output, outfile)
+#%%

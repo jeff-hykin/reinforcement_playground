@@ -1,11 +1,12 @@
 #%% basics
-from collections import Counter # frequency count
 import os
 import sys
 import math
 import json
-from time import time as now
 import time
+from collections import Counter # frequency count
+from time import time as now
+from random import random, sample, choices
 
 def is_iterable(thing):
     # https://stackoverflow.com/questions/1952464/in-python-how-do-i-determine-if-an-object-is-iterable
@@ -419,7 +420,7 @@ original_print = print
 def print(*args, **kwargs):
     from io import StringIO
     string_stream = StringIO()
-    original_print(*args, **kwargs, file=string_stream)
+    original_print(*args, **{**kwargs, "file": string_stream},)
     output_str = string_stream.getvalue()
     string_stream.close()
     indent = (" "*print.indent)
