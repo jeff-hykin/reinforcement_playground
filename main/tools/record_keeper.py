@@ -63,15 +63,16 @@ class RecordKeeper():
     
     def merge(self, **kwargs):
         if self.current_record is None:
-            self.start_next_record()
+            # when adding a record, always have a link back to the parent data 
+            self.current_record = CustomInherit(parent=self.parent)
+            self.all_records.append(self.current_record)
         # add it to the current element
         self.current_record.update(kwargs)
         return self
     
     def start_next_record(self):
-        # when adding a record, always have a link back to the parent data 
-        self.current_record = CustomInherit(parent=self.parent)
-        self.all_records.append(self.current_record)
+        # delete the existing record and a new one will be created automatically as soon as data is added
+        self.current_record = None
     
     def sub_record_keeper(self, **kwargs):
         grandparent = self.parent
@@ -128,7 +129,7 @@ class Experiment(object):
         self.record_keepers    = record_keepers
         self.file_path         = file_path
         self.collection_notes  = collection_notes
-        self.records           = records
+        self._records           = records
         self.collection_name   = collection_name
     
     def __enter__(self):
@@ -151,7 +152,7 @@ class Experiment(object):
         # 
         # ensure folder exists
         import os;os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        data = (self.collection_notes, self.experiment_parent.info, self.record_keepers, self.records)
+        data = (self.collection_notes, self.experiment_parent.info, self.record_keepers, self._records)
         large_pickle_save(data, self.file_path)
         
         # re-throw the error
@@ -186,24 +187,51 @@ class ExperimentCollection:
         self.collection_name        = ""
         self.collection_notes       = {}
         self.experiment_parent      = None
-        self.records                = records or []
+        self._records               = records or []
         self.record_keepers         = {}
+        self.prev_experiment_parent_info = None
         
         import os
         self.file_path = os.path.abspath(self.file_path)
         self.collection_name = os.path.basename(self.file_path)[0:-len(extension)]
     
+    def load(self):
+        # 
+        # load from file
+        # 
+        import os
+        self.prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
+        if not self._records and self.file_path:
+            try: self.collection_notes, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
+            except: print(f'Will creaete new experiment collection: {self.collection_name}')
+    
+    def where(self, only_keep_if=None, exist=None):
+        # TODO: add group, x value, y value mappers
+        
+        # "exists" lambda
+        if exist is None: exist = []
+        required_keys = set(exist)
+        required_keys_exist = lambda each: len(required_keys & set(each.keys())) == len(required_keys) 
+        if len(exist) == 0: required_keys_exist = lambda each: True
+        
+        # "only_keep_if" lambda
+        if only_keep_if is None: only_keep_if = lambda each: True
+        
+        # combined
+        the_filter = lambda each: only_keep_if(each) and required_keys_exist(each)
+        # load if needed
+        if not self._records:
+            self.load()
+        
+        return (each for each in self._records if the_filter(each))
+            
     def new_experiment(self, **experiment_info):
         if len(experiment_info) == 0: experiment_info = None
         
         # 
         # load from file
         # 
-        import os
-        prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
-        if not self.records and self.file_path:
-            try: self.collection_notes, prev_experiment_parent_info, self.record_keepers, self.records = large_pickle_load(self.file_path)
-            except: print(f'Will creaete new experiment collection: {self.collection_name}')
+        self.load()
         
         # add basic data to the experiment
         # there are 3 levels:
@@ -214,13 +242,13 @@ class ExperimentCollection:
             parent=CustomInherit(
                 parent=self.collection_notes,
                 data={
-                    "experiment_number": prev_experiment_parent_info["experiment_number"] + 1 if not prev_experiment_parent_info["had_error"] else prev_experiment_parent_info["experiment_number"],
-                    "error_number": prev_experiment_parent_info["error_number"]+1,
+                    "experiment_number": self.prev_experiment_parent_info["experiment_number"] + 1 if not self.prev_experiment_parent_info["had_error"] else self.prev_experiment_parent_info["experiment_number"],
+                    "error_number": self.prev_experiment_parent_info["error_number"]+1,
                     "had_error": True,
                 },
             ),
             file_path=self.file_path,
-            all_records=self.records,
+            all_records=self._records,
             all_record_keepers=self.record_keepers,
         )
         # create experiment record keeper
@@ -234,11 +262,11 @@ class ExperimentCollection:
             record_keepers=self.record_keepers,
             file_path=self.file_path,
             collection_notes=self.collection_notes,
-            records=self.records,
+            records=self._records,
             collection_name=self.collection_name,
         )
     
-    def add_notes(cls, collection, notes, records=None, extension=".pkl"):
+    def add_notes(self, notes, records=None, extension=".pkl"):
         import os
         file_path = os.path.abspath(collection+extension)
         collection_name = os.path.basename(file_path)[0:-len(extension)]
@@ -256,8 +284,6 @@ class ExperimentCollection:
         data = (collection_notes, prev_experiment_parent_info, record_keepers, records)
         large_pickle_save(data, file_path)
         
-    
-
 #%%
 
 # %%
