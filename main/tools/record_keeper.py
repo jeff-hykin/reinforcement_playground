@@ -1,24 +1,85 @@
 #%%
 from super_hash import super_hash
-all_records = []
+from tools.basics import large_pickle_load, large_pickle_save
+
+class CustomInherit(dict):
+    def __init__(self, *, parent, data=None):
+        self.parent = parent
+        if data == None: data = {}
+        for each_key, each_value in data.items():
+            self[each_key] = each_value
+    
+    @property
+    def dict(self):
+        core = super()
+        parent_data_copy = dict(self.parent)
+        for each_key, each_value in core.items():
+            parent_data_copy[each_key] = each_value
+        return parent_data_copy
+    
+    def keys(self):
+        return self.dict.keys()
+    
+    def values(self):
+        return self.dict.values()
+    
+    def items(self):
+        return self.dict.items()
+    
+    @property
+    def ancestors(self):
+        current = self
+        ancestors = []
+        while hasattr(current, "parent") and current != current.parent:
+            ancestors.append(current.parent)
+            current = current.parent
+        return ancestors
+    
+    def __len__(self):
+        return len(self.dict)
+    
+    def __iter__(self):
+        return self.dict.keys()
+    
+    def __getitem__(self, key):
+        return self.dict.get(key, None)
+    
+    def __setitem__(self, key, value):
+        self.update({key: value})
+    
+    def __repr__(self,):
+        return self.dict.__repr__()
+
+
 class RecordKeeper():
     def __init__(self, *args, **kwargs):
-        class _SelfKey: pass
-        
-        self.parent = {"$ancestors":[]}
-        self.parent.update(kwargs)
-        if len(args) > 0 and isinstance(args[0], dict): self.parent.update(args[0])
-        self.parent["$ancestors"] += self.parent
+        self.file_path = None
+        if len(args) <= 0:
+            raise Exception('When calling RecordKeeper() there needs to be at least one argument')
+        elif len(args) == 1:
+            # load from file
+            if type(args[0]) == str:
+                import os
+                self.file_path = os.path.abspath(args[0])
+                existing_data = None
+                try:
+                    existing_data = large_pickle_load(self.file_path)
+                except Exception as error:
+                    pass
+                if existing_data is None:
+                    print(f'There do not seem to be any current records for {self.file_path}\n=> So I\'ll create {self.file_path}')
+                    directory = os.path.dirname(self.file_path)
+                    os.makedirs(directory, exist_ok=True)
+                self.parent = CustomInherit(parent={}, data=kwargs)
+                self.all_records = existing_data or []
+            else:
+                raise Exception('When calling RecordKeeper() with only one argument, it needs to be a string (a filepath)')
+        elif type(args[0]) == CustomInherit:
+            self.parent = CustomInherit(parent=args[0], data=kwargs)
+            self.all_records = args[1]
         self.current_record = None
-        self._SelfKey = _SelfKey
-        self.parent[self._SelfKey] = id(self)
     
-    def parent_should_include(self, **kwargs):
-        # add it to the current element
-        self.parent.update(kwargs)
-        return self
-    
-    def this_record_includes(self, **kwargs):
+    def merge(self, **kwargs):
         if self.current_record is None:
             self.start_next_record()
         # add it to the current element
@@ -28,51 +89,58 @@ class RecordKeeper():
     def start_next_record(self):
         # when adding a child, always have a link back to the parent data 
         # (this uses the ..., which is a valid/normalish value in python)
-        self.current_record = {
-            (...): self.parent,
-        }
-        all_records.append(self.current_record)
-            
-    def sub_record_keeper(self, **kwargs):
-        return RecordKeeper({**self.parent, **kwargs, "$ancestors": self.parent["$ancestors"]})
+        self.current_record = CustomInherit(parent=self.parent)
+        self.all_records.append(self.current_record)
     
-    def __len__(self):
-        return len(tuple(each_record for each_record in all_records if self._SelfKey in each_record[...]))
-        
-    def __repr__(self):
-        size = len(self)
-        parent = { each_key: each_value for each_key, each_value in self.parent.items() if not (type(each_key) != str or each_key == "$ancestors") }
-        parent["__id__"] = self.id
-        return f"""Parent: {parent}\n# of records: {size}"""
+    def sub_record_keeper(self, **kwargs):
+        return RecordKeeper(self.parent, self.all_records, **kwargs)
+    
+    @property
+    def ancestors(self):
+        return [ self.parent, *self.parent.ancestors ]
     
     def __iter__(self):
-        return (each_record for each_record in all_records if self._SelfKey in each_record[...])
+        return (each for each in self.all_records if self.parent in each.ancestors)
+    
+    def __len__(self):
+        # apparently this is the fastest way (no idea why converting to tuple is faster than using reduce)
+        return len(tuple((each for each in self)))
+    
+    @property
+    def records(self):
+        return [ each for each in self ]
+    
+    def __repr__(self):
+        size = len(self)
+        return f"""Parent: {self.parent}\n# of records: {size}"""
     
     def __getitem__(self, key):
         return self.current_record.get(key, None)
-        
+    
     def __setitem__(self, key, value):
-        self.this_record_includes(**{key: value})
+        self.merge(**{key: value})
     
-    @property
-    def id(self):
-        return super_hash(self.parent)
-    
-    def save(self, path):
-        import json
-        output = []
-        for each_record in self:
-            # combine parent data into element
-            item = { **each_record[...], **dict(each_record), }
-            # hash the ancestors
-            item["$ancestors"] = [ super_hash(each) for each in item["$ancestors"] ]
-            # remove un-json-able keys
-            item  = { key : value for key, value in item.items() if type(key) == str }
-            output.append(item)
+    def save(self, path=None):
         # save to file
         import os
         from os.path import isabs, isfile, isdir, join, dirname, basename, exists, splitext, relpath
+        path = path or self.file_path
         os.makedirs(dirname(path), exist_ok=True)
-        with open(path, 'w') as outfile:
-            json.dump(output, outfile)
+        large_pickle_save(self.all_records, path)
+        
 #%%
+
+main = RecordKeeper("test1.dont-sync.pkl", test="test1")
+model1 = main.sub_record_keeper(model="model1")
+model2 = main.sub_record_keeper(model="model2")
+model_1_losses = model1.sub_record_keeper(training=True)
+from random import random, sample, choices
+#%%
+for each in range(1000):
+    model_1_losses["index"] = each
+    model_1_losses["loss_1"] = random()
+    model_1_losses.start_next_record()
+
+# %%
+main.save()
+# %%
