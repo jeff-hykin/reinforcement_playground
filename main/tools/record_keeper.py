@@ -122,52 +122,14 @@ class RecordKeeper():
 # create a "with" object
 # 
 class Experiment(object):
-    def __init__(self, collection, experiment_info=None, records=None, extension=".pkl"):
-        # TODO: many of these things belong in the ExperimentCollection class
-        #       but the ExperimentCollection class didnt exist until after this class was created
-        self.file_path              = collection+extension
-        self.experiment             = None
-        self.experiment_info        = experiment_info
-        self.collection_name        = ""
-        self.collection_notes       = {}
-        self.experiment_parent      = None
-        self.records                = records or []
-        self.record_keepers         = {}
-        
-        # 
-        # load from file
-        # 
-        import os
-        self.file_path = os.path.abspath(self.file_path)
-        self.collection_name = os.path.basename(self.file_path)[0:-len(extension)]
-        prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
-        if not self.records and self.file_path:
-            try: self.collection_notes, prev_experiment_parent_info, self.record_keepers, self.records = large_pickle_load(self.file_path)
-            except: print(f'Will creaete new experiment collection: {self.collection_name}')
-        
-        # add basic data to the experiment
-        # there are 3 levels:
-        # - self.collection_notes (root)
-        # - self.experiment_parent
-        # - self.experiment
-        self.experiment_parent = RecordKeeper(
-            parent=CustomInherit(
-                parent=self.collection_notes,
-                data={
-                    "experiment_number": prev_experiment_parent_info["experiment_number"] + 1 if not prev_experiment_parent_info["had_error"] else prev_experiment_parent_info["experiment_number"],
-                    "error_number": prev_experiment_parent_info["error_number"]+1,
-                    "had_error": True,
-                },
-            ),
-            file_path=self.file_path,
-            all_records=self.records,
-            all_record_keepers=self.record_keepers,
-        )
-        # create experiment record keeper
-        if experiment_info is None:
-            self.experiment = self.experiment_parent
-        else:
-            self.experiment = self.experiment_parent.sub_record_keeper(**self.experiment_info)
+    def __init__(self, experiment, experiment_parent, record_keepers, file_path, collection_notes, records, collection_name):
+        self.experiment        = experiment       
+        self.experiment_parent = experiment_parent
+        self.record_keepers    = record_keepers
+        self.file_path         = file_path
+        self.collection_notes  = collection_notes
+        self.records           = records
+        self.collection_name   = collection_name
     
     def __enter__(self):
         return self.experiment
@@ -202,14 +164,79 @@ class Experiment(object):
             raise error
 
 class ExperimentCollection:
+    """
+    Example:
+        collection = ExperimentCollection("test1") # filepath 
+        with collection.new_experiment() as record_keeper:
+            model1 = record_keeper.sub_record_keeper(model="model1")
+            model2 = record_keeper.sub_record_keeper(model="model2")
+            model_1_losses = model1.sub_record_keeper(training=True)
+            from random import random, sample, choices
+            for each in range(1000):
+                model_1_losses["index"] = each
+                model_1_losses["loss_1"] = random()
+                model_1_losses.start_next_record()
+
+        collection.records[0]
+        collection.records[-1]
+    """
     def __init__(self, collection, records=None, extension=".pkl"):
-        self.collection = collection
-        self.extension = extension
-        self.records = records
+        self.file_path              = collection+extension
+        self.experiment             = None
+        self.collection_name        = ""
+        self.collection_notes       = {}
+        self.experiment_parent      = None
+        self.records                = records or []
+        self.record_keepers         = {}
+        
+        import os
+        self.file_path = os.path.abspath(self.file_path)
+        self.collection_name = os.path.basename(self.file_path)[0:-len(extension)]
     
-    def new_experiment(self, **kwargs):
-        if len(kwargs) == 0: kwargs = None
-        return Experiment(collection=self.collection, experiment_info=kwargs, records=self.records, extension=self.extension)
+    def new_experiment(self, **experiment_info):
+        if len(experiment_info) == 0: experiment_info = None
+        
+        # 
+        # load from file
+        # 
+        import os
+        prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
+        if not self.records and self.file_path:
+            try: self.collection_notes, prev_experiment_parent_info, self.record_keepers, self.records = large_pickle_load(self.file_path)
+            except: print(f'Will creaete new experiment collection: {self.collection_name}')
+        
+        # add basic data to the experiment
+        # there are 3 levels:
+        # - self.collection_notes (root)
+        # - self.experiment_parent
+        # - self.experiment
+        self.experiment_parent = RecordKeeper(
+            parent=CustomInherit(
+                parent=self.collection_notes,
+                data={
+                    "experiment_number": prev_experiment_parent_info["experiment_number"] + 1 if not prev_experiment_parent_info["had_error"] else prev_experiment_parent_info["experiment_number"],
+                    "error_number": prev_experiment_parent_info["error_number"]+1,
+                    "had_error": True,
+                },
+            ),
+            file_path=self.file_path,
+            all_records=self.records,
+            all_record_keepers=self.record_keepers,
+        )
+        # create experiment record keeper
+        if experiment_info is None:
+            self.experiment = self.experiment_parent
+        else:
+            self.experiment = self.experiment_parent.sub_record_keeper(**experiment_info)
+        return Experiment(
+            experiment=self.experiment,
+            experiment_parent=self.experiment_parent,
+            record_keepers=self.record_keepers,
+            file_path=self.file_path,
+            collection_notes=self.collection_notes,
+            records=self.records,
+            collection_name=self.collection_name,
+        )
     
     def add_notes(cls, collection, notes, records=None, extension=".pkl"):
         import os
@@ -232,16 +259,6 @@ class ExperimentCollection:
     
 
 #%%
-experiment = ExperimentCollection("test1")
-with experiment.new_experiment() as record_keeper:
-    model1 = record_keeper.sub_record_keeper(model="model1")
-    model2 = record_keeper.sub_record_keeper(model="model2")
-    model_1_losses = model1.sub_record_keeper(training=True)
-    from random import random, sample, choices
-    for each in range(1000):
-        model_1_losses["index"] = each
-        model_1_losses["loss_1"] = random()
-        model_1_losses.start_next_record()
 
 # %%
 main.save()
