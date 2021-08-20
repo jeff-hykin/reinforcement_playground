@@ -48,8 +48,7 @@ class CustomInherit(dict):
         self.update({key: value})
     
     def __repr__(self,):
-        return self.dict.__repr__()
-
+        return self.dict.__repr__()    
 
 class RecordKeeper():
     def __init__(self, parent, file_path, all_records, all_record_keepers):
@@ -177,10 +176,18 @@ class ExperimentCollection:
                 model_1_losses["index"] = each
                 model_1_losses["loss_1"] = random()
                 model_1_losses.start_next_record()
-
-        collection.records[0]
-        collection.records[-1]
+        
+        groups = collection.where(
+            exist=["loss_1"],
+            extract=lambda each: (each["index"], each["loss_1"]),
+            groups={
+                "1":lambda each:each["experiment_number"]==1,
+                "5":lambda each:each["experiment_number"]==5
+            },
+        )
     """
+    # TODO: make it so that Experiments uses database with detached/reattached pickled objects instead of a single pickle file
+    
     def __init__(self, collection, records=None, extension=".pkl"):
         self.file_path              = collection+extension
         self.experiment             = None
@@ -205,9 +212,7 @@ class ExperimentCollection:
             try: self.collection_notes, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
             except: print(f'Will creaete new experiment collection: {self.collection_name}')
     
-    def where(self, only_keep_if=None, exist=None):
-        # TODO: add group, x value, y value mappers
-        
+    def where(self, only_keep_if=None, exist=None, groups=None, extract=None):
         # "exists" lambda
         if exist is None: exist = []
         required_keys = set(exist)
@@ -217,14 +222,30 @@ class ExperimentCollection:
         # "only_keep_if" lambda
         if only_keep_if is None: only_keep_if = lambda each: True
         
+        # "extract" lambda
+        if extract is None: extract = lambda each: each
+        
         # combined
         the_filter = lambda each: only_keep_if(each) and required_keys_exist(each)
         # load if needed
         if not self._records:
             self.load()
         
-        return (each for each in self._records if the_filter(each))
+        # TODO: add group, x value, y value mappers
+        if groups is None:
+            return (extract(each) for each in self._records if the_filter(each))
+        else:
+            group_finders = groups
+            groups = { each: [] for each in group_finders }
+            for each_record in self._records:
+                if the_filter(each_record):
+                    extracted_value = extract(each_record)
+                    for each_group_name, each_group_finder in group_finders.items():
+                        if each_group_finder(each_record):
+                            groups[each_group_name].append(extracted_value)
             
+            return groups
+    
     def new_experiment(self, **experiment_info):
         if len(experiment_info) == 0: experiment_info = None
         
