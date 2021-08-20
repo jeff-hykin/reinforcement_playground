@@ -1,6 +1,6 @@
 #%%
 from super_hash import super_hash
-from tools.basics import large_pickle_load, large_pickle_save
+from tools.basics import large_pickle_load, large_pickle_save, attempt
 
 class CustomInherit(dict):
     def __init__(self, *, parent, data=None):
@@ -52,32 +52,14 @@ class CustomInherit(dict):
 
 
 class RecordKeeper():
-    def __init__(self, *args, **kwargs):
-        self.file_path = None
-        if len(args) <= 0:
-            raise Exception('When calling RecordKeeper() there needs to be at least one argument')
-        elif len(args) == 1:
-            # load from file
-            if type(args[0]) == str:
-                import os
-                self.file_path = os.path.abspath(args[0])
-                existing_data = None
-                try:
-                    existing_data = large_pickle_load(self.file_path)
-                except Exception as error:
-                    pass
-                if existing_data is None:
-                    print(f'There do not seem to be any current records for {self.file_path}\n=> So I\'ll create {self.file_path}')
-                    directory = os.path.dirname(self.file_path)
-                    os.makedirs(directory, exist_ok=True)
-                self.parent = CustomInherit(parent={}, data=kwargs)
-                self.all_records = existing_data or []
-            else:
-                raise Exception('When calling RecordKeeper() with only one argument, it needs to be a string (a filepath)')
-        elif type(args[0]) == CustomInherit:
-            self.parent = CustomInherit(parent=args[0], data=kwargs)
-            self.all_records = args[1]
+    def __init__(self, parent, file_path, all_records, all_record_keepers):
+        self.parent         = parent
+        self.kids           = []
+        self.file_path      = file_path
+        self.all_records    = all_records
         self.current_record = None
+        self.record_keepers = all_record_keepers
+        self.record_keepers[super_hash(self)] = self
     
     def merge(self, **kwargs):
         if self.current_record is None:
@@ -87,14 +69,25 @@ class RecordKeeper():
         return self
     
     def start_next_record(self):
-        # when adding a child, always have a link back to the parent data 
-        # (this uses the ..., which is a valid/normalish value in python)
+        # when adding a record, always have a link back to the parent data 
         self.current_record = CustomInherit(parent=self.parent)
         self.all_records.append(self.current_record)
     
     def sub_record_keeper(self, **kwargs):
-        return RecordKeeper(self.parent, self.all_records, **kwargs)
+        grandparent = self.parent
+        kid = RecordKeeper(
+            parent=CustomInherit(parent=grandparent, data=kwargs),
+            file_path=self.file_path,
+            all_records=self.all_records,
+            all_record_keepers=self.record_keepers,
+        )
+        self.kids.append(kid)
+        return kid
     
+    @property
+    def info(self):
+        return self.parent
+        
     @property
     def ancestors(self):
         return [ self.parent, *self.parent.ancestors ]
@@ -106,6 +99,9 @@ class RecordKeeper():
         # apparently this is the fastest way (no idea why converting to tuple is faster than using reduce)
         return len(tuple((each for each in self)))
     
+    def __hash__(self):
+        return super_hash({ "CustomInherit": self.parent })
+        
     @property
     def records(self):
         return [ each for each in self ]
@@ -119,27 +115,133 @@ class RecordKeeper():
     
     def __setitem__(self, key, value):
         self.merge(**{key: value})
-    
-    def save(self, path=None):
-        # save to file
-        import os
-        from os.path import isabs, isfile, isdir, join, dirname, basename, exists, splitext, relpath
-        path = path or self.file_path
-        os.makedirs(dirname(path), exist_ok=True)
-        large_pickle_save(self.all_records, path)
-        
+
 #%%
 
-main = RecordKeeper("test1.dont-sync.pkl", test="test1")
-model1 = main.sub_record_keeper(model="model1")
-model2 = main.sub_record_keeper(model="model2")
-model_1_losses = model1.sub_record_keeper(training=True)
-from random import random, sample, choices
+# 
+# create a "with" object
+# 
+class Experiment(object):
+    def __init__(self, collection, experiment_info=None, records=None, extension=".pkl"):
+        # TODO: many of these things belong in the ExperimentCollection class
+        #       but the ExperimentCollection class didnt exist until after this class was created
+        self.file_path              = collection+extension
+        self.experiment             = None
+        self.experiment_info        = experiment_info
+        self.collection_name        = ""
+        self.collection_notes       = {}
+        self.experiment_parent      = None
+        self.records                = records or []
+        self.record_keepers         = {}
+        
+        # 
+        # load from file
+        # 
+        import os
+        self.file_path = os.path.abspath(self.file_path)
+        self.collection_name = os.path.basename(self.file_path)[0:-len(extension)]
+        prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
+        if not self.records and self.file_path:
+            try: self.collection_notes, prev_experiment_parent_info, self.record_keepers, self.records = large_pickle_load(self.file_path)
+            except: print(f'Will creaete new experiment collection: {self.collection_name}')
+        
+        # add basic data to the experiment
+        # there are 3 levels:
+        # - self.collection_notes (root)
+        # - self.experiment_parent
+        # - self.experiment
+        self.experiment_parent = RecordKeeper(
+            parent=CustomInherit(
+                parent=self.collection_notes,
+                data={
+                    "experiment_number": prev_experiment_parent_info["experiment_number"] + 1 if not prev_experiment_parent_info["had_error"] else prev_experiment_parent_info["experiment_number"],
+                    "error_number": prev_experiment_parent_info["error_number"]+1,
+                    "had_error": True,
+                },
+            ),
+            file_path=self.file_path,
+            all_records=self.records,
+            all_record_keepers=self.record_keepers,
+        )
+        # create experiment record keeper
+        if experiment_info is None:
+            self.experiment = self.experiment_parent
+        else:
+            self.experiment = self.experiment_parent.sub_record_keeper(**self.experiment_info)
+    
+    def __enter__(self):
+        return self.experiment
+    
+    def __exit__(self, _, error, traceback):
+        # mutate the root one based on having an error or not
+        no_error = error is None
+        if no_error:
+            self.experiment_parent.info["had_error"] = False
+            self.experiment_parent.info["error_number"] = 0
+        
+        # refresh the all_record_keepers dict
+        # especially after mutating the self.experiment_parent.info
+        # (this ends up acting like a set, but keys are based on mutable values)
+        self.record_keepers = { super_hash(each_value) : each_value for each_value in self.record_keepers.values() }
+        
+        # 
+        # save to file
+        # 
+        # ensure folder exists
+        import os;os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+        data = (self.collection_notes, self.experiment_parent.info, self.record_keepers, self.records)
+        large_pickle_save(data, self.file_path)
+        
+        # re-throw the error
+        if not no_error:
+            print(f'There was an error when adding experiment to collection: "{self.collection_name}"')
+            print(f'However, the partial experiment data was saved')
+            experiment_number = self.experiment_parent.info["experiment_number"]
+            error_number = self.experiment_parent.info["error_number"]
+            print(f'This happend on:\n    dict(experiment_number={experiment_number}, error_number={error_number})')
+            raise error
+
+class ExperimentCollection:
+    def __init__(self, collection, records=None, extension=".pkl"):
+        self.collection = collection
+        self.extension = extension
+        self.records = records
+    
+    def new_experiment(self, **kwargs):
+        if len(kwargs) == 0: kwargs = None
+        return Experiment(collection=self.collection, experiment_info=kwargs, records=self.records, extension=self.extension)
+    
+    def add_notes(cls, collection, notes, records=None, extension=".pkl"):
+        import os
+        file_path = os.path.abspath(collection+extension)
+        collection_name = os.path.basename(file_path)[0:-len(extension)]
+        # default values
+        collection_notes = {}
+        prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
+        record_keepers = {}
+        records = records or []
+        # attempt load
+        try: collection_notes, prev_experiment_parent_info, record_keepers, records = large_pickle_load(file_path)
+        except: print(f'Will creaete new experiment collection: {collection_name}')
+        # merge data
+        collection_notes.update(notes)
+        # save updated data
+        data = (collection_notes, prev_experiment_parent_info, record_keepers, records)
+        large_pickle_save(data, file_path)
+        
+    
+
 #%%
-for each in range(1000):
-    model_1_losses["index"] = each
-    model_1_losses["loss_1"] = random()
-    model_1_losses.start_next_record()
+experiment = ExperimentCollection("test1")
+with experiment.new_experiment() as record_keeper:
+    model1 = record_keeper.sub_record_keeper(model="model1")
+    model2 = record_keeper.sub_record_keeper(model="model2")
+    model_1_losses = model1.sub_record_keeper(training=True)
+    from random import random, sample, choices
+    for each in range(1000):
+        model_1_losses["index"] = each
+        model_1_losses["loss_1"] = random()
+        model_1_losses.start_next_record()
 
 # %%
 main.save()
