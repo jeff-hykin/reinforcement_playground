@@ -217,6 +217,208 @@ class LazyList:
         self.memory[key] = value
 
         
+class LiquidData():
+    """
+        color_map = {
+            1: "#983203",
+            2: "#983203",
+        }
+        LiquidData(records).only_keep_if(
+            lambda each: each["train"],
+            ).bundle_by(
+                "experiment_number",
+            # nested bundle
+            ).bundle_by(
+                "index",
+            # convert lists-of-dictionaries into a dictionary-of-lists 
+            ).aggregate(
+            # average the loss over each index, within each experiment
+            ).map(lambda each_index_in_each_experiment: {
+                **each_index_in_each_experiment,
+                "loss_1": average(each_index_in_each_experiment["loss_1"]),
+            # group by experiment number
+            }).unbundle().aggregate().map(lambda each_group: {
+                "label": str(each["experiment_number"]),
+                "backgroundColor": color_map[each["experiment_number"]],
+                "color": color_map[each["experiment_number"]],
+                "data": zip(each_group["index"], each_group["loss_1"])
+            })
+    """
+    def __init__(self, records=None, group_levels=None, internally_called=False):
+        if internally_called:
+            self.group_levels = group_levels
+        else:
+            # bottom level is always an iterable of some-kind of list-of-dictionaries
+            # all other levels can be thought of as lists-of-lists-of-dictionaries
+            # however, that "of-dictionaries" is actually lambda's, where each lambda points to a dictionary
+            # (the lambdas act like pointers)
+            self.group_levels = [ 
+                # bundles
+                [
+                    # initially only one big bundle
+                    LazyList(
+                        index for index, _ in enumerate(records)
+                    ),
+                ],
+                LazyList(records),
+            ]
+    
+    @property
+    def bottom(self,):
+        return self.group_levels[-1]
+    
+    @property
+    def bottom_bundles(self,):
+        return self.group_levels[-2]
+    
+    def only_keep_if(self, func):
+        new_liquid = LiquidData(
+            group_levels=list(self.group_levels),
+            internally_called=True,
+        )
+        # just filter the bottom bundles (no need to filter the records level)
+        new_liquid.group_levels[-2] = [
+            # similar to init, but with filter
+            LazyList(
+                index
+                    for index, _ in enumerate(each_bundle)
+                        if func(each)
+            )
+                for each_bundle in self.bottom_bundles
+        ]
+        return new_liquid
+    
+    def bundle_by(self, *keys):
+        # find the number of unique values for those keys
+        from collections import defaultdict
+        new_liquid = LiquidData(
+            group_levels=list(self.group_levels),
+            internally_called=True,
+        )
+        def compute_sub_bundles(each_old_bundle):
+            groups = defaultdict(lambda each: [])
+            for each_record_index in each_old_bundle:
+                each_record = self.group_levels[-1][each_record_index]
+                value_of_specified_keys = tuple(each_record.get(each_key, None) for each_key in keys)
+                which_group = super_hash(value_of_specified_keys)
+                groups[group].append(each_record_index)
+            # sub-bundles
+            return LazyList(each for each in groups.values())
+        
+        # list-of-bundles-of-lambdas-to-dictionary => list-of-bundles-of-bundles-of-lambdas-to-dictionary
+        intermediate_list = [
+            # a new bundle (bundle of bundles)
+            compute_sub_bundles(each_old_bundle)
+                for each_old_bundle in self.bottom_bundles
+        ]
+        # bundles of sub-bundles flattened out into just a bunch of sub-bundles
+        new_bottom = LazyList(flatten_once(intermediate_list))
+        # list-of-bundles-of-bundles-to-dictionary => list-of-bundles-of-lambdas-to-bundles-of-dictionary
+        reconnected_old_bottom = []
+        index_of_next_level = len(new_liquid.group_levels) - 2
+        index_within_next_level = -1
+        for each_bundle in intermediate_list:
+            # make new bundles
+            reconnected_old_bottom.append([])
+            # each element in the new bundle is an index to a bundle in the next level
+            for sub_bundle_index, _ in enumerate(each_bundle):
+                index_within_next_level += 1
+                reconnected_old_bottom[-1].append(index_within_next_level)
+        
+        # update the old level
+        new_liquid.group_levels[-2] = reconnected_old_bottom
+        # add the new level
+        new_liquid.group_levels.insert(len(new_liquid.group_levels)-1, new_bottom)
+        
+        return new_liquid
+    
+    def unbundle(self):
+        if len(group_levels) == 2:
+            raise Exception('Tried to unbundle, but there were no bundles')
+        new_liquid = LiquidData(
+            group_levels=list(self.group_levels),
+            internally_called=True,
+        )
+        old_before_bottom = self.group_levels[-3]
+        bottom = self.bottom_bundles
+        new_before_bottom = LazyList(
+            # each bundle, it is still a bundle but the sub-bundles have been flattened
+            flatten_once(LazyList(
+                # each_value is an index to a sub_bundle (which is in a different level)
+                # (e.g. below is a sub-bundle)
+                bottom[each_value]
+                    for each_value in each_bundle
+            ))
+                for each_bundle in old_before_bottom
+        )
+        # remove the bottom
+        del new_liquid.group_levels[-2]
+        # replace old before-bottom with the new flattened before-bottom
+        new_liquid.group_levels[-2] = new_before_bottom
+        return new_liquid
+    
+    def map(self, func):
+        # TODO:
+        #     create new-values layer
+        #     update the bottom bundles to point to indexes of mapping layer
+        #     replace records layer with new-values layer
+        new_liquid = LiquidData(
+            group_levels=list(self.group_levels),
+            internally_called=True,
+        )
+        new_liquid.group_levels[-1] = (
+            (
+                func(each_record)
+                    for each_record in each_bundle
+            )
+                for each_bundle in self.group_levels[-1]
+        )
+        return new_value
+    
+    def aggregate(self):
+        # TODO: work with index-based solution
+        #     create new aggregation layer
+        #     add a before-bottom layer if there is only the top layer
+        #     update the before-bottom bundles to point to aggregations instead of sub-bundles
+        #     replace records layer with aggregation layer
+        #     remove old bottom layer
+        keys = set(
+            flatten_once(
+                flatten_once(
+                    each_record.keys()
+                        for each_record in each_bundle
+                )
+                    for each_bundle in self.group_levels[-1]
+            )
+        )
+        
+        new_liquid = LiquidData(
+            group_levels=list(self.group_levels),
+            internally_called=True,
+        )
+        
+        element_id_mapper = {}
+        # aggregate is effectively also an unbundle() operation 
+        # (the lowest level bundle becomes an element instead of a bundle)
+        # so instead of replacing the lowest level, we actually replace the second lowest level
+        new_lowest_level = [(
+            {
+                each_key: (
+                    each_record.get(each_key, None)
+                        for each_record in each_bundle
+                ) 
+                    for each_key in keys 
+            }
+                for each_bundle in self.group_levels[-1]
+        )]
+        # edgecase of only having one group level
+        if len(new_liquid.group_levels) == 1:
+            new_liquid.group_levels.insert(0, None)
+        
+        
+        new_liquid.group_levels[-2] =
+        return new_liquid
+            
     
     
 class ExperimentCollection:
