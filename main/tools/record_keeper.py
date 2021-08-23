@@ -41,7 +41,7 @@ class CustomInherit(dict):
         return len(self.dict)
     
     def __iter__(self):
-        return self.dict.keys()
+        return (each for each in self.dict.keys())
     
     def __getitem__(self, key):
         return self.dict.get(key, None)
@@ -222,6 +222,10 @@ class ExperimentCollection:
             try: self.collection_notes, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
             except: print(f'Will creaete new experiment collection: {self.collection_name}')
     
+    def ensure_loaded(self):
+        if self.prev_experiment_parent_info == None:
+            self.load()
+    
     def where(self, only_keep_if=None, exist=None, groups=None, extract=None):
         # "exists" lambda
         if exist is None: exist = []
@@ -297,6 +301,15 @@ class ExperimentCollection:
             collection_name=self.collection_name,
         )
     
+    def __len__(self,):
+        self.ensure_loaded()
+        return len(self._records)
+    
+    @property
+    def records(self):
+        self.ensure_loaded()
+        return self._records
+    
     def add_notes(self, notes, records=None, extension=".pkl"):
         import os
         file_path = os.path.abspath(collection+extension)
@@ -323,7 +336,7 @@ class LazyList:
             next(self.remaining)
             self.memory = iterable
         else:
-            self.remaining = iterable
+            self.remaining = (each for each in iterable)
             self.memory = []
         self._length = None
     
@@ -376,12 +389,17 @@ class LazyList:
 
 class LiquidData():
     """
-        color_map = {
-            1: "#983203",
-            2: "#983203",
-        }
+        from collections import defaultdict
+        color_map = defaultdict(lambda: "#003AAZ")
+        color_map.update({
+            1: "#503A73",
+            2: "#003973",
+            3: "#003AAZ",
+        })
+        
+        from statistics import mean as average
         LiquidData(records).only_keep_if(
-                lambda each: each["train"],
+                lambda each: each["training"],
             ).bundle_by(
                 "experiment_number",
             # nested bundle
@@ -398,35 +416,44 @@ class LiquidData():
             # create one dict per experiment, with key-values having list-values
             ).aggregate(
             # for every experiment, add a label, a color, and extract out a list of x/y values
-            ).map(lambda each_group: {
+            ).map(lambda each: {
                 "label": str(each["experiment_number"]),
                 "backgroundColor": color_map[each["experiment_number"]],
                 "color": color_map[each["experiment_number"]],
-                "data": zip(each_group["index"], each_group["loss_1"])
+                "data": zip(each["index"], each["loss_1"])
             })
         
         Test:
-            def s(lazy):
-                import json
-                output = tuple(tuple(each) for each in lazy)
-                print(json.dumps(output, indent=4))
-            records = [
-                {"a":1, "b":2 },
-                {"a":1, "b":3 },
-                {"a":2, "b":2 },
-                {"a":2, "b":3 },
-                {"a":1, "b":2, "c":1 },
-                {"a":1, "b":3, "c":1 },
-                {"a":2, "b":2, "c":1 },
-                {"a":2, "b":3, "c":1 },
-            ]
-            c = LiquidData(records=records)
-            e = c.map(lambda each: { **each, "f": 10 })
-            d = e.aggregate()
-            g = e.bundle_by("a")
-            j = g.bundle_by("c")
-            h = j.unbundle()
-            r = g.aggregate()
+                
+            collection = ExperimentCollection("test1")
+            r = collection.records
+            a = z[ z['training'] == True ]
+            b = a.groupby(["experiment_number", "index"], as_index=False)
+            c = b.aggregate(func=tuple)
+            d = c.groupby(["experiment_number"])
+
+            from collections import defaultdict
+            color_map = defaultdict(lambda: "#003AAZ")
+            color_map.update({
+                1: "#503A73",
+                2: "#003973",
+                3: "#003AAZ",
+            })
+
+            L = LiquidData(r)
+            aa = L.only_keep_if(lambda each: each["training"] and each["loss_1"] is not None)
+            bb = aa.bundle_by("experiment_number")
+            cc = bb.bundle_by("index")
+            dd = cc.aggregate()
+            ee = dd.map(lambda each_iter_in_each_experiment: { "experiment_number": each_iter_in_each_experiment["experiment_number"][0], "index": each_iter_in_each_experiment["index"][0], "loss_1": average(each_iter_in_each_experiment["loss_1"]), })
+            gg = ee.aggregate()
+            hh = gg.map(lambda each: dict(index=each["index"], loss_1=each["loss_1"], experiment_number=each["experiment_number"][0]))
+            ii = hh.map(lambda each: {
+                    "label": str(each["experiment_number"]),
+                    "backgroundColor": color_map[each["experiment_number"]],
+                    "color": color_map[each["experiment_number"]],
+                    "data": tuple(zip(each["index"], each["loss_1"]))
+                })
     """
     def __init__(self, records=None, group_levels=None, internally_called=False):
         if internally_called:
@@ -476,11 +503,7 @@ class LiquidData():
         # filter the bundles
         new_liquid.group_levels[-2] = [
             # similar to init, but with filter
-            LazyList(
-                index
-                    for index, _ in enumerate(each_bundle)
-                        if func(each)
-            )
+            LazyList( item_index for item_index, record_index in enumerate(each_bundle) if func(self.group_levels[-1][record_index]))
                 for each_bundle in self.bottom_bundles
         ]
         return new_liquid
@@ -497,9 +520,7 @@ class LiquidData():
             for each_record_index in each_old_bundle:
                 each_record = self.group_levels[-1][each_record_index]
                 value_of_specified_keys = tuple(each_record.get(each_key, None) for each_key in keys)
-                print('value_of_specified_keys = ', value_of_specified_keys)
                 which_group = super_hash(value_of_specified_keys)
-                print('which_group = ', which_group)
                 groups[which_group].append(each_record_index)
             # sub-bundles
             return LazyList(each for each in groups.values())
@@ -561,13 +582,22 @@ class LiquidData():
             group_levels=list(self.group_levels),
             internally_called=True,
         )
+        error = None
+        def wrapped_function(record)
+            nonlocal error
+            try:
+                return func(record)
+            except Exception as err:
+                error = err
+                return None
         
         # first create the new mapped values
         mapped_values = LazyList(
-            func(self.group_levels[-1][each_record_index])
-                for each_record_index in flatten_once(self.group_levels[-2])
+            func(self.group_levels[-1][each_record_index]) for each_record_index in flatten_once(self.group_levels[-2])
         )
-        print('tuple(mapped_values) = ', tuple(mapped_values))
+        if error:
+            print(f'There was an issue when using .map() on {self.__class__}')
+            raise error
         # replace the old values with the new values
         new_liquid.group_levels[-1] = mapped_values
         # then update the indicies of the bundles
