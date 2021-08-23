@@ -1,6 +1,6 @@
 #%%
 from super_hash import super_hash
-from tools.basics import large_pickle_load, large_pickle_save, attempt
+from tools.basics import large_pickle_load, large_pickle_save, attempt, flatten_once
 
 class CustomInherit(dict):
     def __init__(self, *, parent, data=None):
@@ -224,7 +224,7 @@ class LiquidData():
             2: "#983203",
         }
         LiquidData(records).only_keep_if(
-            lambda each: each["train"],
+                lambda each: each["train"],
             ).bundle_by(
                 "experiment_number",
             # nested bundle
@@ -233,11 +233,15 @@ class LiquidData():
             # convert lists-of-dictionaries into a dictionary-of-lists 
             ).aggregate(
             # average the loss over each index, within each experiment
-            ).map(lambda each_index_in_each_experiment: {
-                **each_index_in_each_experiment,
-                "loss_1": average(each_index_in_each_experiment["loss_1"]),
-            # group by experiment number
-            }).unbundle().aggregate().map(lambda each_group: {
+            ).map(lambda each_iter_in_each_experiment: {
+                **each_iter_in_each_experiment,
+                "loss_1": average(each_iter_in_each_experiment["loss_1"]),
+            # go back to only grouping by experiment number
+            }).unbundle(
+            # create one dict per experiment, with key-values having list-values
+            ).aggregate(
+            # for every experiment, add a label, a color, and extract out a list of x/y values
+            ).map(lambda each_group: {
                 "label": str(each["experiment_number"]),
                 "backgroundColor": color_map[each["experiment_number"]],
                 "color": color_map[each["experiment_number"]],
@@ -276,7 +280,7 @@ class LiquidData():
             group_levels=list(self.group_levels),
             internally_called=True,
         )
-        # just filter the bottom bundles (no need to filter the records level)
+        # filter the bundles
         new_liquid.group_levels[-2] = [
             # similar to init, but with filter
             LazyList(
@@ -366,60 +370,69 @@ class LiquidData():
             group_levels=list(self.group_levels),
             internally_called=True,
         )
-        new_liquid.group_levels[-1] = (
-            (
-                func(each_record)
-                    for each_record in each_bundle
-            )
-                for each_bundle in self.group_levels[-1]
+        
+        # first create the new mapped values
+        mapped_values = LazyList(
+            func(self.group_levels[-1][each_record_index])
+                for each_record_index in each_bundle
+                    for each_bundle in self.group_levels[-2]
         )
-        return new_value
+        # replace the old values with the new values
+        new_liquid.group_levels[-1] = mapped_values
+        # then update the indicies of the bundles
+        new_indicies = (each_index for each_index, _ in enumerate(mapped_values))
+        new_liquid.group_levels[-2] = LazyList(
+            next(new_indicies)
+                for each_record_index in each_bundle
+                    for each_bundle in self.group_levels[-2]
+        )
+        return new_liquid
     
     def aggregate(self):
-        # TODO: work with index-based solution
-        #     create new aggregation layer
-        #     add a before-bottom layer if there is only the top layer
-        #     update the before-bottom bundles to point to aggregations instead of sub-bundles
-        #     replace records layer with aggregation layer
-        #     remove old bottom layer
-        keys = set(
-            flatten_once(
-                flatten_once(
-                    each_record.keys()
-                        for each_record in each_bundle
-                )
-                    for each_bundle in self.group_levels[-1]
-            )
-        )
-        
         new_liquid = LiquidData(
             group_levels=list(self.group_levels),
             internally_called=True,
         )
         
-        element_id_mapper = {}
-        # aggregate is effectively also an unbundle() operation 
-        # (the lowest level bundle becomes an element instead of a bundle)
-        # so instead of replacing the lowest level, we actually replace the second lowest level
-        new_lowest_level = [(
-            {
-                each_key: (
-                    each_record.get(each_key, None)
-                        for each_record in each_bundle
-                ) 
-                    for each_key in keys 
-            }
-                for each_bundle in self.group_levels[-1]
-        )]
-        # edgecase of only having one group level
-        if len(new_liquid.group_levels) == 1:
-            new_liquid.group_levels.insert(0, None)
+        # ensure there is at least one bundle
+        if len(new_liquid.group_levels) < 3:
+            new_liquid.group_levels.insert(0, [
+                # one bundle, that contains one element for every already-existing bundle
+                LazyList(each_index for each_index, _ in enumerate(self.group_levels[0]))
+            ])
         
-        
-        new_liquid.group_levels[-2] =
-        return new_liquid
+        # this is one of the only parts that I don't think would be very effecitve as 100% a generator
+        # it does a single pass instead of (as a generator) O(n) * number of dictionary keys
+        #   # part of an alternative/iterative method
+        #   # {
+        #   #     each_key: LazyList(
+        #   #         self.group_levels[-1][each_record_index].get(each_key, None)
+        #   #             for each_record_index in each_bundle
+        #   #     )
+        #   #         for each_key in keys 
+        #   # }
+        #   #         for each_bundle in new_liquid.group_levels[-2]
+        from collections import defaultdict
+        new_bundles = []
+        keys = set()
+        for each_bundle in new_liquid.group_levels[-2]:
+            aggregated = defaultdict(lambda each: [])
+            for each_record_index in each_bundle:
+                each_record = self.group_levels[-1][each_record_index]
+                # for each key in each record
+                for each_key in each_record:
+                    keys.add(each_key)
+                for each_key in keys:
+                    aggregated[each_key].append(each_record.get(each_key, None))
+            new_bundles.append(aggregated)
             
-    
+        
+        # replace the old nested bundles with values (effectively making it the "records" level)
+        new_liquid.group_levels[-2] = new_bundles
+        # remove the old records level (-2 becomes records -3 becomes -2)
+        del new_liquid.group_levels[-1]
+        return new_liquid
+
     
 class ExperimentCollection:
     """
@@ -435,15 +448,27 @@ class ExperimentCollection:
                 model_1_losses["loss_1"] = random()
                 model_1_losses.start_next_record()
         
-        groups = collection.where(
-            exist=["loss_1"],
-            extract=lambda each: (each["index"], each["loss_1"]),
-            groups={
-                "1":lambda each:each["experiment_number"]==1,
-                "5":lambda each:each["experiment_number"]==5
+        
+        experiment_numbers = range(max(each["experiment_number"] for each in collection.records))
+        groups = Morph.each(
+            data=collection.records,
+            if_keys_exist=["loss_1"],
+            add_to_groups_if={
+                "train": lambda each:each["train"]==True,
+                "test": lambda each:not (each["train"]==True),
             },
+            remorph=dict(
+                add_to_groups_if={
+                    experiment_number : (lambda each_record: each_record["experiment_number"] == experiment_number)
+                        for experiment_number in experiment_numbers 
+                },
+                average={
+                    "
+                }
+            )
         )
     """
+    
     # TODO: make it so that Experiments uses database with detached/reattached pickled objects instead of a single pickle file
     
     def __init__(self, collection, records=None, extension=".pkl"):
