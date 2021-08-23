@@ -163,6 +163,62 @@ class Experiment(object):
             print(f'This happend on:\n    dict(experiment_number={experiment_number}, error_number={error_number})')
             raise error
 
+class LazyList:
+    def __init__(self, iterable):
+        self.remaining = iterable
+        self.memory = []
+        self._length = None
+    
+    def __len__(self):
+        if self._length == None:
+            self.memory = tuple(self.memory) + tuple(self.remaining)
+            self._length = len(self.memory)
+        
+        return self._length
+    
+    def __iter__(self):
+        index = -1
+        while True:
+            index += 1
+            try:
+                # if already computed, just return it
+                if index < len(self.memory):
+                    yield self.memory[index]
+                # if it isn't it memory then it must be the next element
+                else:
+                    the_next = next(self.remaining)
+                    self.memory.append(the_next)
+                    yield the_next
+            except StopIteration:
+                return
+    
+    def __getitem__(self, key):
+        # allow negative indexing
+        if key < 0:
+            key = len(self) - key
+        
+        # if key is bigger than whats in memory
+        while key+1 > len(self.memory):
+            # use self iteration to grow
+            # there might be a faster/bulk way to do this
+            self.memory.append(next(self.remaining))
+        
+        return self.memory[key]
+    
+    def __setitem__(self, key, value):
+        # allow negative indexing
+        if key < 0:
+            key = len(self) - key
+        # make sure memory is at least this big
+        self[key]
+        # make sure memory is a list
+        if type(self.memory) != list:
+            self.memory = list(self.memory)
+        self.memory[key] = value
+
+        
+    
+    
 class ExperimentCollection:
     """
     Example:
