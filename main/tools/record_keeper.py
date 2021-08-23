@@ -404,6 +404,29 @@ class LiquidData():
                 "color": color_map[each["experiment_number"]],
                 "data": zip(each_group["index"], each_group["loss_1"])
             })
+        
+        Test:
+            def s(lazy):
+                import json
+                output = tuple(tuple(each) for each in lazy)
+                print(json.dumps(output, indent=4))
+            records = [
+                {"a":1, "b":2 },
+                {"a":1, "b":3 },
+                {"a":2, "b":2 },
+                {"a":2, "b":3 },
+                {"a":1, "b":2, "c":1 },
+                {"a":1, "b":3, "c":1 },
+                {"a":2, "b":2, "c":1 },
+                {"a":2, "b":3, "c":1 },
+            ]
+            c = LiquidData(records=records)
+            e = c.map(lambda each: { **each, "f": 10 })
+            d = e.aggregate()
+            g = e.bundle_by("a")
+            j = g.bundle_by("c")
+            h = j.unbundle()
+            r = g.aggregate()
     """
     def __init__(self, records=None, group_levels=None, internally_called=False):
         if internally_called:
@@ -434,6 +457,7 @@ class LiquidData():
     
     @property
     def elements(self,):
+        # FIXME: make this recursive/nested
         return LazyList(
             LazyList(
                 self.group_levels[-1][each_index] for each_index in each_bundle 
@@ -469,12 +493,14 @@ class LiquidData():
             internally_called=True,
         )
         def compute_sub_bundles(each_old_bundle):
-            groups = defaultdict(lambda each: [])
+            groups = defaultdict(lambda: [])
             for each_record_index in each_old_bundle:
                 each_record = self.group_levels[-1][each_record_index]
                 value_of_specified_keys = tuple(each_record.get(each_key, None) for each_key in keys)
+                print('value_of_specified_keys = ', value_of_specified_keys)
                 which_group = super_hash(value_of_specified_keys)
-                groups[group].append(each_record_index)
+                print('which_group = ', which_group)
+                groups[which_group].append(each_record_index)
             # sub-bundles
             return LazyList(each for each in groups.values())
         
@@ -506,7 +532,7 @@ class LiquidData():
         return new_liquid
     
     def unbundle(self):
-        if len(group_levels) == 2:
+        if len(self.group_levels) == 2:
             raise Exception('Tried to unbundle, but there were no bundles')
         new_liquid = LiquidData(
             group_levels=list(self.group_levels),
@@ -583,7 +609,7 @@ class LiquidData():
         new_bundles = []
         keys = set()
         for each_bundle in new_liquid.group_levels[-2]:
-            aggregated = defaultdict(lambda each: [])
+            aggregated = defaultdict(lambda: [])
             for each_record_index in each_bundle:
                 each_record = self.group_levels[-1][each_record_index]
                 # for each key in each record
@@ -602,7 +628,5 @@ class LiquidData():
 
         
 #%%
-records = [ {"a":1, "b":2 }, {"a":1, "b":3 },]  
-c = LiquidData(records=records)
-e = c.map(lambda each: { **each, "f": 10 })
+
 # %%
