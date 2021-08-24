@@ -10,12 +10,17 @@ from tools.all_tools import *
 from tools.basics import *
 from tools.ipython_tools import show
 from tools.dataset_tools import binary_mnist
-# from tools.record_keeper import ExperimentCollection
+from tools.record_keeper import ExperimentCollection
+from tools.cacher import cache
 
 from agents.informed_vae.simple_classifier import SimpleClassifier
 from agents.informed_vae.split_classifier import SplitClassifier
 from agents.informed_vae.classifier_output import ClassifierOutput
 #%%
+
+# allow quick caching
+binary_mnist = cache()(binary_mnist)
+quick_loader = cache()(quick_loader)
 
 # setup the experiment
 collection = ExperimentCollection("vae_comparison")
@@ -25,7 +30,7 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
     with collection.new_experiment(
             test="binary_mnist",
             seed=now(), # randomize each run
-            binary_class_order=list(range(10)), # fixed order, but has been randomized in the past
+            binary_class_order=list(range(1)), # fixed order, but has been randomized in the past
             train_test_ratio=[5, 1],
         ) as record_keeper:
         
@@ -41,7 +46,9 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
         for index, each_number in enumerate(record_keeper.binary_class_order):
             
             # load dataset
+            print("\nloading dataset")
             train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([each_number]), record_keeper.train_test_ratio)
+            print("loaded")
             
             # record: 1. how much training has been done 2. what class the iteration was for 3. misc 
             iteration_record_keeper = record_keeper.sub_record_keeper(

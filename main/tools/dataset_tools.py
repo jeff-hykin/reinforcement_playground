@@ -35,16 +35,15 @@ class QuickDataset(torch.utils.data.Dataset):
         
     """
     class CacheMiss: pass
-    def __init__(self, length, getters, attributes=None, data=None, mapping=None, use_cache=False, **kwargs):
+    def __init__(self, length, getters, attributes=None, mapping=None, use_cache=False, **kwargs):
         super(QuickDataset).__init__()
         self._cache = {}
         self.length = length
-        self.data = data
         self.mapping = mapping
         self.use_cache = use_cache
         attributes = attributes or {}
         self._already_getting_something = False
-        self.args = dict(length=length, getters=getters, attributes=attributes, data=data, mapping=mapping, use_cache=use_cache)
+        self.args = dict(length=length, getters=getters, attributes=attributes, mapping=mapping, use_cache=use_cache)
         # create all the getters
         for each_key in getters:
             # exists because of python scoping issues
@@ -55,8 +54,8 @@ class QuickDataset(torch.utils.data.Dataset):
                 def getter(index, *args, **kwargs):
                     # cached values return instantly
                     if self.use_cache:
-                        value = self._cache.get((key_copy, index), CacheMiss())
-                        if type(value) != CacheMiss:
+                        value = self._cache.get((key_copy, index), QuickDataset.CacheMiss())
+                        if type(value) != QuickDataset.CacheMiss:
                             return value
                     
                     # handle recursive case
@@ -129,12 +128,43 @@ class QuickDataset(torch.utils.data.Dataset):
             outputs.append(QuickDataset(
                 getters=self.args["getters"],
                 attributes=self.args["attributes"],
-                data=self.args["data"],
                 length=each_length,
                 mapping=mappings[each_split_index],
             ))
         return outputs
-
+    
+    def __getstate__(self,):
+        getters = self.args.get("getters",{})
+        length = len(self)
+        state = {
+            "length": length,
+            "mapping": None,
+            "attributes": self.args["attributes"],
+            "got": {
+                # compute all values
+                getter_name: tuple(getattr(self, getter_name)(index) for index in range(length))
+                    for getter_name in getters
+            }
+        }
+    
+    def __setstate__(self, state):
+        self._already_getting_something = False
+        self.use_cache = False
+        self._cache = {}
+        self.length = state["length"]
+        self.mapping = None
+        # make all the getters
+        getters = {}
+        for each_name, each_tuple in state.get("got", {}).items():
+            def scope_fixer():
+                local_copy = each_tuple
+                getters[each_name] = lambda index, *args, **kwargs: local_copy[index]
+                return getters[each_name]
+            setattr(self, each_name, scope_fixer())
+        self.args = dict(length=self.length, mapping=self.mapping, getters=getters, attributes=state.get("attributes",{}))
+        for each_key, each_value in self.args["attributes"].items():
+            setattr(self, each_key, each_value)
+        
 def create_weighted_sampler_for(dataset):
     from collections import Counter
     total_number_of_samples = len(dataset)
