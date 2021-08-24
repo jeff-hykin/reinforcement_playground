@@ -70,26 +70,27 @@ class SplitClassifier(nn.Module):
     
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.optimizer.zero_grad()
-        self.training_record["batch_index"] = batch_index
-        self.training_record["epoch_index"] = epoch_index
+        record = self.training_record.pending_record
+        record["batch_index"] = batch_index
+        record["epoch_index"] = epoch_index
         
         latent_space             = self.encoder.forward(batch_of_inputs)
         
         batch_of_classifications = self.classifier.forward(latent_space)
         classifier_loss          = self.classifier_loss_function(batch_of_classifications, batch_of_ideal_outputs)
         classifier_loss.backward(retain_graph=True)
-        self.training_record["classifier_loss"] = classifier_loss.item()
+        record["classifier_loss"] = classifier_loss.item()
         
         image_representation = self.decoder.forward(latent_space)
         autoencoder_loss     = self.decoder_loss_function(image_representation, batch_of_inputs)
         autoencoder_loss.backward()
-        self.training_record["autoencoder_loss"] = autoencoder_loss.item()
+        record["autoencoder_loss"] = autoencoder_loss.item()
         if hasattr(self, "correctness_function") and callable(self.correctness_function):
-            self.training_record["correct"]  = self.correctness_function(batch_of_classifications, batch_of_ideal_outputs)
-            self.training_record["total"]    = len(batch_of_classifications)
-            self.training_record["accuracy"] = round((self.training_record["correct"] / self.training_record["total"])*100, ndigits = 2)
-            
-        self.training_record.start_next_record()
+            record["correct"]  = self.correctness_function(batch_of_classifications, batch_of_ideal_outputs)
+            record["total"]    = len(batch_of_classifications)
+            record["accuracy"] = round((record["correct"] / record["total"])*100, ndigits = 2)
+        
+        self.training_record.commit_record()    
         self.optimizer.step()
         return classifier_loss
     

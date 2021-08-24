@@ -65,42 +65,31 @@ class RecordKeeper():
                         "had_error": True,
                     },
                 ),
-                file_path="blah/blah",
-                all_records=[],
-                all_record_keepers={},
+                collection=collection
             )
             a = record_keeper.sub_record_keeper(hi=10)
             a.hi # returns 10
     """
-    def __init__(self, parent, file_path, all_records, all_record_keepers):
-        self.parent         = parent
-        self.kids           = []
-        self.file_path      = file_path
-        self.all_records    = all_records
-        self.current_record = None
-        self.record_keepers = all_record_keepers
-        self.record_keepers[super_hash(self)] = self
-    
-    def merge(self, **kwargs):
-        if self.current_record is None:
-            # when adding a record, always have a link back to the parent data 
-            self.current_record = CustomInherit(parent=self.parent)
-            self.all_records.append(self.current_record)
-        # add it to the current element
-        self.current_record.update(kwargs)
-        return self
-    
-    def start_next_record(self):
-        # delete the existing record and a new one will be created automatically as soon as data is added
-        self.current_record = None
-    
+    def __init__(self, parent, collection):
+        self._id             = "R"+str(id(self))
+        self.parent          = parent
+        self.kids            = []
+        self.pending_record  = CustomInherit(parent=self.parent)
+        self.collection      = collection
+
+    def commit_record(*, additional_info):
+        # finalize the record
+        self.pending_record.update(additional_info)
+        # save a copy to disk
+        self.collection.add_record(self.pending_record)
+        # start a new clean record
+        self.pending_record = CustomInherit(parent=self.parent)
+        
     def sub_record_keeper(self, **kwargs):
         grandparent = self.parent
         kid = RecordKeeper(
             parent=CustomInherit(parent=grandparent, data=kwargs),
-            file_path=self.file_path,
-            all_records=self.all_records,
-            all_record_keepers=self.record_keepers,
+            collection=self.collection,
         )
         self.kids.append(kid)
         return kid
@@ -114,7 +103,7 @@ class RecordKeeper():
         return [ self.parent, *self.parent.ancestors ]
     
     def __iter__(self):
-        return (each for each in self.all_records if self.parent in each.ancestors)
+        return (each for each in self.collection.records if self.parent in each.ancestors)
     
     def __len__(self):
         # apparently this is the fastest way (no idea why converting to tuple is faster than using reduce)
@@ -123,22 +112,19 @@ class RecordKeeper():
     def __hash__(self):
         return super_hash({ "CustomInherit": self.parent })
         
-    @property
-    def records(self):
-        return [ each for each in self ]
-    
     def __repr__(self):
         size = len(self)
         return f"""Parent: {self.parent}\n# of records: {size}"""
     
     def __getitem__(self, key):
-        if self.current_record is not None:
-            return self.current_record.get(key, None)
+        if self.pending_record is not None:
+            # current_record inherits from parent
+            return self.pending_record.get(key, None)
         else:
             return self.parent.get(key, None)
     
     def __setitem__(self, key, value):
-        self.merge(**{key: value})
+        self.parent[key] = value
     
     def __getattr__(self, key):
         return self[key]
@@ -312,12 +298,10 @@ class ExperimentCollection:
                     "experiment_start_time": now(),
                 },
             ),
-            file_path=self.file_path,
-            all_records=self._records,
-            all_record_keepers=self.record_keepers,
+            collection=self,
         )
         # create experiment record keeper
-        if experiment_info is None:
+        if len(experiment_info) == 0:
             self.experiment = self.experiment_parent
         else:
             self.experiment = self.experiment_parent.sub_record_keeper(**experiment_info)

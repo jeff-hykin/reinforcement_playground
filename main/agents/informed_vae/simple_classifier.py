@@ -60,21 +60,22 @@ class SimpleClassifier(pl.LightningModule):
     # [pl.LightningModule]
     def training_step(self, batch, batch_index):
         batch_of_inputs, batch_of_ideal_outputs = batch
-        self.training_record["batch_index"] = batch_index
+        record = self.training_record.pending_record
+        record["batch_index"] = batch_index
         
         # calculate loss
         batch_of_guesses = self(batch_of_inputs)
         batch_of_ideal_number_outputs = from_onehot_batch(batch_of_ideal_outputs)
         loss = F.nll_loss(batch_of_guesses, batch_of_ideal_number_outputs)
-        self.training_record["classifier_loss"] = loss.item()
+        record["classifier_loss"] = loss.item()
         
         # calculate correctness
         if hasattr(self, "correctness_function") and callable(self.correctness_function):
-            self.training_record["correct"]  = self.correctness_function(batch_of_guesses     , batch_of_ideal_outputs)
-            self.training_record["total"]    = len(batch_of_guesses)
-            self.training_record["accuracy"] = round((self.training_record["correct"] / self.training_record["total"])*100, ndigits = 2)
+            record["correct"]  = self.correctness_function(batch_of_guesses     , batch_of_ideal_outputs)
+            record["total"]    = len(batch_of_guesses)
+            record["accuracy"] = round((record["correct"] / record["total"])*100, ndigits = 2)
         
-        self.training_record.start_next_record()
+        self.training_record.commit_record()
         return loss
     
     # [pl.LightningModule]

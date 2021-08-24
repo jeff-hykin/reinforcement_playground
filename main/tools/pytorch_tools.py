@@ -403,11 +403,12 @@ def Network():
         accuracy     = correct_count / len(loader.dataset)
         average_loss = test_loss_accumulator.item() / sample_count
         if hasattr(self, "record_keeper"):
-            self.record_keeper["testing"]      = True
-            self.record_keeper["average_loss"] = average_loss
-            self.record_keeper["accuracy"]     = correct_count / sample_count
-            self.record_keeper["correct"]      = correct_count
-            self.record_keeper.start_next_record()
+            self.record_keeper.add_record(dict(
+                testing=True,
+                average_loss=average_loss,
+                accuracy=correct_count / sample_count,
+                correct=correct_count,
+            ))
         
         self.show(f"\r[Test]: average_loss: {average_loss:>9.4f}, accuracy: {accuracy:>4.2f}, {correct_count}/{sample_count:.0f}", sep='', end='', flush=True)
         return correct_count
