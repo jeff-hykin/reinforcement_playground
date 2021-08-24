@@ -2,6 +2,7 @@ import silver_spectacle as ss
 
 # convert simple+fresh to model=fresh
 # filter out everything other than testing
+# filter out everything with non zero error number
 # average across experiment number, within model name, within binary_class_order, within 
 # create dataset for each model name
 
