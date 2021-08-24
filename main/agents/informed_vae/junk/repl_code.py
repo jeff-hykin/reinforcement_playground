@@ -259,7 +259,7 @@ if True:
             number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
             return number_correct
         
-        def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
+        def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, max_epochs=1, batch_size=64, shuffle=True):
             """
             Uses:
                 self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
@@ -307,7 +307,7 @@ if True:
                     )
             
             train_losses = []
-            for epoch_index in range(number_of_epochs):
+            for epoch_index in range(max_epochs)1
                 self.train()
                 for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
                     loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
@@ -530,7 +530,7 @@ if True:
             self.optimizer.step()
             return loss
         
-        def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
+        def fit(self, *, input_output_pairs=None, dataset=None, loader=None, max_epochs=1, batch_size=64, shuffle=True):
             """
             Examples:
                 model.fit(
@@ -573,7 +573,7 @@ if True:
                     )
             
             train_losses = []
-            for epoch_index in range(number_of_epochs):
+            for epoch_index in range(max_epochs)1
                 self.train()
                 for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
                     loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
@@ -882,8 +882,8 @@ if True:
         def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
             return Network.default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
             
-        def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
-            return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
+        def fit(self, *, input_output_pairs=None, dataset=None, loader=None, max_epochs=1, batch_size=64, shuffle=True):
+            return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, max_epochs=1ax_epochs,1batch_size=batch_size, shuffle=shuffle,)
         
         def test(self, loader, correctness_function=None):
             return Network.default_test(self, loader)
@@ -915,7 +915,7 @@ if True:
             nn.Linear(product(split.latent_shape), 2), # binary classification
             nn.Sigmoid(),
         )
-        result["split_train"] = split.fit(loader=train_loader, number_of_epochs=3)
+        result["split_train"] = split.fit(loader=train_loader, max_epochs=1)
         result["split_test"] = split.test(test_loader)
         
         # 
@@ -927,14 +927,14 @@ if True:
             nn.Linear(product(classifier.latent_shape), 2), # binary classification
             nn.Sigmoid(),
         )
-        result["classifier_train"] = classifier.fit(loader=train_loader, number_of_epochs=3)
+        result["classifier_train"] = classifier.fit(loader=train_loader, max_epochs=1)
         result["classifier_test"] = classifier.test(test_loader)
         
         # 
         # fresh_classifier
         # 
         fresh_classifier = simple_classifier()
-        result["fresh_classifier_train"] = fresh_classifier.fit(loader=train_loader, number_of_epochs=3)
+        result["fresh_classifier_train"] = fresh_classifier.fit(loader=train_loader, max_epochs=1)
         result["fresh_classifier_test"] = fresh_classifier.test(test_loader)
         
         # save
@@ -1027,8 +1027,8 @@ if True:
         def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
             return Network.default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
             
-        def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
-            return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
+        def fit(self, *, input_output_pairs=None, dataset=None, loader=None, max_epochs=1, batch_size=64, shuffle=True):
+            return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, max_epochs=1ax_epochs,1batch_size=batch_size, shuffle=shuffle,)
         
         def test(self, loader, correctness_function=None):
             return Network.default_test(self, loader)
@@ -1036,7 +1036,7 @@ if True:
     model = SamNet()
     # model = AlexNet().to(device)
     train_dataset, test_dataset, train_loader, test_loader = binary_mnist([9])
-    model.fit(loader=train_loader, number_of_epochs=3)
+    model.fit(loader=train_loader, max_epochs=1)
     model.test(loader=test_loader)
     
 #%% 

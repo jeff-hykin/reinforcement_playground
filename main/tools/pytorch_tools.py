@@ -293,7 +293,7 @@ def Network():
         number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
         return number_correct
     
-    def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True, **kwargs):
+    def default_fit(self, *, input_output_pairs=None, dataset=None, loader=None, batch_size=64, shuffle=True, **kwargs):
         """
         Uses:
             self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
@@ -348,7 +348,7 @@ def Network():
             return output
         else:
             train_losses = []
-            for epoch_index in range(number_of_epochs):
+            for epoch_index in range(kwargs.get("max_epochs", 1)):
                 self.train()
                 for batch_index, (batch_of_inputs, batch_of_ideal_outputs) in enumerate(loader):
                     loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)

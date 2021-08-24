@@ -57,8 +57,8 @@ class ImageAutoEncoder(nn.Module):
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         return Network.default_update_weights(self, batch_of_inputs, batch_of_inputs, epoch_index, batch_index)
         
-    def fit(self, *, input_output_pairs=None, dataset=None, loader=None, number_of_epochs=3, batch_size=64, shuffle=True):
-        return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, number_of_epochs=number_of_epochs, batch_size=batch_size, shuffle=shuffle,)
+    def fit(self, *, input_output_pairs=None, dataset=None, loader=None, max_epochs=1, batch_size=64, shuffle=True):
+        return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, max_epochs=max_epochs, batch_size=batch_size, shuffle=shuffle,)
 
 # %%
 # perform test if run directly
@@ -75,7 +75,7 @@ if __name__ == '__main__':
         # doesn't matter that its binary mnist cause the autoencoder only uses input anyways
         train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([9]), [5, 1])
     
-    model.fit(loader=train_loader, number_of_epochs=3)
+    model.fit(loader=train_loader, max_epochs=3)
         
     # 
     # sample inputs/outputs
