@@ -113,7 +113,10 @@ class RecordKeeper():
         return f"""Parent: {self.parent}\n# of records: {size}"""
     
     def __getitem__(self, key):
-        return self.current_record.get(key, None)
+        if self.current_record is not None:
+            return self.current_record.get(key, None)
+        else:
+            return self.parent.get(key, None)
     
     def __setitem__(self, key, value):
         self.merge(**{key: value})
@@ -655,8 +658,3 @@ class LiquidData():
         # remove the old records level (-2 becomes records -3 becomes -2)
         del new_liquid.group_levels[-1]
         return new_liquid
-
-        
-#%%
-
-# %%
