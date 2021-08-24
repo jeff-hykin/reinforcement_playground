@@ -227,8 +227,8 @@ class ExperimentCollection:
     
     # TODO: make it so that Experiments uses database with detached/reattached pickled objects instead of a single pickle file
     
-    def __init__(self, collection, records=None, extension=".pkl"):
-        self.file_path              = collection+extension
+    def __init__(self, file_path, records=None, extension=".pickle"):
+        self.file_path              = file_path+extension
         self.experiment             = None
         self.collection_name        = ""
         self.collection_notes       = {}
@@ -340,7 +340,7 @@ class ExperimentCollection:
         self.ensure_loaded()
         return self._records
     
-    def add_notes(self, notes, records=None, extension=".pkl"):
+    def add_notes(self, notes, records=None, extension=".pickle"):
         import os
         file_path = os.path.abspath(collection+extension)
         collection_name = os.path.basename(file_path)[0:-len(extension)]
