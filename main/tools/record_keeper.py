@@ -186,9 +186,9 @@ class ExperimentCollection:
             model_1_losses = model1.sub_record_keeper(training=True)
             from random import random, sample, choices
             for each in range(1000):
-                model_1_losses["index"] = each
-                model_1_losses["loss_1"] = random()
-                model_1_losses.start_next_record()
+                model_1_losses.pending_record["index"] = each
+                model_1_losses.pending_record["loss_1"] = random()
+                model_1_losses.commit_record()
         
         
         experiment_numbers = range(max(each["experiment_number"] for each in collection.records))
