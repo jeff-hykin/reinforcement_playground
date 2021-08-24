@@ -30,7 +30,7 @@ class SimpleClassifier(pl.LightningModule):
         self.momentum        = config.get("momentum"       , 0.5 )
         self.fresh           = config.get("fresh"          , False)
         # consider this as a different network, rather than a network setting
-        self.record_keeper.parent_should_include(fresh=self.fresh)
+        self.record_keeper.parent["fresh"] = self.fresh
         model_parameters = ["input_shape", "mid_shape", "output_shape", "learning_rate", "momentum", ]
         self.record_keeper = self.record_keeper.sub_record_keeper(**{ each: getattr(self, each) for each in model_parameters })
         self.training_record = self.record_keeper.sub_record_keeper(training=True)

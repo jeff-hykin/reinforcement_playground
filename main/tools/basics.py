@@ -290,16 +290,13 @@ def large_pickle_load(file_path):
     """
     import pickle
     import os
-    try:
-        max_bytes = 2**31 - 1
-        bytes_in = bytearray(0)
-        input_size = os.path.getsize(file_path)
-        with open(file_path, 'rb') as f_in:
-            for _ in range(0, input_size, max_bytes):
-                bytes_in += f_in.read(max_bytes)
-        output = pickle.loads(bytes_in)
-    except Exception as error:
-        return None
+    max_bytes = 2**31 - 1
+    bytes_in = bytearray(0)
+    input_size = os.path.getsize(file_path)
+    with open(file_path, 'rb') as f_in:
+        for _ in range(0, input_size, max_bytes):
+            bytes_in += f_in.read(max_bytes)
+    output = pickle.loads(bytes_in)
     return output
 
 def large_pickle_save(variable, file_path):

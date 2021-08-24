@@ -10,7 +10,7 @@ from tools.all_tools import *
 from tools.basics import *
 from tools.ipython_tools import show
 from tools.dataset_tools import binary_mnist
-from tools.record_keeper import ExperimentCollection, 
+# from tools.record_keeper import ExperimentCollection
 
 from agents.informed_vae.simple_classifier import SimpleClassifier
 from agents.informed_vae.split_classifier import SplitClassifier
@@ -36,7 +36,7 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
         # transfer learning iterations
         # 
         placeholder = record_keeper.sub_record_keeper()
-        split  = SplitClassifier (record_keeper=placeholder, suppress_output=True,)
+        split  = SplitClassifier (record_keeper=placeholder)
         simple = SimpleClassifier(record_keeper=placeholder)
         for index, each_number in enumerate(record_keeper.binary_class_order):
             
@@ -47,7 +47,6 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
             iteration_record_keeper = record_keeper.sub_record_keeper(
                 binary_class=each_number,
                 transfer_learning_iteration=0,
-                train_test_ratio=train_test_ratio,
             )
             
             # connect record keepers to models
@@ -68,7 +67,4 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
                 model.test(loader=test_loader)
             
             
-            # (data is auto saved after each new_experiment)
-            print('\nabout to save experiment data')
-
 # %%

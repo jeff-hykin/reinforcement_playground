@@ -8,26 +8,19 @@ from time import time as now
 class CustomInherit(dict):
     def __init__(self, *, parent, data=None):
         self.parent = parent
+        if not isinstance(self.parent, dict):
+            raise Exception('for CustomInherit(), parent needs to be a dict')
         if data == None: data = {}
-        for each_key, each_value in data.items():
-            self[each_key] = each_value
-    
-    @property
-    def dict(self):
-        core = super()
-        parent_data_copy = dict(self.parent)
-        for each_key, each_value in core.items():
-            parent_data_copy[each_key] = each_value
-        return parent_data_copy
+        self.self = data
     
     def keys(self):
-        return self.dict.keys()
+        return (each for each in tuple(self.parent.keys())+tuple(self.self.keys()))
     
     def values(self):
-        return self.dict.values()
+        return (each for each in tuple(self.parent.values())+tuple(self.self.values()))
     
     def items(self):
-        return self.dict.items()
+        return (each for each in tuple(self.parent.items())+tuple(self.self.items()))
     
     @property
     def ancestors(self):
@@ -39,19 +32,38 @@ class CustomInherit(dict):
         return ancestors
     
     def __len__(self):
-        return len(self.dict)
+        return len(tuple(self.keys()))
     
     def __iter__(self):
-        return (each for each in self.dict.keys())
+        return (each for each in self.keys())
     
+    def __contains__(self, key):
+        return key in self.parent or key in self.self
+        
     def __getitem__(self, key):
-        return self.dict.get(key, None)
+        if key in self.parent:
+            return self.parent[key]
+        else:
+            return self.self.get(key, None)
     
     def __setitem__(self, key, value):
-        self.update({key: value})
+        try:
+            if not hasattr(self, "self") or not isinstance(self, dict):
+                self.self = {}
+            self.self[key] = value
+        except Exception as error:
+            print('hasattr(self, "self") = ', hasattr(self, "self"))
+            print('list(self.__dict__.keys()) = ', list(self.__dict__.keys()))
     
     def __repr__(self,):
-        return self.dict.__repr__()
+        copy = self.parent.copy()
+        copy.update(self.self)
+        return copy.__repr__()
+    
+    def get(self,*args,**kwargs):
+        copy = self.parent.copy()
+        copy.update(self.self)
+        return copy.get(*args,**kwargs)
 
 class RecordKeeper():
     """
@@ -70,18 +82,24 @@ class RecordKeeper():
             a = record_keeper.sub_record_keeper(hi=10)
             a.hi # returns 10
     """
-    def __init__(self, parent, collection):
-        self._id             = "R"+str(id(self))
-        self.parent          = parent
+    def __init__(self, parent=None, collection=None, records=None):
+        self.parent          = parent or {}
         self.kids            = []
         self.pending_record  = CustomInherit(parent=self.parent)
         self.collection      = collection
+        self.records         = records or []
+        if collection:
+            self.get_records = lambda: self.collection.records
+            self.add_record  = lambda each: self.collection.add_record(each)
+        else:
+            self.get_records = lambda: self.records
+            self.add_record  = lambda each: self.records.append(each)
 
-    def commit_record(*, additional_info):
+    def commit_record(self,*, additional_info=None):
         # finalize the record
-        self.pending_record.update(additional_info)
+        additional_info and self.pending_record.update(additional_info)
         # save a copy to disk
-        self.collection.add_record(self.pending_record)
+        self.add_record(self.pending_record)
         # start a new clean record
         self.pending_record = CustomInherit(parent=self.parent)
         
@@ -90,6 +108,7 @@ class RecordKeeper():
         kid = RecordKeeper(
             parent=CustomInherit(parent=grandparent, data=kwargs),
             collection=self.collection,
+            records=self.records,
         )
         self.kids.append(kid)
         return kid
@@ -103,7 +122,7 @@ class RecordKeeper():
         return [ self.parent, *self.parent.ancestors ]
     
     def __iter__(self):
-        return (each for each in self.collection.records if self.parent in each.ancestors)
+        return (each for each in self.get_records() if self.parent in each.ancestors)
     
     def __len__(self):
         # apparently this is the fastest way (no idea why converting to tuple is faster than using reduce)
@@ -119,7 +138,7 @@ class RecordKeeper():
     def __getitem__(self, key):
         if self.pending_record is not None:
             # current_record inherits from parent
-            return self.pending_record.get(key, None)
+            return self.pending_record[key]
         else:
             return self.parent.get(key, None)
     
@@ -128,9 +147,6 @@ class RecordKeeper():
     
     def __getattr__(self, key):
         return self[key]
-
-    def __setattr__(self, key, value):
-        self[key] = value
 
 class Experiment(object):
     def __init__(self, experiment, experiment_parent, record_keepers, file_path, collection_notes, records, collection_name):
@@ -165,11 +181,13 @@ class Experiment(object):
         # ensure folder exists
         import os;os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         data = (self.collection_notes, self.experiment_parent.info, self.record_keepers, self._records)
+        print("Saving records")
         large_pickle_save(data, self.file_path)
+        print("Records saved to: " + self.file_path)
         
         # re-throw the error
         if not no_error:
-            print(f'There was an error when adding experiment to collection: "{self.collection_name}"')
+            print(f'There was an error when running an experiment. Experiment collection: "{self.collection_name}"')
             print(f'However, the partial experiment data was saved')
             experiment_number = self.experiment_parent.info["experiment_number"]
             error_number = self.experiment_parent.info["error_number"]
@@ -234,12 +252,18 @@ class ExperimentCollection:
         import os
         self.prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
         if not self._records and self.file_path:
-            try: self.collection_notes, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
-            except: print(f'Will creaete new experiment collection: {self.collection_name}')
+            if os.path.isfile(self.file_path):
+                self.collection_notes, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
+            else:
+                print(f'Will create new experiment collection: {self.collection_name}')
     
     def ensure_loaded(self):
         if self.prev_experiment_parent_info == None:
             self.load()
+    
+    def add_record(self, record):
+        self.ensure_loaded()
+        self._records.append(record)
     
     def where(self, only_keep_if=None, exist=None, groups=None, extract=None):
         # "exists" lambda
@@ -597,7 +621,7 @@ class LiquidData():
             internally_called=True,
         )
         error = None
-        def wrapped_function(record)
+        def wrapped_function(record):
             nonlocal error
             try:
                 return func(record)
