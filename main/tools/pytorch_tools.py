@@ -388,28 +388,29 @@ def Network():
         correctness_function = correctness_function or self.correctness_function
         loss_function = loss_function or self.loss_function
         self.eval()
-        test_loss = 0
-        correct = 0
+        test_loss_accumulator = 0
+        correct_count = 0
         with torch.no_grad():
             for batch_of_inputs, batch_of_ideal_outputs in loader:
                 actual_output = self.forward(batch_of_inputs)
                 actual_output = actual_output.type(torch.float).to(self.device)
                 batch_of_ideal_outputs = batch_of_ideal_outputs.type(torch.float).to(self.device)
-                test_loss += loss_function(actual_output, batch_of_ideal_outputs)
-                correct += correctness_function(actual_output, batch_of_ideal_outputs)
+                test_loss_accumulator += loss_function(actual_output, batch_of_ideal_outputs)
+                correct_count += correctness_function(actual_output, batch_of_ideal_outputs)
         
         # convert to regular non-tensor data
-        test_loss = test_loss.item()
-        test_loss /= len(loader.dataset)
-        self.show(
-            "\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-                test_loss,
-                correct,
-                len(loader.dataset),
-                100.0 * correct / len(loader.dataset),
-            )
-        )
-        return correct
+        sample_count = len(loader.dataset)
+        accuracy     = correct_count / len(loader.dataset)
+        average_loss = test_loss_accumulator.item() / sample_count
+        if hasattr(self, "record_keeper"):
+            self.record_keeper["testing"]      = True
+            self.record_keeper["average_loss"] = average_loss
+            self.record_keeper["accuracy"]     = correct_count / sample_count
+            self.record_keeper["correct"]      = correct_count
+            self.record_keeper.start_next_record()
+        
+        self.show(f"\r[Test]: average_loss: {average_loss:>9.4f}, accuracy: {accuracy:>4.2f}, {correct_count}/{sample_count:.0f}", sep='', end='', flush=True)
+        return correct_count
     
     return locals()
 

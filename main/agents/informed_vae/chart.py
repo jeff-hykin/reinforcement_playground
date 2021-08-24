@@ -1,86 +1,62 @@
 import silver_spectacle as ss
 
-data = {
-    "labels": [
-        8,
-        2,
-        4,
-        0,
-        6,
-        1,
-        9,
-        5,
-        3,
-        7
-    ],
-    "datasets": [
-        {
-            "label": "split",
-            "backgroundColor": "rgb( 0,  92, 192, 0.9)",
-            "borderColor": "rgb( 0,  92, 192, 0.9)",
-            "data": [
-                9770,
-                9862,
-                9886,
-                9919,
-                9940,
-                9933,
-                9838,
-                9834,
-                9913,
-                9919
-            ]
-        },
-        {
-            "label": "simple",
-            "backgroundColor": "rgb(75, 192, 192, 0.9)",
-            "borderColor": "rgb(75, 192, 192, 0.9)",
-            "data": [
-                9651,
-                9778,
-                9815,
-                9880,
-                9895,
-                9916,
-                9744,
-                9831,
-                9791,
-                9866
-            ]
-        },
-        {
-            "label": "fresh",
-            "backgroundColor": "rgb(0, 292, 192, 0.9)",
-            "borderColor": "rgb(0, 292, 192, 0.9)",
-            "data": [
-                9690,
-                9807,
-                9856,
-                9843,
-                9875,
-                9857,
-                9480,
-                9771,
-                9670,
-                9767
-            ]
-        }
-    ]
-}
+# convert simple+fresh to model=fresh
+# filter out everything other than testing
+# average across experiment number, within model name, within binary_class_order, within 
+# create dataset for each model name
 
-ss.DisplayCard("chartjs", {
-    "type": 'line',
+data = {
+    "type": "line",
     "options": {
-        "pointRadius": 3, # the size of the dots
+        "pointRadius": 3,
         "scales": {
             "y": {
                 "min": 9700,
-                "max": 10000,
-            },
+                "max": 10000
+            }
         }
     },
-    "data": data,
-})
+    "data": {
+        "labels": [0,1,2,3,4,5,6,7,8,9],
+        "datasets": [
+            {
+                "label": "split",
+                "backgroundColor": "rgb( 0,  92, 192, 0.9)",
+                "borderColor": "rgb( 0,  92, 192, 0.9)",
+                "data": [
+                    9755,
+                    9923,
+                    9841,
+                    9879
+                ]
+            },
+            {
+                "label": "simple",
+                "backgroundColor": "rgb(75, 192, 192, 0.9)",
+                "borderColor": "rgb(75, 192, 192, 0.9)",
+                "data": [
+                    9682,
+                    9774,
+                    9755,
+                    9871
+                ]
+            },
+            {
+                "label": "fresh",
+                "backgroundColor": "rgb(0, 292, 192, 0.9)",
+                "borderColor": "rgb(0, 292, 192, 0.9)",
+                "data": [
+                    9714,
+                    9799,
+                    9721,
+                    9842
+                ]
+            }
+        ]
+    }
+}
+
+ss.DisplayCard("chartjs", data)
 
 # ss.DisplayCard("chartjs", {
 #     "type": 'line',

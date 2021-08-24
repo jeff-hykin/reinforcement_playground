@@ -1,6 +1,7 @@
 #%%
 from super_hash import super_hash
 from tools.basics import large_pickle_load, large_pickle_save, attempt, flatten_once
+from time import time as now
 
 #%%
 
@@ -161,6 +162,8 @@ class Experiment(object):
     def __exit__(self, _, error, traceback):
         # mutate the root one based on having an error or not
         no_error = error is None
+        self.experiment_parent.info["experiment_end_time"] = now()
+        self.experiment_parent.info["experiment_duration"] = self.experiment_parent.info["experiment_end_time"] - self.experiment_parent.info["experiment_start_time"]
         if no_error:
             self.experiment_parent.info["had_error"] = False
             self.experiment_parent.info["error_number"] = 0
@@ -306,6 +309,7 @@ class ExperimentCollection:
                     "experiment_number": self.prev_experiment_parent_info["experiment_number"] + 1 if not self.prev_experiment_parent_info["had_error"] else self.prev_experiment_parent_info["experiment_number"],
                     "error_number": self.prev_experiment_parent_info["error_number"]+1,
                     "had_error": True,
+                    "experiment_start_time": now(),
                 },
             ),
             file_path=self.file_path,
