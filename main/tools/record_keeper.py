@@ -50,9 +50,27 @@ class CustomInherit(dict):
         self.update({key: value})
     
     def __repr__(self,):
-        return self.dict.__repr__()    
+        return self.dict.__repr__()
 
 class RecordKeeper():
+    """
+        Example:
+            record_keeper = RecordKeeper(
+                parent=CustomInherit(
+                    parent={},
+                    data={
+                        "experiment_number": 1,
+                        "error_number": 0,
+                        "had_error": True,
+                    },
+                ),
+                file_path="blah/blah",
+                all_records=[],
+                all_record_keepers={},
+            )
+            a = record_keeper.sub_record_keeper(hi=10)
+            a.hi # returns 10
+    """
     def __init__(self, parent, file_path, all_records, all_record_keepers):
         self.parent         = parent
         self.kids           = []
@@ -120,7 +138,12 @@ class RecordKeeper():
     
     def __setitem__(self, key, value):
         self.merge(**{key: value})
+    
+    def __getattr__(self, key):
+        return self[key]
 
+    def __setattr__(self, key, value):
+        self[key] = value
 
 class Experiment(object):
     def __init__(self, experiment, experiment_parent, record_keepers, file_path, collection_notes, records, collection_name):
