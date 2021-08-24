@@ -354,21 +354,13 @@ def Network():
                     loss = self.update_weights(batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index)
                     from tools.basics import to_pure
                     if batch_index % self.log_interval == 0:
-                        self.show(
-                            "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}".format(
-                                epoch_index+1,
-                                batch_index * len(batch_of_inputs),
-                                len(loader.dataset),
-                                100.0 * batch_index / len(loader),
-                                to_pure(loss),
-                            )
-                        )
+                        count = batch_index * len(batch_of_inputs)
+                        total = len(loader.dataset)
+                        pure_loss = to_pure(loss)
+                        self.show(f"\r[Train]: epoch: {epoch_index:>4}, batch: {count:>10}/{total}", sep='', end='', flush=True)
                         train_losses.append(loss)
                         # TODO: add/allow checkpoints
-                        # import os
-                        # os.makedirs(f"{temp_folder_path}/results/", exist_ok=True)
-                        # torch.save(self.state_dict(), f"{temp_folder_path}/results/model.pth")
-                        # torch.save(self.optimizer.state_dict(), f"{temp_folder_path}/results/optimizer.pth")
+            self.show()
             return train_losses
         
     def default_test(self, loader, correctness_function=None, loss_function=None):
