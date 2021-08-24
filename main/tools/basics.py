@@ -371,6 +371,8 @@ def hash_decorator(hash_function):
 # wrap the builtin hash function
 hash = hash_decorator(hash)
 
+permute = lambda a_list: sample(a_list, k=len(tuple(a_list)))
+
 def max_index(iterable):
     max_value = max(iterable)
     return to_pure(iterable).index(max_value)
