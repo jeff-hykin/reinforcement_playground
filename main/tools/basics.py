@@ -17,9 +17,19 @@ def is_iterable(thing):
     else:
         return True
 
+def is_like_generator(thing):
+    return is_iterable(thing) and not isinstance(thing, (str, bytes))
+
 def flatten(value):
-    flattener = lambda *m: (i for n in m for i in (flattener(*n) if is_iterable(n) else (n,)))
+    flattener = lambda *m: (i for n in m for i in (flattener(*n) if is_like_generator(n) else (n,)))
     return list(flattener(value))
+
+def flatten_once(items):
+    for each in items:
+        if is_like_generator(each):
+            yield from each
+        else:
+            yield each
 
 def list_module_names(system_only=False, installed_only=False):
     def item_is_python_module(item_name, parent_path):
@@ -280,13 +290,17 @@ def large_pickle_load(file_path):
     """
     import pickle
     import os
-    max_bytes = 2**31 - 1
-    bytes_in = bytearray(0)
-    input_size = os.path.getsize(file_path)
-    with open(file_path, 'rb') as f_in:
-        for _ in range(0, input_size, max_bytes):
-            bytes_in += f_in.read(max_bytes)
-    return pickle.loads(bytes_in)
+    try:
+        max_bytes = 2**31 - 1
+        bytes_in = bytearray(0)
+        input_size = os.path.getsize(file_path)
+        with open(file_path, 'rb') as f_in:
+            for _ in range(0, input_size, max_bytes):
+                bytes_in += f_in.read(max_bytes)
+        output = pickle.loads(bytes_in)
+    except Exception as error:
+        return None
+    return output
 
 def large_pickle_save(variable, file_path):
     """
@@ -414,6 +428,12 @@ def auto_cache(function, *args, **kwargs):
             print('kwargs = ', kwargs)
             print("running the function manually instead (failsafe)")
         return result
+
+def attempt(a_lambda, default=None, expected_errors=(Exception,)):
+    try:
+        return a_lambda()
+    except expected_errors:
+        return default
 
 # print that can be indented
 original_print = print
