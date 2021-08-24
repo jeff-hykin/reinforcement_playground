@@ -402,7 +402,7 @@ def Network():
                 correct=correct_count,
             ))
         
-        self.show(f"\r[Test]: average_loss: {average_loss:>9.4f}, accuracy: {accuracy:>4.2f}, {correct_count}/{sample_count:.0f}", sep='', end='', flush=True)
+        self.show(f"[Test]: average_loss: {average_loss:>9.4f}, accuracy: {accuracy:>4.2f}, {correct_count}/{sample_count:.0f}")
         return correct_count
     
     return locals()
