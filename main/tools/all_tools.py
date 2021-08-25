@@ -13,8 +13,9 @@ import numpy as np
 import gym
 import include
 import ez_yaml
+from json_fix import fix_it; fix_it()
 from simple_namespace import namespace
-from super_map import Map
+from super_map import Map, LazyDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
