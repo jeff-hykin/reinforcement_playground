@@ -51,7 +51,7 @@ def cache(cache_folder="__pycache__", bust=False):
     def decorator_func(function_being_wrapped):
         def wrapper(*args, **kwargs):
             fingerprint = super_hash((function_being_wrapped, args, kwargs))
-            file_path = os.path.join(cache_folder, str(fingerprint)+".quick_cache.pickle")
+            file_path = os.path.join(folder_path, str(fingerprint)+".quick_cache.pickle")
             # 
             # delete if needed
             # 
