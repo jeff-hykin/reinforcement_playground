@@ -391,9 +391,10 @@ def Network():
                 correct_count += correctness_function(actual_output, batch_of_ideal_outputs)
         
         # convert to regular non-tensor data
+        from tools.basics import to_pure
         sample_count = len(loader.dataset)
         accuracy     = correct_count / len(loader.dataset)
-        average_loss = test_loss_accumulator.item() / sample_count
+        average_loss = to_pure(test_loss_accumulator) / sample_count
         if hasattr(self, "record_keeper"):
             self.record_keeper.commit_record(additional_info=dict(
                 testing=True,

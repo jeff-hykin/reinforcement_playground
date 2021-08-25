@@ -30,7 +30,7 @@ def large_pickle_save(variable, file_path):
             f_out.write(bytes_out[idx:idx+max_bytes])
 
 _lookup_table = {}
-def cache(cache_folder="__pycache__", bust=False):
+def cache(cache_folder="__pycache__", bust=False, no_pickle=False):
     # 
     # make cache folder
     # 
@@ -49,8 +49,12 @@ def cache(cache_folder="__pycache__", bust=False):
     os.makedirs(folder_path, exist_ok=True)
     
     def decorator_func(function_being_wrapped):
+        function_hash = super_hash(function_being_wrapped)
+        
         def wrapper(*args, **kwargs):
-            fingerprint = super_hash((function_being_wrapped, args, kwargs))
+            arg_hash = super_hash(args)
+            kwarg_hash = super_hash(kwargs)
+            fingerprint = super_hash((function_hash, arg_hash, kwarg_hash))
             file_path = os.path.join(folder_path, str(fingerprint)+".quick_cache.pickle")
             # 
             # delete if needed
@@ -67,15 +71,16 @@ def cache(cache_folder="__pycache__", bust=False):
                 # cached in variable
                 # 
                 if fingerprint in _lookup_table:
-                    print("using cached data for "+str(function_being_wrapped))
+                    print("loaded cached value")
                     return _lookup_table[fingerprint]
                 
                 # 
                 # cached in file
                 # 
-                if os.path.isfile(file_path):
+                if os.path.isfile(file_path) and not no_pickle:
                     try:
                         _lookup_table[fingerprint] = large_pickle_load(file_path)
+                        print("loaded cached value")
                     except Exception as error:
                         # clear corrupted data by deleting it
                         os.remove(file_path)
@@ -86,7 +91,8 @@ def cache(cache_folder="__pycache__", bust=False):
             if not os.path.isfile(file_path) and should_refresh:
                 _lookup_table[fingerprint] = function_being_wrapped(*args, **kwargs)
                 wrapper._refresh = False
-                large_pickle_save(_lookup_table[fingerprint], file_path)
+                if not no_pickle:
+                    large_pickle_save(_lookup_table[fingerprint], file_path)
                 
             return _lookup_table[fingerprint]
         

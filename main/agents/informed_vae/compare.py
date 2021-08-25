@@ -19,8 +19,8 @@ from agents.informed_vae.classifier_output import ClassifierOutput
 #%%
 
 # allow quick caching
-binary_mnist = cache()(binary_mnist)
-quick_loader = cache()(quick_loader)
+binary_mnist = cache(no_pickle=True)(binary_mnist)
+quick_loader = cache(no_pickle=True)(quick_loader)
 
 # setup the experiment
 collection = ExperimentCollection("vae_comparison")
