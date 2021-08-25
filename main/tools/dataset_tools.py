@@ -84,11 +84,16 @@ class QuickDataset(torch.utils.data.Dataset):
             setattr(self, each_key, each_value)
     
     def __len__(self):
-        return self.length if not callable(self.length) else self.length(self)
+        if hasattr(self, "length"):
+            return self.length if not callable(self.length) else self.length(self)
+        else:
+            return 1
     
     def __getitem__(self, index):
         # dont let iterators go out of bounds
         if index >= len(self):
+            raise StopIteration
+        if not hasattr(self, "get_input"):
             raise StopIteration
         return self.get_input(index), self.get_output(index)
     
@@ -136,7 +141,7 @@ class QuickDataset(torch.utils.data.Dataset):
     def __getstate__(self,):
         getters = self.args.get("getters",{})
         length = len(self)
-        state = {
+        return {
             "length": length,
             "mapping": None,
             "attributes": self.args["attributes"],
