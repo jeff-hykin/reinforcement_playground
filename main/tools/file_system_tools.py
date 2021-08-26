@@ -174,14 +174,14 @@ class FileSystem():
         return os.getcwd()
 
     @classmethod
-    def local_path(*paths):
+    def local_path(self, *paths):
         import os
         import inspect
         # https://stackoverflow.com/questions/28021472/get-relative-path-of-caller-in-python
         try:
-            frm = inspect.stack()[1]
-            mod = inspect.getmodule(frm[0])
-            directory = os.path.dirname(mod.__file__)
+            frame = inspect.stack()[1]
+            module = inspect.getmodule(frame[0])
+            directory = os.path.dirname(module.__file__)
         # if inside a repl (error =>) assume that the working directory is the path
         except AttributeError as error:
             directory = os.getcwd()
