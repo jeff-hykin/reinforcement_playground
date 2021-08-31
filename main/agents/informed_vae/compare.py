@@ -13,6 +13,7 @@ from tools.record_keeper import ExperimentCollection
 from tools.cacher import cache
 
 from agents.informed_vae.simple_classifier import SimpleClassifier
+from agents.informed_vae.split_importance_classifier import SplitImportanceClassifier
 from agents.informed_vae.split_classifier import SplitClassifier
 from agents.informed_vae.classifier_output import ClassifierOutput
 #%%
@@ -40,8 +41,9 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
         # transfer learning iterations
         # 
         old_iteration_record_keeper = record_keeper.sub_record_keeper() # placeholder
-        split  = SplitClassifier (record_keeper=old_iteration_record_keeper)
-        simple = SimpleClassifier(record_keeper=old_iteration_record_keeper)
+        split            = SplitClassifier(           record_keeper=old_iteration_record_keeper)
+        split_importance = SplitImportanceClassifier( record_keeper=old_iteration_record_keeper)
+        simple           = SimpleClassifier(          record_keeper=old_iteration_record_keeper)
         for index, each_number in enumerate(record_keeper.binary_class_order):
             
             # load dataset
@@ -60,13 +62,14 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
             # connect record keepers to models
             fresh = SimpleClassifier(record_keeper=iteration_record_keeper, fresh=True)
             split.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
+            split_importance.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
             simple.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
             old_iteration_record_keeper = iteration_record_keeper
             
             # 
             # train & test
             # 
-            models = [split, simple, fresh]
+            models = [split, split_importance, simple, fresh]
             for model in models:
                 # each model has a classifier layer, this resets it
                 model.classifier = ClassifierOutput(input_shape=(30,), output_shape=(2,))
