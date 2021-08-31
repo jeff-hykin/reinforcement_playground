@@ -33,6 +33,8 @@ simple-namespace = "^1.0.0"
 pytorch-lightning = "^1.4.1"
 super-map = "1.1.1"
 super-hash = "1.0.5"
+icecream = "^2.1.1"
+yapf = "^0.31.0"
 
 [tool.poetry.dev-dependencies]
 

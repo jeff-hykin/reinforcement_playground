@@ -78,7 +78,7 @@ class AncestorDict(dict):
     @property
     def compressed(self):
         copy = {}
-        for each in reversed(self.lineage):
+        for each in reversed(tuple(self.lineage)):
             copy.update(each)
         return copy
     

@@ -23,13 +23,13 @@ from agents.informed_vae.classifier_output import ClassifierOutput
 
 # setup the experiment
 collection = ExperimentCollection(FS.local_path("vae_comparison"))
-number_of_runs_for_redundancy = 2
+number_of_runs_for_redundancy = 5
 for each_greater_iteration in range(number_of_runs_for_redundancy):
     # new_experiment auto-increments the experiment number within a collection
     with collection.new_experiment(
             test="binary_mnist",
             seed=now(), # randomize each run
-            binary_class_order=list(range(2)), # fixed order, but has been randomized in the past
+            binary_class_order=list(range(10)), # fixed order, but has been randomized in the past
             train_test_ratio=[5, 1],
         ) as record_keeper:
         
@@ -39,7 +39,7 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
         # 
         # transfer learning iterations
         # 
-        old_iteration_record_keeper = record_keeper.sub_record_keeper()
+        old_iteration_record_keeper = record_keeper.sub_record_keeper() # placeholder
         split  = SplitClassifier (record_keeper=old_iteration_record_keeper)
         simple = SimpleClassifier(record_keeper=old_iteration_record_keeper)
         for index, each_number in enumerate(record_keeper.binary_class_order):
@@ -61,11 +61,6 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
             fresh = SimpleClassifier(record_keeper=iteration_record_keeper, fresh=True)
             split.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
             simple.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
-            # debug.iteration_record_keeper = iteration_record_keeper
-            # debug.split = split.record_keeper
-            # debug.simple = simple.record_keeper
-            # debug.fresh = fresh.record_keeper
-            # raise Exception('')
             old_iteration_record_keeper = iteration_record_keeper
             
             # 

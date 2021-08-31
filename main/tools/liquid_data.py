@@ -339,7 +339,6 @@ class LiquidData():
                     # for each key in each record
                     for each_key in each_record:
                         keys.add(each_key)
-                    print('keys = ', keys)
                     for each_key in keys:
                         aggregated[each_key].append(each_record.get(each_key, None))
                 else:

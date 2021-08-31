@@ -68,6 +68,20 @@ docs = ["sphinx"]
 tests = ["coverage[toml] (>=5.0.2)", "hypothesis", "pytest"]
 
 [[package]]
+name = "asttokens"
+version = "2.0.5"
+description = "Annotate AST trees with source code positions"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+six = "*"
+
+[package.extras]
+test = ["astroid", "pytest"]
+
+[[package]]
 name = "async-generator"
 version = "1.10"
 description = "Async generators and context managers for Python 3.5+"
@@ -324,6 +338,14 @@ optional = false
 python-versions = ">=2.7"
 
 [[package]]
+name = "executing"
+version = "0.8.0"
+description = "Get the currently executing AST node of a frame, and other information"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "ez-yaml"
 version = "1.1.0"
 description = "Straighforward wrapper around Ruamel Yaml"
@@ -362,7 +384,7 @@ dotenv = ["python-dotenv"]
 
 [[package]]
 name = "fsspec"
-version = "2021.7.0"
+version = "2021.8.1"
 description = "File-system specification"
 category = "main"
 optional = false
@@ -494,6 +516,20 @@ box2d = ["box2d-py (>=2.3.5,<2.4.0)"]
 mujoco = ["mujoco_py (>=1.50,<2.0)", "imageio"]
 nomujoco = ["box2d-py (>=2.3.5,<2.4.0)", "opencv-python (>=3)", "atari_py (>=0.2.0,<0.3.0)"]
 robotics = ["mujoco_py (>=1.50,<2.0)", "imageio"]
+
+[[package]]
+name = "icecream"
+version = "2.1.1"
+description = "Never use print() to debug again; inspect variables, expressions, and program execution with a single, simple function call."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+asttokens = ">=2.0.1"
+colorama = ">=0.3.9"
+executing = ">=0.3.1"
+pygments = ">=2.2.0"
 
 [[package]]
 name = "idna"
@@ -1460,7 +1496,7 @@ win32 = ["pywin32"]
 
 [[package]]
 name = "silver-spectacle"
-version = "0.1.7"
+version = "0.2.1"
 description = "An easier way to display data"
 category = "main"
 optional = false
@@ -1533,7 +1569,7 @@ pbr = ">=2.0.0,<2.1.0 || >2.1.0"
 
 [[package]]
 name = "super-hash"
-version = "1.0.2"
+version = "1.0.5"
 description = "hash the unhashable, hash everything"
 category = "main"
 optional = false
@@ -1544,7 +1580,7 @@ simple-namespace = "1.0.0"
 
 [[package]]
 name = "super-map"
-version = "1.0.2"
+version = "1.1.1"
 description = "Like dict, but easier"
 category = "main"
 optional = false
@@ -1764,6 +1800,14 @@ python-versions = "*"
 notebook = ">=4.4.1"
 
 [[package]]
+name = "yapf"
+version = "0.31.0"
+description = "A formatter for Python code."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "yarl"
 version = "1.6.3"
 description = "Yet another URL library"
@@ -1791,7 +1835,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "6f3e2c7900c6d8afd93023a252a3452f7724c0ab5f2d28e4d3f2158520984036"
+content-hash = "861bd0743d063ab4b4ec1cf2e3ba21633e3e5259ff69180b1709aa4e243a3d3b"
 
 [metadata.files]
 absl-py = [
@@ -1868,6 +1912,10 @@ argon2-cffi = [
     {file = "argon2_cffi-20.1.0-pp36-pypy36_pp73-win32.whl", hash = "sha256:8282b84ceb46b5b75c3a882b28856b8cd7e647ac71995e71b6705ec06fc232c3"},
     {file = "argon2_cffi-20.1.0-pp37-pypy37_pp73-macosx_10_7_x86_64.whl", hash = "sha256:3aa804c0e52f208973845e8b10c70d8957c9e5a666f702793256242e9167c4e0"},
     {file = "argon2_cffi-20.1.0-pp37-pypy37_pp73-win_amd64.whl", hash = "sha256:36320372133a003374ef4275fbfce78b7ab581440dfca9f9471be3dd9a522428"},
+]
+asttokens = [
+    {file = "asttokens-2.0.5-py2.py3-none-any.whl", hash = "sha256:0844691e88552595a6f4a4281a9f7f79b8dd45ca4ccea82e5e05b4bbdb76705c"},
+    {file = "asttokens-2.0.5.tar.gz", hash = "sha256:9a54c114f02c7a9480d56550932546a3f1fe71d8a02f1bc7ccd0ee3ee35cf4d5"},
 ]
 async-generator = [
     {file = "async_generator-1.10-py3-none-any.whl", hash = "sha256:01c7bf666359b4967d2cda0000cc2e4af16a0ae098cbffcb8472fb9e8ad6585b"},
@@ -2077,6 +2125,10 @@ entrypoints = [
     {file = "entrypoints-0.3-py2.py3-none-any.whl", hash = "sha256:589f874b313739ad35be6e0cd7efde2a4e9b6fea91edcc34e58ecbb8dbe56d19"},
     {file = "entrypoints-0.3.tar.gz", hash = "sha256:c70dd71abe5a8c85e55e12c19bd91ccfeec11a6e99044204511f9ed547d48451"},
 ]
+executing = [
+    {file = "executing-0.8.0-py2.py3-none-any.whl", hash = "sha256:7ef8637519b0c01b69c4a1785a0d13dcc2cf9f0d078804268887edad2b4f26d1"},
+    {file = "executing-0.8.0.tar.gz", hash = "sha256:77ed91874d321338865ea2bf7337636a5de8e9a7f8323527d29c4fad2a1b48f7"},
+]
 ez-yaml = [
     {file = "ez_yaml-1.1.0-py3-none-any.whl", hash = "sha256:d56ec6da5bcec3a8828d73c05053aaf6d8ee3db25a459b544246492aac77d40a"},
     {file = "ez_yaml-1.1.0.tar.gz", hash = "sha256:62b5fe06cd211b930eef78f56fe352ac0db1ca5d788f0c072cdd77770b435cac"},
@@ -2090,8 +2142,8 @@ flask = [
     {file = "Flask-2.0.1.tar.gz", hash = "sha256:1c4c257b1892aec1398784c63791cbaa43062f1f7aeb555c4da961b20ee68f55"},
 ]
 fsspec = [
-    {file = "fsspec-2021.7.0-py3-none-any.whl", hash = "sha256:86822ccf367da99957f49db64f7d5fd3d8d21444fac4dfdc8ebc38ee93d478c6"},
-    {file = "fsspec-2021.7.0.tar.gz", hash = "sha256:792ebd3b54de0b30f1ce73f0ba0a8bcc864724f2d9f248cb8d0ece47db0cbde8"},
+    {file = "fsspec-2021.8.1-py3-none-any.whl", hash = "sha256:30f27c059a414d1f434b14b2d0e75c8d9c3dd473ad8daeccb444d9d4069b9f03"},
+    {file = "fsspec-2021.8.1.tar.gz", hash = "sha256:af125917788b77782899bbd4484d29e5407f53d2bb04cdfa025fe4931201a555"},
 ]
 future = [
     {file = "future-0.18.2.tar.gz", hash = "sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d"},
@@ -2213,6 +2265,10 @@ grpcio = [
 ]
 gym = [
     {file = "gym-0.18.3.tar.gz", hash = "sha256:81a3e3fbf7fcf57c8cf98f7e22d1bdd5815f3824d9c148a7eb42420d3d642967"},
+]
+icecream = [
+    {file = "icecream-2.1.1-py2.py3-none-any.whl", hash = "sha256:adc1c48f5a4f83b2171c774a35142f217d317a84fca8cdf3fc65aa1321ff26b6"},
+    {file = "icecream-2.1.1.tar.gz", hash = "sha256:47e00e3f4e8477996e7dc420b6fa8ba53f8ced17de65320fedb5b15997b76589"},
 ]
 idna = [
     {file = "idna-2.10-py2.py3-none-any.whl", hash = "sha256:b97d804b1e9b523befed77c48dacec60e6dcb0b5391d57af6a65a312a90648c0"},
@@ -2996,8 +3052,8 @@ send2trash = [
     {file = "Send2Trash-1.7.1.tar.gz", hash = "sha256:17730aa0a33ab82ed6ca76be3bb25f0433d0014f1ccf63c979bab13a5b9db2b2"},
 ]
 silver-spectacle = [
-    {file = "silver_spectacle-0.1.7-py3-none-any.whl", hash = "sha256:434fa8510a8843b1ca2ddfd18956aa66ae1c11a947d1a1af1edc2c2eef20ad18"},
-    {file = "silver_spectacle-0.1.7.tar.gz", hash = "sha256:1b96d99f8b3cb4d30a74d836235bde840bc38a78fb5b1162b3c438b3c8cc03fd"},
+    {file = "silver_spectacle-0.2.1-py3-none-any.whl", hash = "sha256:cc02bbe560c8ca0cd940da544406168ccc0a7d2a7733286059645f506d50eb1e"},
+    {file = "silver_spectacle-0.2.1.tar.gz", hash = "sha256:37436059ed3a7ad4a5f224c66ec3689edc8ddfd491e8f8c3cba778dbeed93efd"},
 ]
 simple-namespace = [
     {file = "simple_namespace-1.0.0-py3-none-any.whl", hash = "sha256:abbcb832ee44a6fbf4c0fa654388ad90d11297ab71b9d3d7bc4e2e882e57173f"},
@@ -3044,12 +3100,12 @@ stevedore = [
     {file = "stevedore-3.3.0.tar.gz", hash = "sha256:3a5bbd0652bf552748871eaa73a4a8dc2899786bc497a2aa1fcb4dcdb0debeee"},
 ]
 super-hash = [
-    {file = "super_hash-1.0.2-py3-none-any.whl", hash = "sha256:b8bc598663a3b6fdfa528f4556365d4b7e6c25d4e176c3682ba1e25c80926e7b"},
-    {file = "super_hash-1.0.2.tar.gz", hash = "sha256:884e7b8ab062534e58733bf2f767a62adb7304b165a21638770fcba568f6c537"},
+    {file = "super_hash-1.0.5-py3-none-any.whl", hash = "sha256:b1f7eb4d1cf3bec40faf6da84bbd1539a5bb605231d542f829c0b9a0f3d2aad0"},
+    {file = "super_hash-1.0.5.tar.gz", hash = "sha256:266cf1e04f31a5b530532d4c349ef9a311618fe102f094e9bfd0d7a1f93e55a6"},
 ]
 super-map = [
-    {file = "super_map-1.0.2-py3-none-any.whl", hash = "sha256:652c82e65cf079b5850182a8db86a9b46ef6586ebc29ef239a7836fdd438863d"},
-    {file = "super_map-1.0.2.tar.gz", hash = "sha256:0e7426819bf45c08513c4948885209fbba839c5cd8fbf1f1fbf390a87c397c1b"},
+    {file = "super_map-1.1.1-py3-none-any.whl", hash = "sha256:66796b870f4d070c4e876cf81ca51e5c9e2c8771c8e4a3c5f5a554c13f12206f"},
+    {file = "super_map-1.1.1.tar.gz", hash = "sha256:2955b2408d1fe2f31ecfc80a851910910b7bfde2cdc667a4e6e5b4b53968b7ea"},
 ]
 tensorboard = [
     {file = "tensorboard-2.4.1-py3-none-any.whl", hash = "sha256:7b8c53c396069b618f6f276ec94fc45d17e3282d668979216e5d30be472115e4"},
@@ -3181,6 +3237,10 @@ werkzeug = [
 widgetsnbextension = [
     {file = "widgetsnbextension-3.5.1-py2.py3-none-any.whl", hash = "sha256:bd314f8ceb488571a5ffea6cc5b9fc6cba0adaf88a9d2386b93a489751938bcd"},
     {file = "widgetsnbextension-3.5.1.tar.gz", hash = "sha256:079f87d87270bce047512400efd70238820751a11d2d8cb137a5a5bdbaf255c7"},
+]
+yapf = [
+    {file = "yapf-0.31.0-py2.py3-none-any.whl", hash = "sha256:e3a234ba8455fe201eaa649cdac872d590089a18b661e39bbac7020978dd9c2e"},
+    {file = "yapf-0.31.0.tar.gz", hash = "sha256:408fb9a2b254c302f49db83c59f9aa0b4b0fd0ec25be3a5c51181327922ff63d"},
 ]
 yarl = [
     {file = "yarl-1.6.3-cp36-cp36m-macosx_10_14_x86_64.whl", hash = "sha256:0355a701b3998dcd832d0dc47cc5dedf3874f966ac7f870e0f3a6788d802d434"},

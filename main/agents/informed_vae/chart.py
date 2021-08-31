@@ -3,16 +3,15 @@ from tools.all_tools import *
 from tools.record_keeper import ExperimentCollection
 from tools.liquid_data import LiquidData
 from super_map import LazyDict
-
+from statistics import mean as average
 
 collection = ExperimentCollection(FS.local_path("vae_comparison"))
-# collection = ExperimentCollection("/home/jeffhykin/repos/reinforcement_playground/main/agents/informed_vae/vae_comparison")
 # collection.records[0] example:
 # {
 #     "testing": true,
-#     "average_loss": 9.011544585227966e-05,
-#     "accuracy": 0.9704,
-#     "correct": 9704,
+#     "average_loss": 7.984413504600525e-05,
+#     "accuracy": 0.9729,
+#     "correct": 9729,
 #     "input_shape": [
 #         1,
 #         28,
@@ -28,65 +27,56 @@ collection = ExperimentCollection(FS.local_path("vae_comparison"))
 #     "momentum": 0.5,
 #     "model": "SimpleClassifier",
 #     "fresh": true,
-#     "binary_class": 9,
+#     "binary_class": 2,
 #     "transfer_learning_iteration": 0,
 #     "test": "binary_mnist",
-#     "seed": 1630011706.0022345,
+#     "seed": 1630425327.0230868,
 #     "binary_class_order": [
 #         0,
 #         1,
-#         2,
-#         3,
-#         4,
-#         5,
-#         6,
-#         7,
-#         8,
-#         9
+#         2
 #     ],
 #     "train_test_ratio": [
 #         5,
 #         1
 #     ],
-#     "experiment_number": 1,
+#     "experiment_number": 2,
 #     "error_number": 0,
-#     "had_error": false,c
-#     "experiment_start_time": 1630011706.0022597,
-#     "experiment_end_time": 1630012049.1319325,
-#     "experiment_duration": 343.1296727657318
+#     "had_error": false,
+#     "experiment_start_time": 1630425327.0230994,
+#     "experiment_end_time": 1630425422.6926785,
+#     "experiment_duration": 95.66957902908325
 # }
-def satisfies(each):
-    return (
-            # no runs with errors allowed
-            not each["had_error"]
-            # no training (or other) values
-            and each["testing"]
-            # only for binary_mnist
-            and each["test"] == "binary_mnist"
-            # make sure binary_class_order didnt change
-            # and each["experiment_number"] == 6
-            #and each["binary_class_order"] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-            # make sure decoder importance didnt change
-            # and not (each["model"] == "split" and each["decoder_importance"] != 0.1)
-            # # make sure latent_shape is the same
-            and (
-                   list(each["latent_shape"]or[]) == [30]
-                # (for simple_classifier its called mid_shape)
-                or list(each["mid_shape"   ]or[]) == [30]
-            )
+
+# 
+# basic filter + map
+# 
+data = LiquidData(collection.records).only_keep_if(lambda each:
+        # no runs with errors allowed
+        not each["had_error"]
+        # no training (or other) values
+        and each["testing"]
+        # only for binary_mnist
+        and each["test"] == "binary_mnist"
+        # make sure binary_class_order didnt change
+        #and each["binary_class_order"] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        # make sure decoder importance didnt change
+        #and not (each["model"] == "split" and each["decoder_importance"] != 0.1)
+        # make sure latent_shape is the same
+        and (
+                list(each["latent_shape"]or[]) == [30]
+            # (for simple_classifier its called mid_shape)
+            or list(each["mid_shape"   ]or[]) == [30]
         )
-def fix_fresh_class(each):
-    return {
+    ).map(lambda each: {
         **each,
+        # change the model name for Simple+Fresh
         "model": each["model"] if not each["fresh"] else "FreshClassifier",
-    }
-    
-data = LiquidData(collection.records).only_keep_if(
-        satisfies
-    ).map(
-        fix_fresh_class
-    )
-    
+    })
+
+# 
+# aggregate into data we want to display
+# 
 bin_class_agg = data.bundle_by(
         "model",
     # nested bundle
@@ -97,12 +87,12 @@ bin_class_agg = data.bundle_by(
     ).aggregate(
     # average within each model, within binary_class, across all experiments
     )
-from statistics import mean as average
+
 def agg1(records_within_class):
     return {
         
         # for each of these, their list elements are all the same so just grab the first
-        "model": print(records_within_class) or records_within_class["model"][0],
+        "model": records_within_class["model"][0],
         "binary_class": records_within_class["binary_class"][0],
         "transfer_learning_iteration": records_within_class["transfer_learning_iteration"][0],
         
@@ -111,15 +101,22 @@ def agg1(records_within_class):
         "accuracy": average(records_within_class["accuracy"]),
         "average_loss": average(records_within_class["average_loss"]),
     }
+
 averaged = bin_class_agg.map(agg1)
+averaged.bundles[0][0]
     
 
+# 
+# convert to chart-friendly format
+# 
 model_color_map = {
     "SplitClassifier": 'rgb(0, 92, 192, 0.9)',
     "SimpleClassifier": "rgb(75, 192, 192, 0.9)",
     "FreshClassifier": "rgb(0, 292, 192, 0.9)",
 }
 
+chart_data = averaged.aggregate()
+# remove the redundant data (e.g. model name)
 def agg2(each):
     try:
         return {
@@ -135,9 +132,12 @@ def agg2(each):
             "average_loss": each["average_loss"],
         }
     except Exception as error:
-        print('each = ', each)
+        ic(each)
         raise error
 
+chart_data = chart_data.map(agg2)
+# convert for the chart
+# for every model, add a label, a color, and extract out a list of x/y values
 def agg3(each):
     try:
         return {
@@ -147,22 +147,12 @@ def agg3(each):
             # x and y pairs
             "data": list(zip(each["binary_class"], each["correct"]))
         }
-    except Exception as error:
-        print('each = ', each)
-        raise error
-             # go back to only grouping by model
-chart_data = averaged.aggregate(
-    # remove the redundant data (e.g. model name)
-    ).map(
-        agg2
-    # convert for the chart
-    # for every model, add a label, a color, and extract out a list of x/y values
-    ).map(
-        agg3
-    )
+    except Exception as error1:
+        ic(each)
+        raise error1
 
+chart_data = chart_data.map(agg3)
 datasets = chart_data.bundles[0]
-print('len(datasets) = ', len(datasets))
 
 # 
 # show the data
@@ -180,6 +170,6 @@ ss.DisplayCard("chartjs", {
     },
     "data": {
         "labels": [0,1,2,3,4,5,6,7,8,9],
-        "datasets": chart_data,
+        "datasets": datasets,
     }
 })

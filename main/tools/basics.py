@@ -330,18 +330,6 @@ def attempt(a_lambda, default=None, expected_errors=(Exception,)):
     except expected_errors:
         return default
 
-# print that can be indented
-original_print = print
-def print(*args, **kwargs):
-    from io import StringIO
-    string_stream = StringIO()
-    original_print(*args, **{**kwargs, "file": string_stream},)
-    output_str = string_stream.getvalue()
-    string_stream.close()
-    indent = (" "*print.indent)
-    output_str = indent + output_str.replace("\n", "\n"+indent)
-    return original_print(output_str, file=kwargs.get("file", sys.stdout), end="")
-print.indent = 0
 
 here = "os.path.dirname(__file__)"
 if os.environ.get('PROJECTR_FOLDER', None):
