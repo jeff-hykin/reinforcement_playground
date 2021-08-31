@@ -143,6 +143,7 @@ def agg3(each):
         return {
             "label": each["model"],
             "backgroundColor": model_color_map[each["model"]],
+            "borderColor": model_color_map[each["model"]],
             "color": model_color_map[each["model"]],
             # x and y pairs
             "data": list(zip(each["binary_class"], each["correct"]))
@@ -163,7 +164,7 @@ ss.DisplayCard("chartjs", {
         "pointRadius": 3,
         "scales": {
             "y": {
-                "min": 9700,
+                "min": 9500,
                 "max": 10000
             }
         }
