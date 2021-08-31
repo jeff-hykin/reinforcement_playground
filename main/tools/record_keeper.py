@@ -19,7 +19,7 @@ class AncestorDict(dict):
             yield each
     
     def keys(self):
-        self_keys = self.self.keys()
+        self_keys = self.itself.keys()
         for each_key in self_keys:
             yield each_key
         self_keys = set(self_keys)
@@ -30,8 +30,8 @@ class AncestorDict(dict):
                     yield each_key
     
     def values(self):
-        self_keys = self.self.keys()
-        for each_key, each_value in self.self.items():
+        self_keys = self.itself.keys()
+        for each_key, each_value in self.itself.items():
             yield each_value
         self_keys = set(self_keys)
         for each_parent in self.ancestors:
@@ -41,8 +41,8 @@ class AncestorDict(dict):
                     yield each_value
     
     def items(self):
-        self_keys = self.self.keys()
-        for each_key, each_value in self.self.items():
+        self_keys = self.itself.keys()
+        for each_key, each_value in self.itself.items():
             yield (each_key, each_value)
         self_keys = set(self_keys)
         for each_parent in self.ancestors:
@@ -67,6 +67,9 @@ class AncestorDict(dict):
         return None
     
     def __setitem__(self, key, value):
+        # this happens because of pickling
+        if not hasattr(self, "itself"):
+            self.itself = {}
         self.itself[key] = value
 
     def update(self, other):
@@ -264,10 +267,13 @@ class RecordKeeper():
     def commit_record(self,*, additional_info=None):
         # finalize the record
         (additional_info is not None) and self.pending_record.update(additional_info)
+        # make sure the ancestors are the most up-to-date (swap_out can cause them to change since init)
+        local_lineage = self.local_data_lineage
+        self.pending_record.ancestors = local_lineage
         # save a copy to disk
         self.add_record(self.pending_record)
         # start a new clean record
-        self.pending_record = AncestorDict(ancestors=self.local_data_lineage)
+        self.pending_record = AncestorDict(ancestors=local_lineage)
         
     def sub_record_keeper(self, **kwargs):
         sub_record_keeper = RecordKeeper(
@@ -330,51 +336,15 @@ class RecordKeeper():
             raise Exception('local_data needs to be a dict')
 
 class Experiment(object):
-    def __init__(self, experiment, experiment_parent, record_keepers, file_path, collection_keeper, records, collection_name):
-        self.experiment_info_keeper        = experiment       
-        self.experiment_keeper = experiment_parent
-        self.record_keepers    = record_keepers
-        self.file_path         = file_path
-        self.collection_keeper  = collection_keeper
-        self._records           = records
-        self.collection_name   = collection_name
+    def __init__(self, experiment_info_keeper, save_experiment):
+        self.experiment_info_keeper = experiment_info_keeper
+        self.save_experiment        = save_experiment
     
     def __enter__(self):
         return self.experiment_info_keeper
     
     def __exit__(self, _, error, traceback):
-        # mutate the root one based on having an error or not
-        no_error = error is None
-        experiment_info = self.experiment_keeper.local_data
-        experiment_info["experiment_end_time"] = now()
-        experiment_info["experiment_duration"] = experiment_info["experiment_end_time"] - experiment_info["experiment_start_time"]
-        if no_error:
-            experiment_info["had_error"] = False
-            experiment_info["error_number"] = 0
-        
-        # refresh the all_record_keepers dict
-        # especially after mutating the self.experiment_keeper.local_data
-        # (this ends up acting like a set, but keys are based on mutable values)
-        self.record_keepers = { super_hash(each_value) : each_value for each_value in self.record_keepers.values() }
-        
-        # 
-        # save to file
-        # 
-        # ensure folder exists
-        import os;os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        data = (self.collection_keeper.local_data, self.experiment_keeper.local_data, self.record_keepers, self._records)
-        print("Saving "+str(len(self._records))+" records")
-        large_pickle_save(data, self.file_path)
-        print("Records saved to: " + self.file_path)
-        
-        # re-throw the error
-        if not no_error:
-            print(f'There was an error when running an experiment. Experiment collection: "{self.collection_name}"')
-            print(f'However, the partial experiment data was saved')
-            experiment_number = self.experiment_keeper.local_data["experiment_number"]
-            error_number = self.experiment_keeper.local_data["error_number"]
-            print(f'This happend on:\n    dict(experiment_number={experiment_number}, error_number={error_number})')
-            raise error
+        self.save_experiment(_, error, traceback)
 
 class ExperimentCollection:
     """
@@ -389,26 +359,6 @@ class ExperimentCollection:
                 model_1_losses.pending_record["index"] = each
                 model_1_losses.pending_record["loss_1"] = random()
                 model_1_losses.commit_record()
-        
-        
-        experiment_numbers = range(max(each["experiment_number"] for each in collection.records))
-        groups = Morph.each(
-            data=collection.records,
-            if_keys_exist=["loss_1"],
-            add_to_groups_if={
-                "train": lambda each:each["train"]==True,
-                "test": lambda each:not (each["train"]==True),
-            },
-            remorph=dict(
-                add_to_groups_if={
-                    experiment_number : (lambda each_record: each_record["experiment_number"] == experiment_number)
-                        for experiment_number in experiment_numbers 
-                },
-                average={
-                    "
-                }
-            )
-        )
     """
     
     # TODO: make it so that Experiments uses database with detached/reattached pickled objects instead of a single pickle file
@@ -420,7 +370,7 @@ class ExperimentCollection:
         self.experiment_keeper      = None
         self._records               = records or []
         self.record_keepers         = {}
-        self.prev_experiment_parent_info = None
+        self.prev_experiment_local_data = None
         self.collection_keeper      = RecordKeeper(
             parent_record_keeper=None,
             local_data={},
@@ -446,60 +396,26 @@ class ExperimentCollection:
         register = globals()["_ExperimentCollection_register"] = globals().get("_ExperimentCollection_register", {})
         register[self.file_path] = self
         
-        self.prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
+        self.prev_experiment_local_data = self.prev_experiment_local_data or dict(experiment_number=0, error_number=0, had_error=False)
         if not self._records and self.file_path:
             if os.path.isfile(self.file_path):
-                self.collection_keeper.local_data, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
+                self.collection_keeper.local_data, self.prev_experiment_local_data, self.record_keepers, self._records = large_pickle_load(self.file_path)
             else:
                 print(f'Will create new experiment collection: {self.collection_name}')
     
     def ensure_loaded(self):
-        if self.prev_experiment_parent_info == None:
+        if self.prev_experiment_local_data == None:
             self.load()
     
     def add_record(self, record):
         self.ensure_loaded()
         self._records.append(record)
     
-    def where(self, only_keep_if=None, exist=None, groups=None, extract=None):
-        # "exists" lambda
-        if exist is None: exist = []
-        required_keys = set(exist)
-        required_keys_exist = lambda each: len(required_keys & set(each.keys())) == len(required_keys) 
-        if len(exist) == 0: required_keys_exist = lambda each: True
-        
-        # "only_keep_if" lambda
-        if only_keep_if is None: only_keep_if = lambda each: True
-        
-        # "extract" lambda
-        if extract is None: extract = lambda each: each
-        
-        # combined
-        the_filter = lambda each: only_keep_if(each) and required_keys_exist(each)
-        # load if needed
-        if not self._records:
-            self.load()
-        
-        # TODO: add group, x value, y value mappers
-        if groups is None:
-            return (extract(each) for each in self._records if the_filter(each))
-        else:
-            group_finders = groups
-            groups = { each: [] for each in group_finders }
-            for each_record in self._records:
-                if the_filter(each_record):
-                    extracted_value = extract(each_record)
-                    for each_group_name, each_group_finder in group_finders.items():
-                        if each_group_finder(each_record):
-                            groups[each_group_name].append(extracted_value)
-            
-            return groups
-    
     def new_experiment(self, **experiment_info):
         # 
         # load from file
         # 
-        self.load()
+        self.ensure_loaded()
         
         # add basic data to the experiment
         # there are 3 levels:
@@ -507,8 +423,8 @@ class ExperimentCollection:
         # - self.experiment_keeper
         # - self.experiment_info_keeper
         self.experiment_keeper = self.collection_keeper.sub_record_keeper(
-            experiment_number=self.prev_experiment_parent_info["experiment_number"] + 1 if not self.prev_experiment_parent_info["had_error"] else self.prev_experiment_parent_info["experiment_number"],
-            error_number=self.prev_experiment_parent_info["error_number"]+1,
+            experiment_number=self.prev_experiment_local_data["experiment_number"] + 1 if not self.prev_experiment_local_data["had_error"] else self.prev_experiment_local_data["experiment_number"],
+            error_number=self.prev_experiment_local_data["error_number"]+1,
             had_error=True,
             experiment_start_time=now(),
         )
@@ -517,14 +433,46 @@ class ExperimentCollection:
             self.experiment_info_keeper = self.experiment_keeper
         else:
             self.experiment_info_keeper = self.experiment_keeper.sub_record_keeper(**experiment_info)
+        
+        def save_experiment(_, error, traceback):
+            # mutate the root one based on having an error or not
+            no_error = error is None
+            experiment_info = self.experiment_keeper.local_data
+            experiment_info["experiment_end_time"] = now()
+            experiment_info["experiment_duration"] = experiment_info["experiment_end_time"] - experiment_info["experiment_start_time"]
+            if no_error:
+                experiment_info["had_error"] = False
+                experiment_info["error_number"] = 0
+            
+            # refresh the all_record_keepers dict
+            # especially after mutating the self.experiment_keeper.local_data
+            # (this ends up acting like a set, but keys are based on mutable values)
+            self.record_keepers = { super_hash(each_value) : each_value for each_value in self.record_keepers.values() }
+            
+            # 
+            # save to file
+            # 
+            # ensure folder exists
+            import os;os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+            self.prev_experiment_local_data = self.experiment_keeper.local_data
+            data = (self.collection_keeper.local_data, self.experiment_keeper.local_data, self.record_keepers, self._records)
+            # update self encase multiple experiments are run without re-reading the file
+            print("Saving "+str(len(self._records))+" records")
+            large_pickle_save(data, self.file_path)
+            print("Records saved to: " + self.file_path)
+            
+            # re-throw the error
+            if not no_error:
+                print(f'There was an error when running an experiment. Experiment collection: "{self.collection_name}"')
+                print(f'However, the partial experiment data was saved')
+                experiment_number = self.experiment_keeper.local_data["experiment_number"]
+                error_number = self.experiment_keeper.local_data["error_number"]
+                print(f'This happend on:\n    dict(experiment_number={experiment_number}, error_number={error_number})')
+                raise error
+        
         return Experiment(
-            experiment=self.experiment_info_keeper,
-            experiment_parent=self.experiment_keeper,
-            record_keepers=self.record_keepers,
-            file_path=self.file_path,
-            collection_keeper=self.collection_keeper,
-            records=self._records,
-            collection_name=self.collection_name,
+            experiment_info_keeper=self.experiment_info_keeper,
+            save_experiment=save_experiment
         )
     
     def __len__(self,):

@@ -59,16 +59,13 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
             
             # connect record keepers to models
             fresh = SimpleClassifier(record_keeper=iteration_record_keeper, fresh=True)
-            # model.record_keeper.parent.info ->            has the model parameters/hyper-parameters
-            # model.record_keeper.parent.parent.info ->     has the mdoel name
-            # model.record_keeper.parent.parent.parent is the placeholder (and/or previous iterator)
             split.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
-            # simple.record_keeper.parent.parent = iteration_record_keeper
-            debug.iteration_record_keeper = iteration_record_keeper
-            debug.split = split.record_keeper
+            simple.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
+            # debug.iteration_record_keeper = iteration_record_keeper
+            # debug.split = split.record_keeper
             # debug.simple = simple.record_keeper
             # debug.fresh = fresh.record_keeper
-            raise Exception('')
+            # raise Exception('')
             old_iteration_record_keeper = iteration_record_keeper
             
             # 
