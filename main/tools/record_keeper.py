@@ -3,12 +3,118 @@ from super_hash import super_hash
 from tools.basics import large_pickle_load, large_pickle_save, attempt, flatten_once
 from time import time as now
 
+class AncestorDict(dict):
+    def __init__(self, *, ancestors, itself=None):
+        self.ancestors = ancestors
+        if not isinstance(self.ancestors, (list, tuple)):
+            raise Exception('for self_custom_inherit(), ancestors needs to be a dict')
+        if itself != None and type(self.itself) != dict:
+            raise Exception('for self_custom_inherit(), itself needs to be a pure dict')
+        self.itself = itself or {}
+    
+    @property
+    def lineage(self):
+        yield self.itself
+        for each in self.ancestors:
+            yield each
+    
+    def keys(self):
+        self_keys = self.self.keys()
+        for each_key in self_keys:
+            yield each_key
+        self_keys = set(self_keys)
+        for each_parent in self.ancestors:
+            for each_key in each_parent.keys():
+                if each_key not in self_keys:
+                    self_keys.add(each_key)
+                    yield each_key
+    
+    def values(self):
+        self_keys = self.self.keys()
+        for each_key, each_value in self.self.items():
+            yield each_value
+        self_keys = set(self_keys)
+        for each_parent in self.ancestors:
+            for each_key, each_value in each_parent.items():
+                if each_key not in self_keys:
+                    self_keys.add(each_key)
+                    yield each_value
+    
+    def items(self):
+        self_keys = self.self.keys()
+        for each_key, each_value in self.self.items():
+            yield (each_key, each_value)
+        self_keys = set(self_keys)
+        for each_parent in self.ancestors:
+            for each_key, each_value in each_parent.items():
+                if each_key not in self_keys:
+                    self_keys.add(each_key)
+                    yield (each_key, each_value)
+    
+    def __len__(self):
+        return len(tuple(self.keys()))
+    
+    def __iter__(self):
+        return (each for each in self.keys())
+    
+    def __contains__(self, key):
+        return any((key in each_person.keys() for each_person in self.lineage))
+        
+    def __getitem__(self, key):
+        for each_person in self.lineage:
+            if key in each_person.keys():
+                return each_person[key]
+        return None
+    
+    def __setitem__(self, key, value):
+        self.itself[key] = value
+
+    def update(self, other):
+        self.itself.update(other)
+    
+    @property
+    def compressed(self):
+        copy = {}
+        for each in reversed(self.lineage):
+            copy.update(each)
+        return copy
+    
+    def __repr__(self,):
+        copy = self.compressed
+        import json
+        representer = attempt(lambda: json.dumps(self, indent=4), default=copy.__repr__())
+        return representer
+    
+    def get(self,*args,**kwargs):
+        return self.compressed.get(*args,**kwargs)
+    
+    def copy(self,*args,**kwargs):
+        return self.compressed.copy(*args,**kwargs)
+
+    def clone(self):
+        return AncestorDict(
+            ancestors=self.ancestors,
+            itself=dict(self.itself),
+        )
+    
+    def __getstate__(self):
+        return self.itself, self.ancestors
+    
+    def __setstate__(self, state):
+        self.itself, self.ancestors = state
+    
+    def __json__(self):
+        return self.compressed
+    
+
 #%%
 class CustomInherit(dict):
     def __init__(self, *, parent, data=None):
         self.parent = parent
         if not isinstance(self.parent, dict):
             raise Exception('for CustomInherit(), parent needs to be a dict')
+        if data != None and type(self.data) != dict:
+            raise Exception('for CustomInherit(), data needs to be a pure dict')
         self._self = data or {}
     
     @property
@@ -70,11 +176,16 @@ class CustomInherit(dict):
     
     def __setitem__(self, key, value):
         self.self[key] = value
+
+    def update(self, other):
+        self.self.update(other)
     
     def __repr__(self,):
         copy = self.parent.copy()
         copy.update(self.self)
-        return copy.__repr__()
+        import json
+        representer = attempt(lambda: json.dumps(self, indent=4), default=copy.__repr__())
+        return representer
     
     def get(self,*args,**kwargs):
         copy = self.parent.copy()
@@ -85,6 +196,13 @@ class CustomInherit(dict):
         copy = self.parent.copy()
         copy.update(self.self)
         return copy.copy(*args,**kwargs)
+
+    def clone(self):
+        new_data = dict(self.self)
+        return CustomInherit(
+            parent=self.parent,
+            data=new_data
+        )
     
     def __getstate__(self):
         return {
@@ -100,32 +218,18 @@ class CustomInherit(dict):
         copy = self.parent.copy()
         copy.update(self.self)
         return copy
+    
 
 class RecordKeeper():
-    """
-        Example:
-            record_keeper = RecordKeeper(
-                parent=CustomInherit(
-                    parent={},
-                    data={
-                        "experiment_number": 1,
-                        "error_number": 0,
-                        "had_error": True,
-                    },
-                ),
-                collection=collection
-            )
-            a = record_keeper.sub_record_keeper(hi=10)
-            a.hi # returns 10
-    """
-    def __init__(self, parent=None, collection=None, records=None, file_path=None):
-        self.parent          = parent or {}
-        self.file_path       = file_path
-        self.kids            = []
-        self.pending_record  = CustomInherit(parent=self.parent)
-        self.collection      = collection
-        self.records         = records or []
-        if not isinstance(self.parent, dict):
+    def __init__(self, parent_record_keeper=None, local_data=None, collection=None, records=None, file_path=None):
+        self.parent_record_keeper = parent_record_keeper
+        self.local_data           = local_data or {}
+        self.file_path            = file_path
+        self.sub_record_keepers   = []
+        self.pending_record       = AncestorDict(ancestors=self.local_data_lineage,)
+        self.collection           = collection
+        self.records              = records or []
+        if not isinstance(self.local_data, dict):
             raise Exception('Parent needs to be a dict')
         self.setup()
     
@@ -137,55 +241,66 @@ class RecordKeeper():
             self.get_records = lambda: self.records
             self.add_record  = lambda each: self.records.append(each)
     
+    def local_data_lineage_generator(self):
+        yield self.local_data
+        next_keeper = self
+        while isinstance(next_keeper.parent_record_keeper, RecordKeeper):
+            yield next_keeper.parent_record_keeper.local_data
+            next_keeper = next_keeper.parent_record_keeper
+    
+    @property
+    def local_data_lineage(self):
+        return tuple(self.local_data_lineage_generator())
+        
+    def swap_out(self, old_record_keeper, new_record_keeper):
+        next_keeper = self
+        while isinstance(next_keeper.parent_record_keeper, RecordKeeper):
+            if id(next_keeper.parent_record_keeper) == id(old_record_keeper):
+                next_keeper.parent_record_keeper = new_record_keeper
+                return True
+            # TODO: add infinte loop check (like if next_keeper.parent_record_keeper == next_keeper) 
+            next_keeper = next_keeper.parent_record_keeper
+    
     def commit_record(self,*, additional_info=None):
         # finalize the record
-        additional_info and self.pending_record.update(additional_info)
+        (additional_info is not None) and self.pending_record.update(additional_info)
         # save a copy to disk
         self.add_record(self.pending_record)
         # start a new clean record
-        self.pending_record = CustomInherit(parent=self.parent)
+        self.pending_record = AncestorDict(ancestors=self.local_data_lineage)
         
     def sub_record_keeper(self, **kwargs):
-        grandparent = self.parent
-        kid = RecordKeeper(
-            parent=CustomInherit(parent=grandparent, data=kwargs),
+        sub_record_keeper = RecordKeeper(
+            parent_record_keeper=self,
+            local_data=kwargs,
             collection=self.collection,
             records=self.records,
+            file_path=self.file_path,
         )
-        self.kids.append(kid)
-        return kid
-    
-    @property
-    def info(self):
-        return self.parent
-        
-    @property
-    def ancestors(self):
-        return [ self.parent, *self.parent.ancestors ]
+        self.sub_record_keepers.append(sub_record_keeper)
+        return sub_record_keeper
     
     def __iter__(self):
-        return (each for each in self.get_records() if self.parent in each.ancestors)
+        return (each for each in self.get_records() if self.local_data in each.ancestors)
     
     def __len__(self):
         # apparently this is the fastest way (no idea why converting to tuple is faster than using reduce)
         return len(tuple((each for each in self)))
     
     def __hash__(self):
-        return super_hash({ "CustomInherit": self.parent })
+        return super_hash({ "CustomInherit": self.local_data })
         
     def __repr__(self):
         size = len(self)
-        return f"""Parent: {self.parent}\n# of records: {size}"""
+        import json
+        representer = attempt(lambda: json.dumps(self.local_data, indent=4), default=self.local_data)
+        return f"""LocalData: {representer}\n\nNumber of records: {size}"""
     
     def __getitem__(self, key):
-        if self.pending_record is not None:
-            # current_record inherits from parent
-            return self.pending_record[key]
-        else:
-            return self.parent.get(key, None)
+        return self.pending_record[key]
     
     def __setitem__(self, key, value):
-        self.parent[key] = value
+        self.local_data[key] = value
     
     def __getattr__(self, key):
         return self[key]
@@ -203,41 +318,42 @@ class RecordKeeper():
         return self.pending_record.values(*args, **kwargs)
     
     def __getstate__(self):
-        return (self.parent, self.file_path, self.kids, self.pending_record, self.records)
+        return (self.parent_record_keeper, self.local_data, self.file_path, self.kids, self.pending_record, self.records)
     
     def __setstate__(self, state):
-        self.parent, self.file_path, self.kids, self.pending_record, self.records = state
+        self.parent_record_keeper, self.local_data, self.file_path, self.kids, self.pending_record, self.records = state
         self.collection = None
         if self.file_path is not None:
             self.collection = globals().get("_ExperimentCollection_register",{}).get(self.file_path, None)
         self.setup()
-        if not isinstance(self.parent, dict):
-            raise Exception('Parent needs to be a dict')
+        if not isinstance(self.local_data, dict):
+            raise Exception('local_data needs to be a dict')
 
 class Experiment(object):
-    def __init__(self, experiment, experiment_parent, record_keepers, file_path, collection_notes, records, collection_name):
-        self.experiment        = experiment       
-        self.experiment_parent = experiment_parent
+    def __init__(self, experiment, experiment_parent, record_keepers, file_path, collection_keeper, records, collection_name):
+        self.experiment_info_keeper        = experiment       
+        self.experiment_keeper = experiment_parent
         self.record_keepers    = record_keepers
         self.file_path         = file_path
-        self.collection_notes  = collection_notes
+        self.collection_keeper  = collection_keeper
         self._records           = records
         self.collection_name   = collection_name
     
     def __enter__(self):
-        return self.experiment
+        return self.experiment_info_keeper
     
     def __exit__(self, _, error, traceback):
         # mutate the root one based on having an error or not
         no_error = error is None
-        self.experiment_parent.info["experiment_end_time"] = now()
-        self.experiment_parent.info["experiment_duration"] = self.experiment_parent.info["experiment_end_time"] - self.experiment_parent.info["experiment_start_time"]
+        experiment_info = self.experiment_keeper.local_data
+        experiment_info["experiment_end_time"] = now()
+        experiment_info["experiment_duration"] = experiment_info["experiment_end_time"] - experiment_info["experiment_start_time"]
         if no_error:
-            self.experiment_parent.info["had_error"] = False
-            self.experiment_parent.info["error_number"] = 0
+            experiment_info["had_error"] = False
+            experiment_info["error_number"] = 0
         
         # refresh the all_record_keepers dict
-        # especially after mutating the self.experiment_parent.info
+        # especially after mutating the self.experiment_keeper.local_data
         # (this ends up acting like a set, but keys are based on mutable values)
         self.record_keepers = { super_hash(each_value) : each_value for each_value in self.record_keepers.values() }
         
@@ -246,7 +362,7 @@ class Experiment(object):
         # 
         # ensure folder exists
         import os;os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        data = (self.collection_notes, self.experiment_parent.info, self.record_keepers, self._records)
+        data = (self.collection_keeper.local_data, self.experiment_keeper.local_data, self.record_keepers, self._records)
         print("Saving "+str(len(self._records))+" records")
         large_pickle_save(data, self.file_path)
         print("Records saved to: " + self.file_path)
@@ -255,8 +371,8 @@ class Experiment(object):
         if not no_error:
             print(f'There was an error when running an experiment. Experiment collection: "{self.collection_name}"')
             print(f'However, the partial experiment data was saved')
-            experiment_number = self.experiment_parent.info["experiment_number"]
-            error_number = self.experiment_parent.info["error_number"]
+            experiment_number = self.experiment_keeper.local_data["experiment_number"]
+            error_number = self.experiment_keeper.local_data["error_number"]
             print(f'This happend on:\n    dict(experiment_number={experiment_number}, error_number={error_number})')
             raise error
 
@@ -299,13 +415,19 @@ class ExperimentCollection:
     
     def __init__(self, file_path, records=None, extension=".pickle"):
         self.file_path              = file_path+extension
-        self.experiment             = None
+        self.experiment_info_keeper             = None
         self.collection_name        = ""
-        self.collection_notes       = {}
-        self.experiment_parent      = None
+        self.experiment_keeper      = None
         self._records               = records or []
         self.record_keepers         = {}
         self.prev_experiment_parent_info = None
+        self.collection_keeper      = RecordKeeper(
+            parent_record_keeper=None,
+            local_data={},
+            collection=self,
+            records=self._records,
+            file_path=self.file_path,
+        )
         
         import os
         self.file_path = os.path.abspath(self.file_path)
@@ -327,7 +449,7 @@ class ExperimentCollection:
         self.prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
         if not self._records and self.file_path:
             if os.path.isfile(self.file_path):
-                self.collection_notes, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
+                self.collection_keeper.local_data, self.prev_experiment_parent_info, self.record_keepers, self._records = large_pickle_load(self.file_path)
             else:
                 print(f'Will create new experiment collection: {self.collection_name}')
     
@@ -381,32 +503,26 @@ class ExperimentCollection:
         
         # add basic data to the experiment
         # there are 3 levels:
-        # - self.collection_notes (root)
-        # - self.experiment_parent
-        # - self.experiment
-        self.experiment_parent = RecordKeeper(
-            collection=self,
-            parent=CustomInherit(
-                parent=self.collection_notes,
-                data={
-                    "experiment_number": self.prev_experiment_parent_info["experiment_number"] + 1 if not self.prev_experiment_parent_info["had_error"] else self.prev_experiment_parent_info["experiment_number"],
-                    "error_number": self.prev_experiment_parent_info["error_number"]+1,
-                    "had_error": True,
-                    "experiment_start_time": now(),
-                },
-            ),
+        # - self.collection_keeper.local_data (root)
+        # - self.experiment_keeper
+        # - self.experiment_info_keeper
+        self.experiment_keeper = self.collection_keeper.sub_record_keeper(
+            experiment_number=self.prev_experiment_parent_info["experiment_number"] + 1 if not self.prev_experiment_parent_info["had_error"] else self.prev_experiment_parent_info["experiment_number"],
+            error_number=self.prev_experiment_parent_info["error_number"]+1,
+            had_error=True,
+            experiment_start_time=now(),
         )
         # create experiment record keeper
         if len(experiment_info) == 0:
-            self.experiment = self.experiment_parent
+            self.experiment_info_keeper = self.experiment_keeper
         else:
-            self.experiment = self.experiment_parent.sub_record_keeper(**experiment_info)
+            self.experiment_info_keeper = self.experiment_keeper.sub_record_keeper(**experiment_info)
         return Experiment(
-            experiment=self.experiment,
-            experiment_parent=self.experiment_parent,
+            experiment=self.experiment_info_keeper,
+            experiment_parent=self.experiment_keeper,
             record_keepers=self.record_keepers,
             file_path=self.file_path,
-            collection_notes=self.collection_notes,
+            collection_keeper=self.collection_keeper,
             records=self._records,
             collection_name=self.collection_name,
         )
@@ -425,15 +541,15 @@ class ExperimentCollection:
         file_path = os.path.abspath(collection+extension)
         collection_name = os.path.basename(file_path)[0:-len(extension)]
         # default values
-        collection_notes = {}
+        collection_keeper_local_data = {}
         prev_experiment_parent_info = dict(experiment_number=0, error_number=0, had_error=False)
         record_keepers = {}
         records = records or []
         # attempt load
-        try: collection_notes, prev_experiment_parent_info, record_keepers, records = large_pickle_load(file_path)
+        try: collection_keeper_local_data, prev_experiment_parent_info, record_keepers, records = large_pickle_load(file_path)
         except: print(f'Will creaete new experiment collection: {collection_name}')
         # merge data
-        collection_notes.update(notes)
+        collection_keeper_local_data.update(notes)
         # save updated data
-        data = (collection_notes, prev_experiment_parent_info, record_keepers, records)
+        data = (collection_keeper_local_data, prev_experiment_parent_info, record_keepers, records)
         large_pickle_save(data, file_path)

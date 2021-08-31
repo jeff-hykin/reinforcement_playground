@@ -37,4 +37,5 @@ from tools.file_system_tools import FS
 from tools.pytorch_tools import *
 from tools.dataset_tools import *
 from tools.config_tools import *
+from tools.debug import *
 #%% 

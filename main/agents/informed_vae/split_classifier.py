@@ -25,8 +25,8 @@ class SplitClassifier(nn.Module):
         self.output_shape       = config.get('output_shape'      , (2, ))
         self.learning_rate      = config.get('learning_rate'     , 0.01)
         self.momentum           = config.get('momentum'          , 0.5 )
-        self.decoder_importance = config.get('decoder_importance', 0.10 )
-        model_parameters = ["input_shape", "latent_shape", "output_shape", "learning_rate", "momentum", "decoder_importance"]
+        self.multiply_losses    = config.get('multiply_losses'   , True)
+        model_parameters = ["input_shape", "latent_shape", "output_shape", "learning_rate", "momentum", "multiply_losses"]
         self.record_keeper = self.record_keeper.sub_record_keeper(**{ each: getattr(self, each) for each in model_parameters })
         self.training_record = self.record_keeper.sub_record_keeper(training=True)
         
@@ -49,7 +49,7 @@ class SplitClassifier(nn.Module):
         return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
     
     def decoder_loss_function(self, model_output, ideal_output):
-        return self.decoder_importance * F.mse_loss(model_output.to(self.hardware), ideal_output.to(self.hardware))
+        return F.mse_loss(model_output.to(self.hardware), ideal_output.to(self.hardware))
     
     def classifier_loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
@@ -78,13 +78,16 @@ class SplitClassifier(nn.Module):
         
         batch_of_classifications = self.classifier.forward(latent_space)
         classifier_loss          = self.classifier_loss_function(batch_of_classifications, batch_of_ideal_outputs)
-        classifier_loss.backward(retain_graph=True)
         record["classifier_loss"] = classifier_loss.item()
         
         image_representation = self.decoder.forward(latent_space)
         autoencoder_loss     = self.decoder_loss_function(image_representation, batch_of_inputs)
-        autoencoder_loss.backward()
         record["autoencoder_loss"] = autoencoder_loss.item()
+        
+        # combine loss
+        record["loss"] = classifier_loss * autoencoder_loss
+        record["loss"].backward()
+        
         if hasattr(self, "correctness_function") and callable(self.correctness_function):
             record["correct"]  = self.correctness_function(batch_of_classifications, batch_of_ideal_outputs)
             record["total"]    = len(batch_of_classifications)
@@ -92,7 +95,7 @@ class SplitClassifier(nn.Module):
         
         self.training_record.commit_record()    
         self.optimizer.step()
-        return classifier_loss
+        return record["loss"]
     
     def fit(self, *, input_output_pairs=None, dataset=None, loader=None, max_epochs=1, batch_size=64, shuffle=True, **kwargs):
         return Network.default_fit(self, input_output_pairs=input_output_pairs, dataset=dataset, loader=loader, max_epochs=max_epochs, batch_size=batch_size, shuffle=shuffle, **kwargs)

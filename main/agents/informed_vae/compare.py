@@ -4,7 +4,6 @@ from torchvision import datasets, transforms
 from tools.basics import product
 from tools.pytorch_tools import Network
 from tools.record_keeper import RecordKeeper
-import silver_spectacle as ss
 
 from tools.all_tools import *
 from tools.basics import *
@@ -19,18 +18,18 @@ from agents.informed_vae.classifier_output import ClassifierOutput
 #%%
 
 # allow quick caching
-binary_mnist = cache(no_pickle=True)(binary_mnist)
-quick_loader = cache(no_pickle=True)(quick_loader)
+# binary_mnist = cache(no_pickle=True)(binary_mnist)
+# quick_loader = cache(no_pickle=True)(quick_loader)
 
 # setup the experiment
-collection = ExperimentCollection("vae_comparison")
-number_of_runs_for_redundancy = 5
+collection = ExperimentCollection(FS.local_path("vae_comparison"))
+number_of_runs_for_redundancy = 2
 for each_greater_iteration in range(number_of_runs_for_redundancy):
     # new_experiment auto-increments the experiment number within a collection
     with collection.new_experiment(
             test="binary_mnist",
             seed=now(), # randomize each run
-            binary_class_order=list(range(1)), # fixed order, but has been randomized in the past
+            binary_class_order=list(range(2)), # fixed order, but has been randomized in the past
             train_test_ratio=[5, 1],
         ) as record_keeper:
         
@@ -40,12 +39,14 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
         # 
         # transfer learning iterations
         # 
-        placeholder = record_keeper.sub_record_keeper()
-        split  = SplitClassifier (record_keeper=placeholder)
-        simple = SimpleClassifier(record_keeper=placeholder)
+        old_iteration_record_keeper = record_keeper.sub_record_keeper()
+        split  = SplitClassifier (record_keeper=old_iteration_record_keeper)
+        simple = SimpleClassifier(record_keeper=old_iteration_record_keeper)
         for index, each_number in enumerate(record_keeper.binary_class_order):
             
             # load dataset
+            print(f"\niteration: {each_greater_iteration}, transfer_index: {index}")
+            print('record_keeper["experiment_number"] = ', record_keeper["experiment_number"])
             print("\nloading dataset")
             train_dataset, test_dataset, train_loader, test_loader = quick_loader(binary_mnist([each_number]), record_keeper.train_test_ratio)
             print("loaded")
@@ -58,8 +59,17 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
             
             # connect record keepers to models
             fresh = SimpleClassifier(record_keeper=iteration_record_keeper, fresh=True)
-            split.record_keeper.parent.parent  = iteration_record_keeper # model.record_keeper.parent        has the model parameters/hyper-parameters
-            simple.record_keeper.parent.parent = iteration_record_keeper # model.record_keeper.parent.parent is the placeholder we set above, or a previous iteration_record_keeper
+            # model.record_keeper.parent.info ->            has the model parameters/hyper-parameters
+            # model.record_keeper.parent.parent.info ->     has the mdoel name
+            # model.record_keeper.parent.parent.parent is the placeholder (and/or previous iterator)
+            split.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
+            # simple.record_keeper.parent.parent = iteration_record_keeper
+            debug.iteration_record_keeper = iteration_record_keeper
+            debug.split = split.record_keeper
+            # debug.simple = simple.record_keeper
+            # debug.fresh = fresh.record_keeper
+            raise Exception('')
+            old_iteration_record_keeper = iteration_record_keeper
             
             # 
             # train & test

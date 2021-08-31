@@ -244,6 +244,7 @@ def Network():
             LightningModule = None
             Trainer = None
         
+        self.setup_config    = config
         self.seed            = config.get("seed"           , default_seed)
         self.suppress_output = config.get("suppress_output", False)
         self.log_interval    = config.get("log_interval"   , 10)
@@ -263,7 +264,10 @@ def Network():
                 },
                 **kwargs,
             })
-            
+    
+    def default_update_record_keepers(self):
+        self.setup_config
+    
     def default_update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         """
         Uses:
