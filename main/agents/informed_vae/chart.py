@@ -2,7 +2,7 @@ import silver_spectacle as ss
 from tools.all_tools import *
 from tools.record_keeper import ExperimentCollection
 from tools.liquid_data import LiquidData
-from super_map import LazyDict
+from super_map import LazyDict, Map
 from statistics import mean as average
 
 collection = ExperimentCollection(FS.local_path("vae_comparison"))
@@ -57,7 +57,8 @@ data = LiquidData(collection.records).only_keep_if(lambda each:
         # no training (or other) values
         and each["testing"]
         # only for binary_mnist
-        and each["test"] == "binary_mnist"
+        and each["test"] == "binary_mnist_not_normalized"
+        # and each["test"] == "binary_mnist"
         # make sure binary_class_order didnt change
         #and each["binary_class_order"] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         # make sure decoder importance didnt change
@@ -140,8 +141,13 @@ def agg2(each):
 chart_data = chart_data.map(agg2)
 # convert for the chart
 # for every model, add a label, a color, and extract out a list of x/y values
+stats = LazyDict()
+stats.min = math.inf
+stats.max = -math.inf
 def agg3(each):
     try:
+        stats.min = min(stats.min, *each["correct"])
+        stats.max = max(stats.max, *each["correct"])
         return {
             "label": each["model"],
             "backgroundColor": model_color_map[each["model"]],
@@ -155,7 +161,12 @@ def agg3(each):
         raise error1
 
 chart_data = chart_data.map(agg3)
+chart_data.compute() # LiquidData is lazy unless we tell it to evaluate itself
 datasets = chart_data.bundles[0]
+
+stats.range = stats.max - stats.min
+stats.padding_portion = 7 
+stats.padding = stats.range * (stats.padding_portion/100)
 
 # 
 # show the data
@@ -166,23 +177,24 @@ ss.DisplayCard("chartjs", {
         "pointRadius": 3,
         "scales": {
             "y": {
-                "min": 9500,
-                "max": 10000
+                "min": round(stats.min - stats.padding, ndigits=0),
+                "max": round(stats.max + stats.padding, ndigits=0),
             }
         },
         "layout": {
-            "padding": {
-                "top": 50
-            },
+            # "padding": {
+            #     "top": 50
+            # },
         },
         "plugins": {
-            # "legend" : {
-            #     "title": {
-            #         "display": True,
-            #         "padding": 15,
-            #         "text": ""
-            #     }
-            # }
+            "legend" : {
+                "maxWidth": 600,
+                # "title": {
+                #     "display": True,
+                #     "padding": 15,
+                #     "text": ""
+                # }
+            }
         }
     },
     "data": {

@@ -168,6 +168,12 @@ class LiquidData():
                 for each_bundle in self.group_levels[-2]
         )
     
+    def compute(self,):
+        for each in self.bundles:
+            # forces all elments to be computed
+            len(each)
+        return self
+    
     def __iter__(self):
         return (each for each in self.bundles)
     
