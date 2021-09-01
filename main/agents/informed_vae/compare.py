@@ -36,7 +36,7 @@ number_of_runs_for_redundancy = 5
 for each_greater_iteration in range(number_of_runs_for_redundancy):
     # new_experiment auto-increments the experiment number within a collection
     with collection.new_experiment(
-            test="binary_mnist",
+            test="binary_mnist_not_normalized",
             seed=now(), # randomize each run
             binary_class_order=list(range(10)), # fixed order, but has been randomized in the past
             train_test_ratio=[5, 1],

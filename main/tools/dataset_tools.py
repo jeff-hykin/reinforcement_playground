@@ -189,7 +189,7 @@ def quick_mnist(cache=False):
         transform=torchvision.transforms.Compose(
             [
                 torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((mean,), (std_deviation,)),
+                # torchvision.transforms.Normalize((mean,), (std_deviation,)),
             ]
         )
     )
@@ -199,8 +199,10 @@ def quick_mnist(cache=False):
         length=len(original_mnist),
         attributes=dict(
             number_of_classes=10,
-            normalizer=torchvision.transforms.Normalize((mean,), (std_deviation,)),
-            unnormalizer=lambda image: unnormalize(mean, std_deviation, image),
+            # normalizer=torchvision.transforms.Normalize((mean,), (std_deviation,)),
+            # unnormalizer=lambda image: unnormalize(mean, std_deviation, image),
+            normalizer=lambda each: each,
+            unnormalizer=lambda each: each,
         ),
         use_cache=cache,
         getters=dict(
