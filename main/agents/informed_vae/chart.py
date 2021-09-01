@@ -110,11 +110,11 @@ averaged.bundles[0][0]
 # convert to chart-friendly format
 # 
 model_color_map = {
-    "SplitClassifier": 'rgb(0, 92, 192, 0.9)',
-    "SplitRootClassifier": 'rgb(0, 92, 192, 0.9)',
-    "SplitImportanceClassifier": 'rgb(100, 92, 192, 0.9)',
-    "SimpleClassifier": "rgb(75, 192, 192, 0.9)",
     "FreshClassifier": "rgb(0, 292, 192, 0.9)",
+    "SimpleClassifier": "rgb(75, 192, 192, 0.9)",
+    "SplitImportanceClassifier": 'rgb(100, 92, 192, 0.9)',
+    "SplitClassifier": 'rgb(0, 92, 192, 0.9)',
+    "SplitRootClassifier": 'rgb(200, 92, 192, 0.9)',
 }
 
 chart_data = averaged.aggregate()
@@ -169,6 +169,20 @@ ss.DisplayCard("chartjs", {
                 "min": 9500,
                 "max": 10000
             }
+        },
+        "layout": {
+            "padding": {
+                "top": 50
+            },
+        },
+        "plugins": {
+            # "legend" : {
+            #     "title": {
+            #         "display": True,
+            #         "padding": 15,
+            #         "text": ""
+            #     }
+            # }
         }
     },
     "data": {

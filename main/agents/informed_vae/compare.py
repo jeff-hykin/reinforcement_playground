@@ -23,6 +23,13 @@ from agents.informed_vae.classifier_output import ClassifierOutput
 # binary_mnist = cache(no_pickle=True)(binary_mnist)
 # quick_loader = cache(no_pickle=True)(quick_loader)
 
+transfer_networks = [
+    SimpleClassifier,
+    SplitImportanceClassifier,
+    SplitRootClassifier,
+    SplitClassifier,
+]
+
 # setup the experiment
 collection = ExperimentCollection(FS.local_path("vae_comparison"))
 number_of_runs_for_redundancy = 5
@@ -42,9 +49,7 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
         # transfer learning iterations
         # 
         old_iteration_record_keeper = record_keeper.sub_record_keeper() # placeholder
-        # split      = SplitClassifier(     record_keeper=old_iteration_record_keeper)
-        split_root = SplitRootClassifier( record_keeper=old_iteration_record_keeper)
-        # simple     = SimpleClassifier(    record_keeper=old_iteration_record_keeper)
+        transfer_models = [ EachNetwork(record_keeper=old_iteration_record_keeper) for EachNetwork in transfer_networks ]
         for index, each_number in enumerate(record_keeper.binary_class_order):
             
             # load dataset
@@ -61,22 +66,16 @@ for each_greater_iteration in range(number_of_runs_for_redundancy):
             )
             
             # connect record keepers to models
-            # fresh = SimpleClassifier(record_keeper=iteration_record_keeper, fresh=True)
-            # split.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
-            split_root.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
-            # simple.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
+            fresh = SimpleClassifier(record_keeper=iteration_record_keeper, fresh=True)
+            for each_model in transfer_models:
+                each_model.record_keeper.swap_out(old_iteration_record_keeper, iteration_record_keeper)
+            # keep track of the old record keeper
             old_iteration_record_keeper = iteration_record_keeper
             
             # 
             # train & test
             # 
-            models = [
-                # split,
-                split_root,
-                # simple,
-                # fresh
-            ]
-            for model in models:
+            for model in [fresh] + transfer_models:
                 # each model has a classifier layer, this resets it
                 model.classifier = ClassifierOutput(input_shape=(30,), output_shape=(2,))
                 # training (data sent to record keeper)
