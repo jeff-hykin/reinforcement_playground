@@ -111,6 +111,8 @@ averaged.bundles[0][0]
 # 
 model_color_map = {
     "SplitClassifier": 'rgb(0, 92, 192, 0.9)',
+    "SplitRootClassifier": 'rgb(0, 92, 192, 0.9)',
+    "SplitImportanceClassifier": 'rgb(100, 92, 192, 0.9)',
     "SimpleClassifier": "rgb(75, 192, 192, 0.9)",
     "FreshClassifier": "rgb(0, 292, 192, 0.9)",
 }
