@@ -2,7 +2,7 @@
     # 
     # if projectr isnt defined, then find it
     # 
-    if [ -z "$PROJECTR_FOLDER" ]
+    if [ -z "$FORNIX_FOLDER" ]
     then
         path_to_file=""
         file_name="settings/projectr_core"
@@ -60,5 +60,5 @@
     #
     # run the command, inside nix-shell, inside zsh
     #
-    HOME="$PROJECTR_HOME" nix-shell --pure --run "zsh -c $zsh_arg" "$PROJECTR_FOLDER/settings/requirements/shell.nix"
+    HOME="$FORNIX_HOME" nix-shell --pure --run "zsh -c $zsh_arg" "$FORNIX_FOLDER/settings/requirements/shell.nix"
 

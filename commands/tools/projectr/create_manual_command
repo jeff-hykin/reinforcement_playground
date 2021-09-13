@@ -3,7 +3,7 @@
 # 
 # find projectr if needed
 # 
-if ! [ -d "$PROJECTR_FOLDER" ]
+if ! [ -d "$FORNIX_FOLDER" ]
 then
     path_to_file=""
     file_name="settings/projectr_core"
@@ -36,13 +36,13 @@ then
         echo "thats all the information I have"
         exit
     fi
-    export PROJECTR_FOLDER="$(dirname "$(dirname "$path_to_file")")"
+    export FORNIX_FOLDER="$(dirname "$(dirname "$path_to_file")")"
 fi
 
 # 
 # ensure folder exists
 # 
-mkdir -p "$PROJECTR_FOLDER/wrapped_commands"
+mkdir -p "$FORNIX_FOLDER/wrapped_commands"
 
 # 
 # start creating the command
@@ -54,7 +54,7 @@ read -r -d '' __temp_var__part1 <<'HEREDOC_NAME'
     # 
     # if projectr isnt defined, then find it
     # 
-    if [ -z "$PROJECTR_FOLDER" ]
+    if [ -z "$FORNIX_FOLDER" ]
     then
         path_to_file=""
         file_name="settings/projectr_core"
@@ -118,24 +118,24 @@ read -r -d '' __temp_var__part3 <<'HEREDOC_NAME'
     #
     # run the command, inside nix-shell, inside zsh
     #
-    HOME="$PROJECTR_HOME" nix-shell --pure --run "zsh -c $zsh_arg" "$PROJECTR_FOLDER/settings/requirements/shell.nix"
+    HOME="$FORNIX_HOME" nix-shell --pure --run "zsh -c $zsh_arg" "$FORNIX_FOLDER/settings/requirements/shell.nix"
 HEREDOC_NAME
 
 # 
 # create the command
 # 
-mkdir -p "$PROJECTR_FOLDER/wrapped_commands"
+mkdir -p "$FORNIX_FOLDER/wrapped_commands"
 echo "#!/usr/bin/env bash
     $__temp_var__part1
     $__temp_var__part2
     $__temp_var__part3
-" > "$PROJECTR_FOLDER/wrapped_commands/$name_of_executable"
+" > "$FORNIX_FOLDER/wrapped_commands/$name_of_executable"
 # make it executable
-chmod ugo+x "$PROJECTR_FOLDER/wrapped_commands/$name_of_executable" &>/dev/null || sudo chmod ugo+x "$PROJECTR_FOLDER/wrapped_commands/$name_of_executable"
+chmod ugo+x "$FORNIX_FOLDER/wrapped_commands/$name_of_executable" &>/dev/null || sudo chmod ugo+x "$FORNIX_FOLDER/wrapped_commands/$name_of_executable"
 
 echo "command created: ./wrapped_commands/$name_of_executable"
 echo "make sure to run the following at least once:"
-__projectr_folder_escaped="$(printf '%s' "'$(printf '%s' "$PROJECTR_FOLDER" | sed 's/'"'"'/'"'"'"'"'"'"'"'"'/')'")"
+__projectr_folder_escaped="$(printf '%s' "'$(printf '%s' "$FORNIX_FOLDER" | sed 's/'"'"'/'"'"'"'"'"'"'"'"'/')'")"
 echo "    export PATH=$__projectr_folder_escaped\"/wrapped_commands:\$PATH\""
 
 unset __temp_var__part1

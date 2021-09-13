@@ -1,1 +1,0 @@
-python -m atari_py.import_roms "$PROJECTR_FOLDER/resources/videogame_roms/basic_roms" 1>/dev/null

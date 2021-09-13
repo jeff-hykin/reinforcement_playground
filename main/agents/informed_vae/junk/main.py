@@ -16,7 +16,7 @@ torch.manual_seed(random_seed)
 
 import os
 
-temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
+temp_folder_path = f"{os.environ.get('FORNIX_FOLDER')}/settings/.cache/"
 train_loader = torch.utils.data.DataLoader(
     torchvision.datasets.MNIST(
         f"{temp_folder_path}/files/",

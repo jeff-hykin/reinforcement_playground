@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+realpath "$*" --relative-to="$FORNIX_FOLDER" --canonicalize-missing --no-symlinks

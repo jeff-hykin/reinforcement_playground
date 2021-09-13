@@ -332,8 +332,8 @@ def attempt(a_lambda, default=None, expected_errors=(Exception,)):
 
 
 here = "os.path.dirname(__file__)"
-if os.environ.get('PROJECTR_FOLDER', None):
-    temp_folder = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/"
+if os.environ.get('FORNIX_FOLDER', None):
+    temp_folder = f"{os.environ.get('FORNIX_FOLDER')}/settings/.cache/"
 else:
     temp_folder = f"/tmp/"
 #%%

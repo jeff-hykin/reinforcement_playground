@@ -660,7 +660,7 @@ if True:
     import gdown
     import os
     import torch
-    temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/common_format_datasets"
+    temp_folder_path = f"{os.environ.get('FORNIX_FOLDER')}/settings/.cache/common_format_datasets"
 
     class SimpleDataset(torch.utils.data.Dataset):
         """

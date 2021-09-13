@@ -2,7 +2,7 @@ import os
 import torch
 
 import gdown
-temp_folder_path = f"{os.environ.get('PROJECTR_FOLDER')}/settings/.cache/common_format_datasets"
+temp_folder_path = f"{os.environ.get('FORNIX_FOLDER')}/settings/.cache/common_format_datasets"
 
 class BaseDataset(torch.utils.data.Dataset):
     """
