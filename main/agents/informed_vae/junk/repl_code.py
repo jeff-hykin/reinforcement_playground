@@ -648,8 +648,8 @@ if True:
         import os
         
         _image_log_count += 1
-        os.makedirs("./logs.dont-sync", exist_ok=True)
-        image_path = f"./logs.dont-sync/display_{_image_log_count}.png"
+        os.makedirs("./logs.do_not_sync", exist_ok=True)
+        image_path = f"./logs.do_not_sync/display_{_image_log_count}.png"
         F.to_pil_image(image_tensor).save(image_path)
         print("image logged: "+image_path)
 

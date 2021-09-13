@@ -3,7 +3,7 @@ from peewee import SqliteDatabase, Model, AutoField, BigAutoField, BooleanField,
 
 
 
-db = SqliteDatabase(name+'.dont-sync.db')
+db = SqliteDatabase(name+'.do_not_sync.db')
 class BaseModel(Model):
     class Meta:
         database = db
