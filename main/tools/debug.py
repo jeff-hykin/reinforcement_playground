@@ -62,17 +62,6 @@ class Formatter(object):
 
 pretty = Formatter()
 
-# 
-# yapf pretty_print
-# 
-# def pretty_print(each):
-#     import builtins
-#     builtins.print('each = ', each)
-#     the_pformat = pformat(each)
-#     builtins.print('the_pformat = ', the_pformat)
-#     formatted_code, _ = FormatCode(the_pformat)
-#     builtins.print('formatted_code = ', formatted_code)
-#     return formatted_code
 
 ic.configureOutput(argToStringFunction=pretty)
 

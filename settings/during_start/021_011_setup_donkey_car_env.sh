@@ -1,1 +1,0 @@
-../extensions/donkey_car_env.ignore/during_start.sh

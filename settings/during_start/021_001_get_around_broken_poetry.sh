@@ -1,0 +1,1 @@
+python -m pip --disable-pip-version-check install "optuna>=2.9.1"
