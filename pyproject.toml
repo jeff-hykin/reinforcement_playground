@@ -36,6 +36,7 @@ super-hash = "1.0.5"
 icecream = "^2.1.1"
 yapf = "^0.31.0"
 # gym-donkeycar = { git = "https://github.com/tawnkramer/gym-donkeycar", tag = "v21.07.24" }
+# carla = { git = "https://github.com/carla-simulator/carla", tag = "0.9.12" }
 
 [tool.poetry.dev-dependencies]
 
