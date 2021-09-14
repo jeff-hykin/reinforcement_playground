@@ -4,5 +4,5 @@ if [ "$OSTYPE" = "linux-gnu" ]
 then
     python -m pip --disable-pip-version-check install "carla-client-unofficial>=0.9.11"
 else
-    python -m pip --disable-pip-version-check install "carla>=0.9.12"
+    # there is no carla for mac :/ I'd have to automate building from source
 fi
