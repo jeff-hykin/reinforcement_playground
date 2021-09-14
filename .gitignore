@@ -3,6 +3,7 @@
 # 
 lightning_logs/*
 **/events.out.tfevents*
+settings/extensions/git/git_subrepo/
 
 # 
 # standard
