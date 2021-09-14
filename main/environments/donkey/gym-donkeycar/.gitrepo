@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/tawnkramer/gym-donkeycar
+	branch = master
+	commit = cc723d19491b14b3ce9e9614d693ff7fdacca8c9
+	parent = 9bb81bcf6e971abe1d72cf2d28072e410fdf7226
+	method = merge
+	cmdver = 0.4.3
