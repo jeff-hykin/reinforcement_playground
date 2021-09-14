@@ -23,7 +23,6 @@ scikit-video = "^1.1.11"
 matplotlib = "^3.4.2"
 gdown = "^3.13.0"
 torchsampler = { git = "https://github.com/jeff-hykin/imbalanced-dataset-sampler", tag = "1.0.0" }
-donkeycar = { git = "git+https://github.com/tawnkramer/gym-donkeycar", tag = "v21.07.24" }
 Flask = "^2.0.1"
 optuna = "^2.8.0"
 silver-spectacle = "0.2.1"
@@ -36,6 +35,7 @@ super-map = "1.1.1"
 super-hash = "1.0.5"
 icecream = "^2.1.1"
 yapf = "^0.31.0"
+# gym-donkeycar = { git = "https://github.com/tawnkramer/gym-donkeycar", tag = "v21.07.24" }
 
 [tool.poetry.dev-dependencies]
 
