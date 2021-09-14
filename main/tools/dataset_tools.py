@@ -221,7 +221,12 @@ def quick_loader(dataset, split, train_batch_size=64, test_batch_size=1000):
     # overwrite the output to be binary classification
     train_dataset, test_dataset = dataset.split(split)
     import os
-    number_of_cores_available = len(os.sched_getaffinity(0))
+    number_of_cores_available = 1
+    try:
+        # only works on some linux systems
+        number_of_cores_available = len(os.sched_getaffinity(0))
+    except Exception as error:
+        number_of_cores_available = os.cpu_count()
 
     # 
     # create the loaders

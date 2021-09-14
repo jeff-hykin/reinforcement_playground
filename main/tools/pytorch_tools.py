@@ -258,10 +258,10 @@ def Network():
             self._is_lightning_module = True
             self.new_trainer = lambda *args, **kwargs: Trainer(*args, **{
                 # default values
-                **{
+                **({
                     "gpus": torch.cuda.device_count(),
                     "auto_select_gpus": True,
-                },
+                } if torch.cuda.device_count() > 0 else {}),
                 **kwargs,
             })
     
