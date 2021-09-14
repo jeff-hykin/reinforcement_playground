@@ -3,6 +3,7 @@
 # 
 lightning_logs/*
 **/events.out.tfevents*
+settings/extensions/donkey_car_env
 
 # 
 # standard
