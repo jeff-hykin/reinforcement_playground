@@ -10,7 +10,7 @@ from tools.file_system_tools import FS
 # 
 # setup the server
 # 
-class Environment(gym.Env, utils.EzPickle):
+class Environment(gym.Env):
     """
     Environment(
         map="donkey-generated-track-v0",
@@ -33,9 +33,9 @@ class Environment(gym.Env, utils.EzPickle):
         from sys import platform
         exe_path = None
         if platform == "linux":
-            exe_path = FS.local_path("donkey_sim.do_not_sync/DonkeySimLinux/donkey_sim.x86_64")
+            exe_path = FS.local_path("servers/DonkeySimLinux/donkey_sim.x86_64")
         elif platform == "darwin":
-            exe_path = FS.local_path("donkey_sim.do_not_sync/DonkeySimMac/donkey_sim.app/Contents/MacOS/donkey_sim")
+            exe_path = FS.local_path("servers/DonkeySimMac/donkey_sim.app/Contents/MacOS/donkey_sim")
         # download if needed
         if not os.path.isfile(exe_path):
             # download the server and overwrite whatever corrupted files existed
