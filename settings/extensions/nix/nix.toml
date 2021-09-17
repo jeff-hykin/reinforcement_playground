@@ -40,6 +40,16 @@
 # [[ you can add tools for your project right here or at the bottom ]]
 
 
+# [[packages]]
+# load = [ "nvidia-docker",]
+# from = "860b56be91fb874d48e23a950815969a7b832fbc"
+
+# [[packages]]
+# load = [ "docker",]
+
+[[packages]]
+load = [ "curl",]
+
 [[packages]]
 load = [ "poetry",]
 from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
@@ -184,6 +194,12 @@ load = [ "less",]
 
 [[packages]]
 load = [ "nano",]
+
+[[packages]]
+load = [ "unzip",]
+
+[[packages]]
+load = [ "zip",]
 
 [[packages]]
 load = [ "findutils",]
