@@ -74,6 +74,7 @@ from = { fetchGit = { url = "https://github.com/guibou/nixGL", rev = "7d6bc1b213
 # 
 # opencv
 # 
+
 [[packages]]
 onlyIf = [ [ "stdenv", "isLinux",],]
 load = [ "opencv4",]
@@ -203,6 +204,9 @@ load = [ "zip",]
 
 [[packages]]
 load = [ "findutils",]
+
+[[packages]]
+load = [ "curl",]
 
 [[packages]]
 load = [ "unixtools", "arp",]

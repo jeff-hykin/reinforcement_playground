@@ -1,61 +1,17 @@
 #!/usr/bin/env bash
 
-# 
-# this is just a helper (common to most all extensions)
-# 
-relative_link__file_to__() {
-    existing_filepath="$1"
-    target_filepath="$2"
-    
-    # 
-    # make existing_filepath absolute
-    # 
-    case "$existing_filepath" in
-        # if absolute
-        /*) : ;;
-        # if relative
-        *) existing_filepath="$FORNIX_FOLDER/$existing_filepath" ;;
-    esac
-    
-    # 
-    # make target_filepath absolute
-    # 
-    case "$target_filepath" in
-        # if absolute
-        /*) : ;;
-        # if relative
-        *) target_filepath="$FORNIX_FOLDER/$target_filepath" ;;
-    esac
-    
-    # remove existing things in the way
-    rm -f "$target_filepath" 2>/dev/null
-    rm -rf "$target_filepath" 2>/dev/null
-    # make sure parent folder exists
-    mkdir -p "$(dirname "$target_filepath")"
-    __temp_var__relative_part="$(realpath "$(dirname "$existing_filepath")" --relative-to="$(dirname "$target_filepath")" --canonicalize-missing)"
-    __temp_var__relative_path="$__temp_var__relative_part/$(basename "$existing_filepath")"
-    # link using the relative path
-    if [ -d "$existing_filepath" ]
-    then
-        ln -s "$__temp_var__relative_path/" "$target_filepath"
-    else
-        ln -s "$__temp_var__relative_path" "$target_filepath"
-    fi
-    unset __temp_var__relative_path
-    unset __temp_var__relative_part
-    unset existing_filepath
-    unset target_filepath
-}
+# this is a helper
+relatively_link="$FORNIX_FOLDER/settings/extensions/#standard/commands/tools/file_system/relative_link"
 
 # 
 # connect during_clean
 # 
-relative_link__file_to__ "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/during_clean.sh" "$FORNIX_FOLDER/settings/during_clean/500_git.sh"
+"$relatively_link" "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/during_clean.sh" "$FORNIX_FOLDER/settings/during_clean/500_git.sh"
 
 # 
 # connect during_start_prep
 # 
-relative_link__file_to__ "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/during_start_prep.sh" "$FORNIX_FOLDER/settings/during_start_prep/051_000_copy_git_config.sh"
+"$relatively_link" "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/during_start_prep.sh" "$FORNIX_FOLDER/settings/during_start_prep/051_000_copy_git_config.sh"
 
 # 
 # connect during_start
@@ -65,7 +21,7 @@ relative_link__file_to__ "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/during_start.sh"
 # 
 # connect commands
 # 
-relative_link__file_to__ "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/commands" "$FORNIX_COMMANDS_FOLDER/tools/git"
+"$relatively_link" "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/commands" "$FORNIX_COMMANDS_FOLDER/tools/git"
 
 # 
 # config
@@ -169,11 +125,18 @@ then
             for_each_item_in="$FORNIX_HOME/.cache/git_alternate_object_directories"; [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap 'rm -rf "$__temp_var__temp_folder"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; (cd "$for_each_item_in" && find "." -maxdepth 1 ! -path "." -print0 2>/dev/null | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'\0' each
             do
                 each="$for_each_item_in/$each"
-                if [ -z "$GIT_ALTERNATE_OBJECT_DIRECTORIES" ]
+                each_dir="$(cat "$each")"
+                # delete any invalid entries (happens when repos get moved or deleted)
+                if ! [ -d "$each_dir" ]
                 then
-                    GIT_ALTERNATE_OBJECT_DIRECTORIES="$(cat "$each")"
+                    rm -f "$each" 2>/dev/null
                 else
-                    GIT_ALTERNATE_OBJECT_DIRECTORIES="$GIT_ALTERNATE_OBJECT_DIRECTORIES:$(cat "$each")"
+                    if [ -z "$GIT_ALTERNATE_OBJECT_DIRECTORIES" ]
+                    then
+                        GIT_ALTERNATE_OBJECT_DIRECTORIES="$each_dir"
+                    else
+                        GIT_ALTERNATE_OBJECT_DIRECTORIES="$GIT_ALTERNATE_OBJECT_DIRECTORIES:$each_dir"
+                    fi
                 fi
             done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"
         fi
@@ -181,3 +144,5 @@ then
     # export it
     export GIT_ALTERNATE_OBJECT_DIRECTORIES="$GIT_ALTERNATE_OBJECT_DIRECTORIES"
 fi
+
+unset relatively_link
