@@ -16,7 +16,7 @@ relatively_link="$FORNIX_FOLDER/settings/extensions/#standard/commands/tools/fil
 # 
 # connect during_start
 # 
-relative_link__file_to__ "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/during_start.sh" "$FORNIX_FOLDER/settings/during_start/051_000_git_setup_subrepo_tool.sh"
+"$relatively_link" "$__THIS_FORNIX_EXTENSION_FOLDERPATH__/during_start.sh" "$FORNIX_FOLDER/settings/during_start/051_000_git_setup_subrepo_tool.sh"
 
 # 
 # connect commands
