@@ -36,14 +36,14 @@ class Agent:
             self.show('cuda doesnt seem to be available')
     
     # this may not be used
-    def decide(observation, reward, is_last_timestep):
+    def decide(self, observation, reward, is_last_timestep):
         """
         returns the action
         """
         return self.model.eval(observation)
     
     
-    def on_episode_start(self):
+    def on_episode_start(self, initial_observation, episode_index):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints

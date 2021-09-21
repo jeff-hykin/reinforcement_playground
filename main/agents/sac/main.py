@@ -7,6 +7,7 @@ from torch.distributions import Normal
 import numpy as np
 import collections, random
 from super_map import LazyDict
+from tools.pytorch_tools import to_tensor
 
 class ReplayBuffer():
     def __init__(self, buffer_limit):
@@ -193,8 +194,7 @@ class Agent:
         # I'm not sure why this is a list or why its multiplying the action by two
         return [2.0*self.previous_action]
     
-    
-    def on_episode_start(self):
+    def on_episode_start(self, initial_observation, episode_index):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints
@@ -230,7 +230,7 @@ def main():
         observation = env.reset()
         reward = None
         done = False
-        mr_bond.on_episode_start()
+        mr_bond.on_episode_start(observation, n_epi)
         while not done:
             action = mr_bond.decide(observation, reward, done)
             observation, reward, done, info = env.step(action)

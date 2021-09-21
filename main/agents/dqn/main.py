@@ -45,7 +45,7 @@ class DQN:
         
         self.vae = Vae(action_space=self.action_space)
     
-    def on_episode_start(self):
+    def on_episode_start(self, initial_observation, episode_index):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints
@@ -65,7 +65,7 @@ class DQN:
         
         self.current_time = -1
     
-    def decide(observation, reward, is_last_timestep):
+    def decide(self, observation, reward, is_last_timestep):
         """
         returns an action
         """

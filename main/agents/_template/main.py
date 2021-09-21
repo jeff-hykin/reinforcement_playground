@@ -17,14 +17,14 @@ class Agent:
         self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
     
-    def on_episode_start(self, initial_observation):
+    def on_episode_start(self, initial_observation, episode_index):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints
         """
         return
         
-    def decide(observation, reward, is_last_timestep):
+    def decide(self, observation, reward, is_last_timestep):
         """
         returns an action from the action space
         """
