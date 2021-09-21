@@ -3,6 +3,7 @@
 # 
 lightning_logs/*
 **/events.out.tfevents*
+**/unitylog.txt
 
 # 
 # standard
