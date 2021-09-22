@@ -45,7 +45,7 @@ class DQN:
         
         self.vae = Vae(action_space=self.action_space)
     
-    def on_episode_start(self, initial_observation, episode_index):
+    def when_episode_starts(self, initial_observation, episode_index):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints
@@ -65,15 +65,14 @@ class DQN:
         
         self.current_time = -1
     
-    def decide(self, observation, reward, is_last_timestep):
+    def when_action_needed(self, observation, reward):
         """
         returns an action
         """
         # compress the raw observation by running it through an autoencoder
-        observation = self.vae.decide(
+        observation = self.vae.when_action_needed(
             (observation, self._decision_gradient(observation)), # how much does each input affect the decision at the moment
             reward,
-            is_last_timestep
         )
         #
         # record outcome of previous action
@@ -164,7 +163,7 @@ class DQN:
         
         return self.action_taken_at[self.current_time]
         
-    def on_clean_up(self):
+    def when_should_clean(self):
         """
         only called once, and should save checkpoints and cleanup any logging info
         """

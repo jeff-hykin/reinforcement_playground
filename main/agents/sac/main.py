@@ -21,11 +21,11 @@ class ReplayBuffer():
         s_lst, a_lst, r_lst, s_prime_lst, done_mask_lst = [], [], [], [], []
 
         for transition in mini_batch:
-            s, action, reward, s_prime, done = transition
-            s_lst.append(s)
+            observation, action, reward, next_observation, done = transition
+            s_lst.append(observation)
             a_lst.append([action])
             r_lst.append([reward])
-            s_prime_lst.append(s_prime)
+            s_prime_lst.append(next_observation)
             done_mask = 0.0 if done else 1.0 
             done_mask_lst.append([done_mask])
         
@@ -66,11 +66,11 @@ class PolicyNet(nn.Module):
         return real_action, real_log_prob
 
     def train_net(self, q1, q2, mini_batch):
-        s, _, _, _, _ = mini_batch
-        action, log_prob = self.forward(s)
+        observation, _, _, _, _ = mini_batch
+        action, log_prob = self.forward(observation)
         entropy = -self.log_alpha.exp() * log_prob
 
-        q1_val, q2_val = q1(s,action), q2(s,action)
+        q1_val, q2_val = q1(observation,action), q2(observation,action)
         q1_q2 = torch.cat([q1_val, q2_val], dim=1)
         min_q = torch.min(q1_q2, 1, keepdim=True)[0]
 
@@ -106,8 +106,8 @@ class QNet(nn.Module):
         return q
 
     def train_net(self, target, mini_batch):
-        s, action, reward, s_prime, done = mini_batch
-        loss = F.smooth_l1_loss(self.forward(s, action) , target)
+        observation, action, reward, next_observation, done = mini_batch
+        loss = F.smooth_l1_loss(self.forward(observation, action) , target)
         self.optimizer.zero_grad()
         loss.mean().backward()
         self.optimizer.step()
@@ -116,13 +116,13 @@ class QNet(nn.Module):
         for param_target, param in zip(net_target.parameters(), self.parameters()):
             param_target.data.copy_(param_target.data * (1.0 - self.hyperparameters.tau) + param.data * self.hyperparameters.tau)
 
-def calc_target(pi, q1, q2, mini_batch, discount_rate):
-    s, action, reward, s_prime, done = mini_batch
+def calc_target(policy_network, q1, q2, mini_batch, discount_rate):
+    observation, action, reward, next_observation, done = mini_batch
 
     with torch.no_grad():
-        a_prime, log_prob= pi(s_prime)
-        entropy = -pi.log_alpha.exp() * log_prob
-        q1_val, q2_val = q1(s_prime,a_prime), q2(s_prime,a_prime)
+        next_action, log_prob= policy_network(next_observation)
+        entropy = -policy_network.log_alpha.exp() * log_prob
+        q1_val, q2_val = q1(next_observation,next_action), q2(next_observation,next_action)
         q1_q2 = torch.cat([q1_val, q2_val], dim=1)
         min_q = torch.min(q1_q2, 1, keepdim=True)[0]
         target = reward + discount_rate * done * (min_q + entropy)
@@ -149,15 +149,17 @@ class Agent:
         self.print_interval = self.config.get("print_interval", 20)
         self.hyperparameters = LazyDict(
             # default values overridden by args
-            policy_learning_rate  = 0.0005,
-            critic_learning_rate  = 0.001,
-            alt_net_init          = 0.01,
-            alt_net_learning_rate = 0.001,  # for automated alpha update
-            discount_rate         = 0.98,
-            batch_size            = 32,
-            buffer_limit          = 50000,
-            tau                   = 0.01, # for target network soft update
-            target_entropy        = -1.0, # for automated alpha update
+            policy_learning_rate          = 0.0005,
+            critic_learning_rate          = 0.001,
+            alt_net_init                  = 0.01,
+            alt_net_learning_rate         = 0.001,  # for automated alpha update
+            discount_rate                 = 0.98,
+            batch_size                    = 32,
+            buffer_limit                  = 50000,
+            tau                           = 0.01, # for target network soft update
+            target_entropy                = -1.0, # for automated alpha update
+            minimum_traning_size          = 1000,
+            minibatch_training_iterations = 20,
         ).merge(hyperparameters or {})
         
         self.memory = ReplayBuffer(buffer_limit=self.hyperparameters.buffer_limit)
@@ -175,16 +177,26 @@ class Agent:
         self.q1_target.load_state_dict(self.q1.state_dict())
         self.q2_target.load_state_dict(self.q2.state_dict())
         self.score = 0.0
-        
+    
+    def when_episode_starts(self, initial_observation, episode_index):
+        """
+        (optional)
+        called once per episode for any init/reset or saving of model checkpoints
+        """
+        self.previous_action = None
+        self.previous_observation = None
+        self.episode_index = episode_index
+        # self.save_model()    
         
     # this may not be used
-    def decide(self, observation, reward, is_last_timestep):
+    def when_action_needed(self, observation, reward):
         """
         returns the action
         """
         # if not first decision
         if self.previous_action != None:
-            self.memory.put((self.previous_observation, self.previous_action, reward/10.0, observation, is_last_timestep))
+            # I'm not sure why reward is being divided by 10 here
+            self.memory.put((self.previous_observation, self.previous_action, reward/10.0, observation, False))
             self.score += reward
         
         action, log_prob = self.policy(torch.from_numpy(observation).float())
@@ -194,16 +206,31 @@ class Agent:
         # I'm not sure why this is a list or why its multiplying the action by two
         return [2.0*self.previous_action]
     
-    def on_episode_start(self, initial_observation, episode_index):
-        """
-        (optional)
-        called once per episode for any init/reset or saving of model checkpoints
-        """
-        self.previous_action = None
-        self.previous_observation = None
-        # self.save_model()
+    def when_episode_ends(self, final_observation, reward, episode_index):
+        # save the final observation
+        # I'm not sure why reward is being divided by 10 here
+        self.memory.put((self.previous_observation, self.previous_action, reward/10.0, final_observation, True))
+        self.score += reward
+        
+        # training
+        for _ in range(self.hyperparameters.minibatch_training_iterations):
+            mini_batch = self.memory.sample(self.hyperparameters.batch_size)
+            td_target = calc_target(self.policy, self.q1_target, self.q2_target, mini_batch, self.hyperparameters.discount_rate)
+            self.q1.train_net(td_target, mini_batch)
+            self.q2.train_net(td_target, mini_batch)
+            entropy = self.policy.train_net(self.q1, self.q2, mini_batch)
+            self.q1.soft_update(self.q1_target)
+            self.q2.soft_update(self.q2_target)
+        
+        # logging
+        if self.episode_index % self.print_interval == 0 and self.episode_index != 0:
+            average_score = self.score/self.print_interval
+            alpha = self.policy.log_alpha.exp()
+            print(f"# of episode :{self.episode_index}, avg score : {average_score:.1f} alpha:{alpha:.4f}")
+            self.score = 0.0
+        
     
-    def on_clean_up(self):
+    def when_should_clean(self):
         """
         only called once, and should save checkpoints and cleanup any logging info
         """
@@ -230,25 +257,12 @@ def main():
         observation = env.reset()
         reward = None
         done = False
-        mr_bond.on_episode_start(observation, n_epi)
+        mr_bond.when_episode_starts(observation, n_epi)
         while not done:
-            action = mr_bond.decide(observation, reward, done)
+            action = mr_bond.when_action_needed(observation, reward)
             observation, reward, done, info = env.step(action)
+        mr_bond.when_episode_ends(observation, reward, n_epi)
                 
-        if mr_bond.memory.size()>1000:
-            for i in range(20):
-                mini_batch = mr_bond.memory.sample(mr_bond.hyperparameters.batch_size)
-                td_target = calc_target(mr_bond.policy, mr_bond.q1_target, mr_bond.q2_target, mini_batch, mr_bond.hyperparameters.discount_rate)
-                mr_bond.q1.train_net(td_target, mini_batch)
-                mr_bond.q2.train_net(td_target, mini_batch)
-                entropy = mr_bond.policy.train_net(mr_bond.q1, mr_bond.q2, mini_batch)
-                mr_bond.q1.soft_update(mr_bond.q1_target)
-                mr_bond.q2.soft_update(mr_bond.q2_target)
-                
-        if n_epi%mr_bond.print_interval==0 and n_epi!=0:
-            print("# of episode :{}, avg score : {:.1f} alpha:{:.4f}".format(n_epi, mr_bond.score/mr_bond.print_interval, mr_bond.policy.log_alpha.exp()))
-            mr_bond.score = 0.0
-
     env.close()
 
 if __name__ == '__main__':

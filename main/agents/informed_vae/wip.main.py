@@ -120,7 +120,7 @@ class Agent:
             self.should_save = True
         self.show(f"VAE: number of latent variables (z_size): {self.vae.z_size}")
     
-    def on_episode_start(self, initial_observation, episode_index):
+    def when_episode_starts(self, initial_observation, episode_index):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints
@@ -129,7 +129,7 @@ class Agent:
             # FIXME: train model here
             pass
         
-    def decide(self, observation, reward, is_last_timestep):
+    def when_action_needed(self, observation, reward):
         """
         returns the action, but in this case the action is a compressed state space
         """
@@ -138,7 +138,7 @@ class Agent:
         return self.model.encode(actual_observation)
     
     
-    def on_clean_up(self):
+    def when_should_clean(self):
         """
         only called once, and should save checkpoints and cleanup any logging info
         """

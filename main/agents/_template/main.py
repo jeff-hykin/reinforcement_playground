@@ -17,20 +17,27 @@ class Agent:
         self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
     
-    def on_episode_start(self, initial_observation, episode_index):
+    def when_episode_starts(self, initial_observation, episode_index):
         """
         (optional)
         called once per episode for any init/reset or saving of model checkpoints
         """
         return
         
-    def decide(self, observation, reward, is_last_timestep):
+    def when_action_needed(self, observation, reward):
         """
         returns an action from the action space
         """
         return
     
-    def on_clean_up(self):
+    def when_episode_ends(self, final_observation, reward, episode_index):
+        """
+        (optional)
+        called once per episode for any init/reset or saving of model checkpoints
+        """
+        return
+    
+    def when_should_clean(self):
         """
         only called once, and should save checkpoints and cleanup any logging info
         """
