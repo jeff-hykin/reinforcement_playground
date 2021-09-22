@@ -235,22 +235,8 @@ class Agent:
         only called once, and should save checkpoints and cleanup any logging info
         """
         return
-        
-    def load_model(self):
-        self.model.load_state_dict(torch.load(self.checkpoint_path))
-        
-    def save_model(self):
-        # self.show("saving model")
-        # torch.save(self.model.state_dict(), self.checkpoint_path)
-        pass
-        
-    def train(self):
-        print("not yet implemented")
 
-    def test(self):
-        print("not yet implemented")
-
-def main():
+def test_sac():
     env = gym.make('Pendulum-v0')
     mr_bond = Agent()
     for n_epi in range(10000):
@@ -266,4 +252,4 @@ def main():
     env.close()
 
 if __name__ == '__main__':
-    main()
+    test_sac()
