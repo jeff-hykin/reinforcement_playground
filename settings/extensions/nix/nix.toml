@@ -20,7 +20,7 @@
 
 # 
 # Complex packages
-# 
+#
     # things such as platform-specific packages,
     # loading from a git repository,
     # or if you find an online solution that involves native build inputs
@@ -48,6 +48,9 @@
 # load = [ "docker",]
 
 [[packages]]
+load = [ "git-subrepo",]
+
+[[packages]]
 load = [ "curl",]
 
 [[packages]]
@@ -60,6 +63,10 @@ from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 
 [[packages]]
 load = [ "python38Packages", "setuptools",]
+from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+
+[[packages]]
+load = [ "python38Packages", "pybullet",]
 from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 
 # 
