@@ -8,7 +8,7 @@ import json
 import os, subprocess, sys
 import os.path as osp
 import string
-import tensorflow as tf
+# import tensorflow as tf
 import torch
 from copy import deepcopy
 from textwrap import dedent
