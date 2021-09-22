@@ -51,6 +51,15 @@
 load = [ "git-subrepo",]
 
 [[packages]]
+load = [ "freetype",]
+
+[[packages]]
+load = [ "swig",]
+
+[[packages]]
+load = [ "mpi",] # for the spinningup AI repo 
+
+[[packages]]
 load = [ "curl",]
 
 [[packages]]

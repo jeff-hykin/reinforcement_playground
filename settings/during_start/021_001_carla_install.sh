@@ -1,0 +1,1 @@
+# python -m pip --disable-pip-version-check install "carla-client-unofficial>=0.9.11"
