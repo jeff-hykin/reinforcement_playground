@@ -6,39 +6,50 @@ import torch.nn.functional as F
 from tools.all_tools import PATHS
 
 class Agent:
-    def __init__(self, action_space=None, **config):
+    def __init__(self, action_space=None, observation_space=None, **config):
         """
         arguments:
             action_space: is a gym space (from gym import spaces)
         """
-        self.config = config
+        # args
         self.action_space = action_space
+        self.observation_space = observation_space
+        self.config = config
+        
+        # required poperties
+        self.observation = None
+        self.aciton = None
         self.wants_to_quit = False
-        self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
+        # logging tool
+        self.log = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
     
-    def when_episode_starts(self, initial_observation, episode_index):
+    def get_reward(self, observation, action=None):
         """
-        (optional)
-        called once per episode for any init/reset or saving of model checkpoints
+        should return a reward value based on what the agent can observe
+        """
+        return 0
+    
+    def when_episode_starts(self, episode_index):
+        """
+            anything that you might want to be run on a per-episode basis
         """
         return
         
-    def when_action_needed(self, observation, reward):
+    def when_time_passes(self):
         """
-        returns an action from the action space
+            check self.observation to see what the agent sees
+            change self.action to act inside the environment
         """
-        return
     
-    def when_episode_ends(self, final_observation, reward, episode_index):
+    def when_episode_ends(self, episode_index):
         """
-        (optional)
-        called once per episode for any init/reset or saving of model checkpoints
+            anything that you might want to be run on a per-episode basis
         """
         return
     
     def when_should_clean(self):
         """
-        only called once, and should save checkpoints and cleanup any logging info
+            only called once, and should save checkpoints and cleanup any logging info
         """
         return
