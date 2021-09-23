@@ -5,51 +5,41 @@ import torch.nn.functional as F
 # local 
 from tools.all_tools import PATHS
 
-class Agent:
-    def __init__(self, action_space=None, observation_space=None, **config):
-        """
-        arguments:
-            action_space: is a gym space (from gym import spaces)
-        """
-        # args
-        self.action_space = action_space
-        self.observation_space = observation_space
+class Agent(MinimalAgent):
+    def __init__(self, body_type, **config):
+        super(Agent, self).__init__(body_type)
+        # save config for later
         self.config = config
-        
-        # required poperties
-        self.observation = None
-        self.aciton = None
-        self.wants_to_quit = False
-        
-        # logging tool
-        self.log = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
     
-    def get_reward(self, observation, action=None):
-        """
-        should return a reward value based on what the agent can observe
-        """
-        return 0
-    
+    def when_body_is_ready(self):
+        # wrapper env
+        agent = self
+        class DummyEnv(gym.Env):
+            @property
+            def action_space(self): return agent.body.action_space
+            @property
+            def observation_space(self): return agent.body.observation_space
+            @property
+            def step(self, action): return None, None, None, None
+            @property
+            def close(self): pass
+        
+        self.spinup_sac = sac(
+            env_fn=lambda: DummyEnv(),
+            **self.config,
+        )
+        
+    def when_campaign_starts(self):
+        pass
+        
     def when_episode_starts(self, episode_index):
-        """
-            anything that you might want to be run on a per-episode basis
-        """
-        return
+        # FIXME: init stuff
         
     def when_time_passes(self):
-        """
-            check self.observation to see what the agent sees
-            change self.action to act inside the environment
-        """
-    
+        # FIXME: get new action
+        
     def when_episode_ends(self, episode_index):
-        """
-            anything that you might want to be run on a per-episode basis
-        """
-        return
+        # FIXME: update the state, and update the 
     
-    def when_should_clean(self):
-        """
-            only called once, and should save checkpoints and cleanup any logging info
-        """
-        return
+    def when_campaign_ends(self):
+        pass

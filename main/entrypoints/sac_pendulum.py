@@ -1,12 +1,13 @@
-from environments.pendulum.main import Environment
+from environments.pendulum.main import RealityMaker
 from agents.sac.main import Agent
 from runtimes.simple import run
 
-env = Environment()
-mr_bond = Agent(action_space=env.action_space)
+mr_bond = Agent(
+    body_type=RealityMaker.RegularBody
+)
 
 run(
     number_of_episodes=100,
-    env=env,
+    env=RealityMaker(mr_bond),
     agent=mr_bond,
 )
