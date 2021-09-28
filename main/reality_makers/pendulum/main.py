@@ -4,29 +4,29 @@ from tools.reality_maker import MinimalReality, MinimalBody
 
 class RealityMaker(MinimalReality):
     
-    def __init__(self, *, agents, version, **config):
+    def __init__(self, *, agents, version=0, **config):
         super(RealityMaker, self).__init__(agents=agents)
         self._env = gym.make(f'Pendulum-v{version}')
         self.debugging_info = None
-        self.episode_ended = None
+        self.wants_to_end_episode = False
     
     def when_episode_starts(self):
         # the state of the pendulum, and the state of the reward
         self.state = (self._env.reset(), None)
-        self.episode_ended = False
+        self.wants_to_end_episode = False
     
     def when_time_passes(self):
         for agent in self.agents:
             agent.when_time_passes()
         # update the reality
-        self.state[0], self.state[1], self.episode_ended, self.debugging_info = self._env.step(agent.body.action)
+        self.state[0], self.state[1], self.wants_to_end_episode, self.debugging_info = self._env.step(agent.body.action)
     
     def when_campaign_ends(self):
         self._env.close()
     
     class RegularBody(MinimalBody):
         def __init__(self, options):
-            super(RealityMaker, self).__init__()
+            super(RealityMaker.RegularBody, self).__init__()
             self.action = None
         
         @property

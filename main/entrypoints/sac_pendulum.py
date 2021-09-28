@@ -1,13 +1,14 @@
-from environments.pendulum.main import RealityMaker
+from reality_makers.pendulum.main import RealityMaker
 from agents.sac.main import Agent
-from runtimes.simple import run
+from campaign_managers.simple import start
 
 mr_bond = Agent(
     body_type=RealityMaker.RegularBody
 )
 
-run(
+start(
     number_of_episodes=100,
-    env=RealityMaker(mr_bond),
-    agent=mr_bond,
+    reality=RealityMaker(
+        agents=[mr_bond]
+    ),
 )

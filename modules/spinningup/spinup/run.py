@@ -14,6 +14,11 @@ from copy import deepcopy
 from textwrap import dedent
 
 
+try:
+    import gym_donkeycar
+except Exception as error:
+    pass
+
 # Command line args that will go to ExperimentGrid.run, and must possess unique
 # values (therefore must be treated separately).
 RUN_KEYS = ['num_cpu', 'data_dir', 'datestamp']

@@ -20,10 +20,11 @@ class MinimalBody:
 class MinimalAgent:
     def __init__(self, body_type):
         # required poperties
-        self.body_type = None
+        self.body_type = body_type
         self.body_options = None
         self.body = None
-        self.wants_to_quit = False
+        self.wants_to_end_episode = False
+        self.wants_to_end_campaign = False
     
     def when_body_is_ready(self): pass
     def when_campaign_starts(self): pass
@@ -33,6 +34,8 @@ class MinimalAgent:
     def when_campaign_ends(self): pass
         
 class MinimalReality:
+    wants_to_end_episode = False
+    wants_to_end_campaign = False
     
     def __init__(self, agents):
         self.agents = agents
@@ -40,17 +43,28 @@ class MinimalReality:
         for each_agent in self.agents:
             # make sure the agent has a body_type
             possible_body_class = getattr(each_agent, "body_type", None)
-            if not possible_body_class or not issubclass(possible_body_class, MinimalBody):
-                raise Exception(f'Error, when registering an agent, the agent.body_type type was {possible_body_class} which is not one of available options.\nUse this_reality.body_types to get the types, which are: {self.body_types}')
+            is_subclass = False
+            try:
+                is_subclass = issubclass(possible_body_class, MinimalBody)
+            except Exception as error:
+                pass
+            if not possible_body_class or not is_subclass:
+                raise Exception(f'Error, when registering an agent, the agent.body_type was {possible_body_class} which is not one of available options.\nUse this_reality.body_types to get the types, which are: {self.body_types}')
     
     @property 
     def body_types(self):
         # collect all the body types
         body_types = []
         for each_attribute in dir(self):
+            # skip self
+            if each_attribute == "body_types":
+                continue
             potential_class = getattr(self, each_attribute, None)
-            if issubclass(potential_class, MinimalBody):
-                body_types.append(potential_class)
+            try:
+                if issubclass(potential_class, MinimalBody):
+                    body_types.append(potential_class)
+            except Exception as error:
+                pass
         return body_types
     
     def when_campaign_starts(self):

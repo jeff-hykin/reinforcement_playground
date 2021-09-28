@@ -82,7 +82,7 @@ class Agent:
         """
         self.config = config
         self.action_space = action_space
-        self.wants_to_quit = False
+        self.wants_to_end_episode = False
         self.show = lambda *args, **kwargs: print(*args, **kwargs) if config.get("suppress_output", False) else None
         
         self.input_shape = config.get("input_shape", (3, 32, 32)) # default shape of (3, 32, 32)

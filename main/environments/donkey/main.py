@@ -42,7 +42,7 @@ class Environment(gym.Env):
             path_to_script = FS.local_path("setup/download_server.sh")
             os.system(path_to_script)
         
-        self._env = gym.make("donkey-generated-track-v0", conf={ "port": port, "exe_path": exe_path, **kwargs })
+        self._env = gym.make(map, conf={ "port": port, "exe_path": exe_path, **kwargs })
         
     def reset(self): # DONE
         return self._env.reset()
