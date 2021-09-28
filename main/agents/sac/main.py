@@ -68,7 +68,7 @@ def sac(
     update_after=1000,
     update_every=50,
     num_test_episodes=10,
-    max_ep_len=1000,
+    max_episode_length=1000,
     logger_kwargs=dict(),
     save_freq=1,
 ):
@@ -160,7 +160,7 @@ def sac(
         num_test_episodes (int): Number of episodes to test the deterministic
             policy at the end of each epoch.
 
-        max_ep_len (int): Maximum length of trajectory / episode / rollout.
+        max_episode_length (int): Maximum length of trajectory / episode / rollout.
 
         logger_kwargs (dict): Keyword args for EpochLogger.
 
@@ -168,12 +168,6 @@ def sac(
             the current policy and value function.
 
     """
-
-    logger = EpochLogger(**logger_kwargs)
-    logger.save_config(locals())
-
-    torch.manual_seed(seed)
-    np.random.seed(seed)
 
     env, test_env = env_fn(), env_fn()
     obs_dim = env.observation_space.shape
@@ -183,22 +177,21 @@ def sac(
     act_limit = env.action_space.high[0]
 
     # Create actor-critic module and target networks
-    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
-    ac_targ = deepcopy(ac)
+    the_actor_critic = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
+    actor_critic_target = deepcopy(the_actor_critic)
 
     # Freeze target networks with respect to optimizers (only update via polyak averaging)
-    for p in ac_targ.parameters():
-        p.requires_grad = False
+    for parameter in actor_critic_target.parameters():
+        parameter.requires_grad = False
 
     # List of parameters for both Q-networks (save this for convenience)
-    q_params = itertools.chain(ac.q1.parameters(), ac.q2.parameters())
+    q_network_parameters = itertools.chain(the_actor_critic.q1.parameters(), the_actor_critic.q2.parameters())
 
     # Experience buffer
     replay_buffer = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
 
     # Count variables (protip: try to get a feel for how different size networks behave!)
-    var_counts = tuple(core.count_vars(module) for module in [ac.pi, ac.q1, ac.q2])
-    logger.log("\nNumber of parameters: \t pi: %d, \t q1: %d, \t q2: %d\n" % var_counts)
+    var_counts = tuple(core.count_vars(module) for module in [the_actor_critic.pi, the_actor_critic.q1, the_actor_critic.q2])
 
     # Set up function for computing SAC Q-losses
     def compute_loss_q(data):
@@ -210,17 +203,17 @@ def sac(
             data["done"],
         )
 
-        q1 = ac.q1(o, a)
-        q2 = ac.q2(o, a)
+        q1 = the_actor_critic.q1(o, a)
+        q2 = the_actor_critic.q2(o, a)
 
         # Bellman backup for Q functions
         with torch.no_grad():
             # Target actions come from *current* policy
-            a2, logp_a2 = ac.pi(o2)
+            a2, logp_a2 = the_actor_critic.pi(o2)
 
             # Target Q-values
-            q1_pi_targ = ac_targ.q1(o2, a2)
-            q2_pi_targ = ac_targ.q2(o2, a2)
+            q1_pi_targ = actor_critic_target.q1(o2, a2)
+            q2_pi_targ = actor_critic_target.q2(o2, a2)
             q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
             backup = r + gamma * (1 - d) * (q_pi_targ - alpha * logp_a2)
 
@@ -237,9 +230,9 @@ def sac(
     # Set up function for computing SAC pi loss
     def compute_loss_pi(data):
         o = data["obs"]
-        pi, logp_pi = ac.pi(o)
-        q1_pi = ac.q1(o, pi)
-        q2_pi = ac.q2(o, pi)
+        pi, logp_pi = the_actor_critic.pi(o)
+        q1_pi = the_actor_critic.q1(o, pi)
+        q2_pi = the_actor_critic.q2(o, pi)
         q_pi = torch.min(q1_pi, q2_pi)
 
         # Entropy-regularized policy loss
@@ -251,11 +244,8 @@ def sac(
         return loss_pi, pi_info
 
     # Set up optimizers for policy and q-function
-    pi_optimizer = Adam(ac.pi.parameters(), lr=lr)
-    q_optimizer = Adam(q_params, lr=lr)
-
-    # Set up model saving
-    logger.setup_pytorch_saver(ac)
+    pi_optimizer = Adam(the_actor_critic.pi.parameters(), lr=lr)
+    q_optimizer = Adam(q_network_parameters, lr=lr)
 
     def update(data):
         # First run one gradient descent step for Q1 and Q2
@@ -264,13 +254,10 @@ def sac(
         loss_q.backward()
         q_optimizer.step()
 
-        # Record things
-        logger.store(LossQ=loss_q.item(), **q_info)
-
         # Freeze Q-networks so you don't waste computational effort
         # computing gradients for them during the policy learning step.
-        for p in q_params:
-            p.requires_grad = False
+        for parameter in q_network_parameters:
+            parameter.requires_grad = False
 
         # Next run one gradient descent step for pi.
         pi_optimizer.zero_grad()
@@ -279,102 +266,82 @@ def sac(
         pi_optimizer.step()
 
         # Unfreeze Q-networks so you can optimize it at next DDPG step.
-        for p in q_params:
-            p.requires_grad = True
-
-        # Record things
-        logger.store(LossPi=loss_pi.item(), **pi_info)
+        for parameter in q_network_parameters:
+            parameter.requires_grad = True
 
         # Finally, update target networks by polyak averaging.
         with torch.no_grad():
-            for p, p_targ in zip(ac.parameters(), ac_targ.parameters()):
+            for parameter_from_actor_critic, parameter_from_target_actor_critic in zip(the_actor_critic.parameters(), actor_critic_target.parameters()):
                 # NB: We use an in-place operations "mul_", "add_" to update target
                 # params, as opposed to "mul" and "add", which would make new tensors.
-                p_targ.data.mul_(polyak)
-                p_targ.data.add_((1 - polyak) * p.data)
+                parameter_from_target_actor_critic.data.mul_(polyak)
+                parameter_from_target_actor_critic.data.add_((1 - polyak) * parameter_from_actor_critic.data)
 
     def get_action(o, deterministic=False):
-        return ac.act(torch.as_tensor(o, dtype=torch.float32), deterministic)
-
-    def test_agent():
-        for j in range(num_test_episodes):
-            o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
-            while not (d or (ep_len == max_ep_len)):
-                # Take deterministic actions at test time
-                o, r, d, _ = test_env.step(get_action(o, True))
-                ep_ret += r
-                ep_len += 1
-            logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
-
-    # Prepare for interaction with environment
-    total_steps = steps_per_epoch * epochs
-    start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
-
-    # Main loop: collect experience in env and update/log each epoch
-    for t in range(total_steps):
-
+        return the_actor_critic.act(torch.as_tensor(o, dtype=torch.float32), deterministic)
+    
+    timestep = None
+    timeline = []
+    observation, action, reward = None, None, None
+    def when_episode_starts():
+        nonlocal timestep, episode_return, observation, action, reward
+        timestep = -1
+        episode_return = 0
+        observation, action, reward = None, None, None
+    
+    def when_time_passes(body):
+        nonlocal timestep, episode_return, observation, action, reward
+        timestep += 1
+        
+        # get the reward for the previous action
+        prev_observation = observation
+        prev_action = action
+        reward = body.get_reward()
+        observation = body.get_observation()
+        if prev_action != None:
+            episode_return += reward
+            # save triplets
+            timeline.append((prev_observation, prev_action, reward))
+            # its never the end of the world (if it is, then this function wouldnt be called)
+            replay_buffer.store(prev_observation, prev_action, prev_reward, observation, False)
+            
+            # Update handling
+            if timestep >= update_after and timestep % update_every == 0:
+                for _ in range(update_every):
+                    update(data=replay_buffer.sample_batch(batch_size))
+        # 
+        # 
+        # pick action
+        # 
+        # 
         # Until start_steps have elapsed, randomly sample actions
         # from a uniform distribution for better exploration. Afterwards,
         # use the learned policy.
-        if t > start_steps:
-            a = get_action(o)
+        if timestep > start_steps:
+            action = get_action(observation)
         else:
-            a = env.action_space.sample()
-
-        # Step the env
-        o2, r, d, _ = env.step(a)
-        ep_ret += r
-        ep_len += 1
-
-        # Ignore the "done" signal if it comes from hitting the time
-        # horizon (that is, when it's an artificial terminal signal
-        # that isn't based on the agent's state)
-        d = False if ep_len == max_ep_len else d
-
-        # Store experience to replay buffer
-        replay_buffer.store(o, a, r, o2, d)
-
-        # Super critical, easy to overlook step: make sure to update
-        # most recent observation!
-        o = o2
-
-        # End of trajectory handling
-        if d or (ep_len == max_ep_len):
-            logger.store(EpRet=ep_ret, EpLen=ep_len)
-            o, ep_ret, ep_len = env.reset(), 0, 0
-
-        # Update handling
-        if t >= update_after and t % update_every == 0:
-            for j in range(update_every):
-                batch = replay_buffer.sample_batch(batch_size)
-                update(data=batch)
-
-        # End of epoch handling
-        if (t + 1) % steps_per_epoch == 0:
-            epoch = (t + 1) // steps_per_epoch
-
-            # Save model
-            if (epoch % save_freq == 0) or (epoch == epochs):
-                logger.save_state({"env": env}, None)
-
-            # Test the performance of the deterministic version of the agent.
-            test_agent()
-
-            # Log info about epoch
-            logger.log_tabular("Epoch", epoch)
-            logger.log_tabular("EpRet", with_min_and_max=True)
-            logger.log_tabular("TestEpRet", with_min_and_max=True)
-            logger.log_tabular("EpLen", average_only=True)
-            logger.log_tabular("TestEpLen", average_only=True)
-            logger.log_tabular("TotalEnvInteracts", t)
-            logger.log_tabular("Q1Vals", with_min_and_max=True)
-            logger.log_tabular("Q2Vals", with_min_and_max=True)
-            logger.log_tabular("LogPi", with_min_and_max=True)
-            logger.log_tabular("LossPi", average_only=True)
-            logger.log_tabular("LossQ", average_only=True)
-            logger.log_tabular("Time", time.time() - start_time)
-            logger.dump_tabular()
+            action = body.action_space.sample()
+            
+    def when_episode_ends(episode_index):
+        nonlocal timestep, episode_return, observation, action, reward
+        timestep += 1
+        
+        # get the reward for the previous action
+        prev_observation = observation
+        prev_action      = action
+        reward           = body.get_reward()
+        observation      = body.get_observation()
+        if prev_action != None:
+            episode_return += reward
+            # save triplets
+            timeline.append((prev_observation, prev_action, reward))
+            # always the end of the world (thats the only time this function is called)
+            replay_buffer.store(prev_observation, prev_action, prev_reward, observation, True)
+            
+            # Update handling
+            if timestep >= update_after and timestep % update_every == 0:
+                for _ in range(update_every):
+                    update(data=replay_buffer.sample_batch(batch_size))    
 
 
 # if __name__ == "__main__":
