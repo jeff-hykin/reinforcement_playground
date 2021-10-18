@@ -35,7 +35,7 @@ class Agent(MinimalAgent):
     def when_episode_starts(self, episode_index):
         # FIXME: init stuff
         
-    def when_time_passes(self):
+    def when_timestep_happens(self):
         # FIXME: get new action
         
     def when_episode_ends(self, episode_index):

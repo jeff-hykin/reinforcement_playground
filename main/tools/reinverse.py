@@ -22,7 +22,7 @@ class MinimalBody:
     # callbacks that need to be overwritten (use the @ConnectBody)
     when_mission_starts = lambda : pass
     when_episode_starts = lambda episode_index: pass
-    when_time_passes    = lambda : pass
+    when_timestep_happens    = lambda : pass
     when_episode_ends   = lambda episode_index: pass
     when_mission_ends   = lambda : pass
 
@@ -47,7 +47,7 @@ def Body(Class):
             # connect special methods to the body
             self.when_mission_starts = lambda : pass
             self.when_episode_starts = lambda episode_index: pass
-            self.when_time_passes    = lambda : pass
+            self.when_timestep_happens    = lambda : pass
             self.when_episode_ends   = lambda episode_index: pass
             self.when_mission_ends   = lambda : pass
             
@@ -100,11 +100,11 @@ def _when_episode_starts(method):
     return method
 ConnectBody.when_episode_starts = _when_episode_starts
 
-def _when_time_passes(method):
+def _when_timestep_happens(method):
     method.__dict__ = {}
-    method.__dict__[ConnectBody] = "when_time_passes"
+    method.__dict__[ConnectBody] = "when_timestep_happens"
     return method
-ConnectBody.when_time_passes = _when_time_passes
+ConnectBody.when_timestep_happens = _when_timestep_happens
 
 def _when_episode_ends(method):
     method.__dict__ = {}
@@ -136,9 +136,9 @@ class MinimalWorld:
             when_episode_starts() # this will override existing behavior
             after_episode_starts()
             
-            before_time_passes()
-            when_time_passes() # this will override existing behavior
-            after_time_passes()
+            before_timestep_happens()
+            when_timestep_happens() # this will override existing behavior
+            after_timestep_happens()
             
             before_episode_ends()
             when_episode_ends() # this will override existing behavior
@@ -172,13 +172,13 @@ class MinimalWorld:
         if hasattr(self, "after_episode_starts"):
             self.after_episode_starts()
         
-    def when_time_passes(self):
-        if hasattr(self, "before_time_passes"):
-            self.before_time_passes()
+    def when_timestep_happens(self):
+        if hasattr(self, "before_timestep_happens"):
+            self.before_timestep_happens()
         for each_body in self.bodies:
-            each_body.when_time_passes()
-        if hasattr(self, "after_time_passes"):
-            self.after_time_passes()
+            each_body.when_timestep_happens()
+        if hasattr(self, "after_timestep_happens"):
+            self.after_timestep_happens()
     
     def when_episode_ends(self, episode_index):
         """

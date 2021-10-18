@@ -63,9 +63,6 @@ load = [ "mpi",] # for the spinningup AI repo
 load = [ "curl",]
 
 [[packages]]
-load = [ "xvfb-run",]
-
-[[packages]]
 load = [ "poetry",]
 from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 
@@ -80,6 +77,7 @@ from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 [[packages]]
 load = [ "python38Packages", "pybullet",]
 from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]]
 load = [ "python38Packages", "pyopengl",]

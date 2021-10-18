@@ -14,9 +14,9 @@ class RealityMaker(MinimalReality):
         self.state = (self._env.reset(), None)
         self.episode_ended = False
     
-    def when_time_passes(self):
+    def when_timestep_happens(self):
         for agent in self.agents:
-            agent.when_time_passes()
+            agent.when_timestep_happens()
         # update the reality
         self.state[0], self.state[1], self.episode_ended, self.debugging_info = self._env.step(agent.body.action)
     

@@ -289,7 +289,7 @@ def sac(
         episode_return = 0
         observation, action, reward = None, None, None
     
-    def when_time_passes(body):
+    def when_timestep_happens(body):
         nonlocal timestep, episode_return, observation, action, reward
         timestep += 1
         
@@ -406,7 +406,7 @@ class Agent(MinimalAgent):
         # FIXME: init stuff
         pass
     
-    def when_time_passes(self):
+    def when_timestep_happens(self):
         # FIXME: get new action
         self.spinup_sac
         

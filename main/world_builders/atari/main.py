@@ -4,7 +4,6 @@ import gym
 from gym import error, spaces
 from gym import utils
 from gym.utils import seeding
-from super_map import Map, LazyDict
 
 # local
 from tools.reinverse import MinimalWorld
@@ -302,41 +301,25 @@ class WorldBuilder(MinimalWorld):
             when_mission_ends() # this will override existing behavior
             after_mission_ends()
     """
-    def __init__(world, *args, **kwargs):
-        world.game = Environment(**kwargs)
-        world.state = None
-        world.debugging_info = None
+    def __init__(self, *args, **kwargs):
+        world_self = self
+        self.bodies = [] # this name is specific!
         
         # define a body and create it
         @Body
         class Player(MinimalBody):
-            observation_space = world.game.observation_space
-            action_space      = world.game.action_space
-            
             def get_observation(self):
-                return world.state.image
+                # return a subset of the world state
+                return world_self.state
             
             def get_reward(self):
-                return world.state.score
+                # use a subset of self._reality to decide the reward
+                return world_self.state
             
             def perform_action(self, action):
-                self.action = action
+                world_self.state = "something" # make changes to the world accordingly
         
-        # this name is specific!
-        world.bodies = [
-            Player(),
-        ]
-    
-    def before_episode_starts(self):
-        self.state = LazyDict(
-            image=self.game.reset(),
-            score=0,
-        )
-    
-    def after_timestep_happens(self):
-        player_1_action = self.bodies[0].action
-        # update the state, and episode status
-        self.state.image, self.state.score, self.wants_to_end_episode, self.debugging_info = self.game.step(player_1_action)
-    
-    def when_mission_ends(self):
-        self.game.close()
+        # a custom name; anything you want
+        self.player_1 = Player()
+        # needs to be put inside self.bodies
+        self.bodies.append(self.player_1)

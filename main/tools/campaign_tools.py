@@ -22,7 +22,7 @@ def start(reality, max_number_of_timesteps=None, **config):
             while True:
                 if type(max_number_of_timesteps) is int and timestep > max_number_of_timesteps:
                     break
-                reality.when_time_passes()
+                reality.when_timestep_happens()
                 if reality.wants_to_end_episode: break
                 if agent.wants_to_end_episode: break
             
