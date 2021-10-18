@@ -1,11 +1,9 @@
 class MinimalBody:
     observation_space = None
     action_space = None
-    wants_to_end_mission = False
-    wants_to_end_episode = False
     
-    def __init__(self, reality):
-        self._reality = reality
+    def __init__(self):
+        pass
     
     def get_reward(self):
         # use a subset of self._reality to decide the reward
@@ -20,11 +18,12 @@ class MinimalBody:
         pass
     
     # callbacks that need to be overwritten (use the @ConnectBody)
-    when_mission_starts = lambda : pass
-    when_episode_starts = lambda episode_index: pass
-    when_timestep_happens    = lambda : pass
-    when_episode_ends   = lambda episode_index: pass
-    when_mission_ends   = lambda : pass
+    # (these are redundantly placed here to help python-autocomplete tools)
+    when_mission_starts   = lambda               : None
+    when_episode_starts   = lambda episode_index : None
+    when_timestep_happens = lambda timestep_index: None
+    when_episode_ends     = lambda episode_index : None
+    when_mission_ends     = lambda               : None
 
 # Class decorator
 def Body(Class):
@@ -43,13 +42,14 @@ def Body(Class):
         def __init__(self, *args, **kwargs):
             self.wants_to_end_mission = False
             self.wants_to_end_episode = False
+            self.action = None
             super(Body, self).__init__(*args, **kwargs)
             # connect special methods to the body
-            self.when_mission_starts = lambda : pass
-            self.when_episode_starts = lambda episode_index: pass
-            self.when_timestep_happens    = lambda : pass
-            self.when_episode_ends   = lambda episode_index: pass
-            self.when_mission_ends   = lambda : pass
+            self.when_mission_starts   = lambda               : None
+            self.when_episode_starts   = lambda episode_index : None
+            self.when_timestep_happens = lambda timestep_index: None
+            self.when_episode_ends     = lambda episode_index : None
+            self.when_mission_ends     = lambda               : None
             
     return Body
 
@@ -166,19 +166,19 @@ class MinimalWorld:
             use this to set/reset reality
         """
         if hasattr(self, "before_episode_starts"):
-            self.before_episode_starts()
+            self.before_episode_starts(episode_index)
         for each_body in self.bodies:
             each_body.when_episode_starts(episode_index)
         if hasattr(self, "after_episode_starts"):
-            self.after_episode_starts()
+            self.after_episode_starts(episode_index)
         
-    def when_timestep_happens(self):
+    def when_timestep_happens(self, timestep_index):
         if hasattr(self, "before_timestep_happens"):
-            self.before_timestep_happens()
+            self.before_timestep_happens(timestep_index)
         for each_body in self.bodies:
-            each_body.when_timestep_happens()
+            each_body.when_timestep_happens(timestep_index)
         if hasattr(self, "after_timestep_happens"):
-            self.after_timestep_happens()
+            self.after_timestep_happens(timestep_index)
     
     def when_episode_ends(self, episode_index):
         """

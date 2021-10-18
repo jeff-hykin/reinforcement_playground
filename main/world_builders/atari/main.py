@@ -4,9 +4,10 @@ import gym
 from gym import error, spaces
 from gym import utils
 from gym.utils import seeding
+from super_map import Map, LazyDict
 
 # local
-from tools.reinverse import MinimalWorld
+from tools.reinverse import MinimalWorld, Body, MinimalBody
 
 try:
     import atari_py
@@ -58,7 +59,7 @@ class Environment(gym.Env, utils.EzPickle):
     ):
         """
         Arguments:
-            game: the name of the game ("pong", "Enduro", etc) dont add the "-v0"
+            game: the name of the game ("pong", "enduro", etc) dont add the "-v0"
             mode: different modes are available for different games.
             frameskip should be either a tuple (indicating a random range to choose from, with the top value exclude), or an int.
         """
@@ -301,25 +302,44 @@ class WorldBuilder(MinimalWorld):
             when_mission_ends() # this will override existing behavior
             after_mission_ends()
     """
-    def __init__(self, *args, **kwargs):
-        world_self = self
-        self.bodies = [] # this name is specific!
+    def __init__(world, *args, **kwargs):
+        world.game = Environment(**kwargs)
+        world.state = None
+        world.debugging_info = None
         
         # define a body and create it
         @Body
         class Player(MinimalBody):
+            observation_space = world.game.observation_space
+            action_space      = world.game.action_space
+            
             def get_observation(self):
-                # return a subset of the world state
-                return world_self.state
+                return world.state.image
             
             def get_reward(self):
-                # use a subset of self._reality to decide the reward
-                return world_self.state
+                return world.state.score
             
             def perform_action(self, action):
-                world_self.state = "something" # make changes to the world accordingly
+                self.action = action
         
-        # a custom name; anything you want
-        self.player_1 = Player()
-        # needs to be put inside self.bodies
-        self.bodies.append(self.player_1)
+        # this name is specific!
+        world.bodies = [
+            Player(),
+        ]
+    
+    def before_episode_starts(self, episode_index):
+        self.state = LazyDict(
+            image=self.game.reset(),
+            score=0,
+        )
+    
+    def after_timestep_happens(self, timestep_index):
+        player_1 = self.bodies[0]
+        # act randomly when no action given (for DEBUGGING, this is not good general practice)
+        if player_1.action is None:
+            player_1.action = player_1.action_space.sample()
+        # update the state, and episode status
+        self.state.image, self.state.score, self.wants_to_end_episode, self.debugging_info = self.game.step(player_1.action)
+    
+    def when_mission_ends(self):
+        self.game.close()
