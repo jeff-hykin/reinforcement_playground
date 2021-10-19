@@ -126,7 +126,7 @@ class BrainBuilder:
             max_number += 1
         save_point = FS.join(self.save_folder, str(max_number)+".model")
         print("saving model at : " + save_point)
-        ppo_agent.save(save_point)
+        self.agent.save(save_point)
         print("model saved")
 
 
