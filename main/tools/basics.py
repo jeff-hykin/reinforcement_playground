@@ -330,6 +330,23 @@ def attempt(a_lambda, default=None, expected_errors=(Exception,)):
     except expected_errors:
         return default
 
+def Countdown(size):
+    """
+        Returns a function
+        That function will returns False until it has been called `size` times
+        Then it auto resets
+    """
+    remaining = size
+    def countdown():
+        nonlocal remaining
+        remaining -= 1
+        if remaining <= 0:
+            # restart
+            remaining = size
+            return True
+        else:
+            return False
+    return countdown
 
 here = "os.path.dirname(__file__)"
 if os.environ.get('FORNIX_FOLDER', None):

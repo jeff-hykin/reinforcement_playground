@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import gym
 
 # local 
-from tools.all_tools import PATHS, product, FS
+from tools.all_tools import PATHS, product, FS, Countdown
 from tools.reinverse import ConnectBody
 
 from agent_builders.ppo.rollout_buffer import RolloutBuffer
@@ -17,17 +17,19 @@ class AgentBuilder:
         self,
         body,
         timesteps_before_weight_update=1600,
+        episodes_before_checkpoint=400,
         timesteps_before_standard_deviation_decay=160,
         action_standard_deviation_decay_rate=0.1,
         minimum_action_standard_deviation=0.0001,
         save_folder="./logs/ppo/",
         **kwargs
     ):
-        self.body = body # call it self.whatever_you_want, just need a body attribute
+        self.body = body
         self.action_space = self.body.action_space
         self.observation_space = self.body.observation_space
-        self.timesteps_before_weight_update            = timesteps_before_weight_update
-        self.timesteps_before_standard_deviation_decay = timesteps_before_standard_deviation_decay
+        self.countdown_till_update     = Countdown(size=timesteps_before_weight_update)
+        self.countdown_till_checkpoint = Countdown(size=episodes_before_checkpoint)
+        self.countdown_till_decay      = Countdown(size=timesteps_before_standard_deviation_decay)
         self.action_standard_deviation_decay_rate      = action_standard_deviation_decay_rate
         self.minimum_action_standard_deviation         = minimum_action_standard_deviation
         self.save_folder                               = save_folder
@@ -41,9 +43,7 @@ class AgentBuilder:
     
     @ConnectBody.when_mission_starts
     def when_mission_starts(self):
-        # a simple counter
-        self.remaining_timesteps_before_update = self.timesteps_before_weight_update
-        self.remaining_timesteps_before_standard_deviation_decay = self.timesteps_before_standard_deviation_decay
+        pass
         
     @ConnectBody.when_episode_starts
     def when_episode_starts(self, episode_index):
@@ -63,10 +63,7 @@ class AgentBuilder:
         # 
         # occasionally update the network
         # 
-        self.remaining_timesteps_before_update -= 1
-        if self.remaining_timesteps_before_update <= 0:
-            # reset the counter
-            self.remaining_timesteps_before_update = self.timesteps_before_weight_update
+        if self.countdown_till_update():
             self.brain.update()
         
         # 
@@ -74,10 +71,7 @@ class AgentBuilder:
         # 
         # if continuous action space; then decay action std of ouput action distribution
         if self.brain.has_continuous_action_space:
-            self.remaining_timesteps_before_standard_deviation_decay -= 1
-            if self.remaining_timesteps_before_standard_deviation_decay == 0:
-                # reset the counter
-                self.remaining_timesteps_before_standard_deviation_decay = self.timesteps_before_standard_deviation_decay
+            if self.countdown_till_decay():
                 self.brain.decay_action_std(self.action_standard_deviation_decay_rate, self.minimum_action_standard_deviation)
         
         # 
@@ -96,7 +90,14 @@ class AgentBuilder:
         # 
         self.brain.buffer.rewards.append(self.body.get_reward())
         self.brain.buffer.is_terminals.append(True)
-        # (no action/observation logic needed)
+        
+        #
+        # occasionally save the model
+        #
+        if self.countdown_till_checkpoint():
+            print("saving model in " + self.save_folder)
+            self.save_network()
+            print("model saved")
     
     @ConnectBody.when_mission_ends
     def when_mission_ends(self):
