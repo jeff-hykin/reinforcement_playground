@@ -7,12 +7,12 @@ import gym
 from tools.all_tools import PATHS, product, FS
 from tools.reinverse import ConnectBody
 
-from brain_builders.ppo.rollout_buffer import RolloutBuffer
-from brain_builders.ppo.actor_critic import ActorCritic
-from brain_builders.ppo.ppo_agent import PpoAgent
+from agent_builders.ppo.rollout_buffer import RolloutBuffer
+from agent_builders.ppo.actor_critic import ActorCritic
+from agent_builders.ppo.ppo_brain import PpoBrain
 
 @ConnectBody
-class BrainBuilder:
+class AgentBuilder:
     def __init__(
         self,
         body,
@@ -32,7 +32,7 @@ class BrainBuilder:
         self.minimum_action_standard_deviation         = minimum_action_standard_deviation
         self.save_folder                               = save_folder
         
-        self.agent = PpoAgent(
+        self.brain = PpoBrain(
             state_dim=product(self.observation_space.shape or [self.observation_space.n]),
             action_dim=product(self.action_space.shape or [self.action_space.n]),
             has_continuous_action_space=(not isinstance(self.action_space, gym.spaces.Discrete)),
@@ -58,8 +58,8 @@ class BrainBuilder:
         # 
         if True:
             reward = self.body.get_reward()
-            self.agent.buffer.rewards.append(reward)
-            self.agent.buffer.is_terminals.append(False)
+            self.brain.buffer.rewards.append(reward)
+            self.brain.buffer.is_terminals.append(False)
         # 
         # occasionally update the network
         # 
@@ -67,25 +67,25 @@ class BrainBuilder:
         if self.remaining_timesteps_before_update <= 0:
             # reset the counter
             self.remaining_timesteps_before_update = self.timesteps_before_weight_update
-            self.agent.update()
+            self.brain.update()
         
         # 
         # update action standard deviation
         # 
         # if continuous action space; then decay action std of ouput action distribution
-        if self.agent.has_continuous_action_space:
+        if self.brain.has_continuous_action_space:
             self.remaining_timesteps_before_standard_deviation_decay -= 1
             if self.remaining_timesteps_before_standard_deviation_decay == 0:
                 # reset the counter
                 self.remaining_timesteps_before_standard_deviation_decay = self.timesteps_before_standard_deviation_decay
-                self.agent.decay_action_std(self.action_standard_deviation_decay_rate, self.minimum_action_standard_deviation)
+                self.brain.decay_action_std(self.action_standard_deviation_decay_rate, self.minimum_action_standard_deviation)
         
         # 
         # take action!
         # 
         observation = self.body.get_observation()
         # brain decides action (reshape because the agent wants a batch)
-        action_choice = self.agent.select_action(observation.reshape((1,*observation.shape)))
+        action_choice = self.brain.select_action(observation.reshape((1,*observation.shape)))
         # actually perform the action in the world
         self.body.perform_action(action_choice)
         
@@ -94,8 +94,8 @@ class BrainBuilder:
         # 
         # save last reward
         # 
-        self.agent.buffer.rewards.append(self.body.get_reward())
-        self.agent.buffer.is_terminals.append(True)
+        self.brain.buffer.rewards.append(self.body.get_reward())
+        self.brain.buffer.is_terminals.append(True)
         # (no action/observation logic needed)
     
     @ConnectBody.when_mission_ends
@@ -126,11 +126,11 @@ class BrainBuilder:
             max_number += 1
         save_point = FS.join(self.save_folder, str(max_number)+".model")
         print("saving model at : " + save_point)
-        self.agent.save(save_point)
+        self.brain.save(save_point)
         print("model saved")
 
 
 # for testing:
 #     from world_builders.atari.main import WorldBuilder
 #     atari = WorldBuilder(game="enduro")
-#     ppo_brain = BrainBuilder(body=atari.bodies[0])
+#     ppo_brain = AgentBuilder(body=atari.bodies[0])

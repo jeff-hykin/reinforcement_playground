@@ -14,10 +14,10 @@ import gym
 # local
 from tools.pytorch_tools import device
 
-from brain_builders.ppo.rollout_buffer import RolloutBuffer
-from brain_builders.ppo.actor_critic import ActorCritic
+from agent_builders.ppo.rollout_buffer import RolloutBuffer
+from agent_builders.ppo.actor_critic import ActorCritic
 
-class PpoAgent:
+class PpoBrain:
     def __init__(self, state_dim, action_dim, has_continuous_action_space, lr_actor=0.0003, lr_critic=0.001, gamma=0.99, K_epochs=40, eps_clip=0.2, action_std_init=0.6):
         self.has_continuous_action_space = has_continuous_action_space
 
@@ -51,7 +51,7 @@ class PpoAgent:
         
         else:
             print("--------------------------------------------------------------------------------------------")
-            print("WARNING : Calling PpoAgent::set_action_std() on discrete action space policy")
+            print("WARNING : Calling PpoBrain::set_action_std() on discrete action space policy")
             print("--------------------------------------------------------------------------------------------")
 
 
@@ -69,7 +69,7 @@ class PpoAgent:
             self.set_action_std(self.action_std)
 
         else:
-            print("WARNING : Calling PpoAgent::decay_action_std() on discrete action space policy")
+            print("WARNING : Calling PpoBrain::decay_action_std() on discrete action space policy")
 
         print("--------------------------------------------------------------------------------------------")
 
@@ -138,7 +138,7 @@ class PpoAgent:
             surr1 = ratios * advantages
             surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
 
-            # final loss of clipped objective PpoAgent
+            # final loss of clipped objective PpoBrain
             loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy
             
             # take gradient step

@@ -1,3 +1,5 @@
+from simple_namespace import namespace
+
 # 
 # 
 # Body
@@ -57,7 +59,7 @@ class MinimalBody:
 
 # 
 # 
-# Brain
+# Agent
 # 
 # 
 
@@ -74,7 +76,7 @@ def ConnectBody(Class):
     """
         Example:
             @ConnectBody
-            class BrainBuilder:
+            class AgentBuilder:
                 def __init__(self, body, config_arg1="hi"):
                     self.body = body
                     self.config_arg1 = self.config_arg1
@@ -97,9 +99,9 @@ def ConnectBody(Class):
                     self.body.perform_action(action)
     """
     # inherit
-    class ConnectedBrain(Class):
+    class ConnectedAgent(Class):
         def __init__(self, *args, **kwargs):
-            super(ConnectedBrain, self).__init__(*args, **kwargs)
+            super(ConnectedAgent, self).__init__(*args, **kwargs)
             # connect special methods to the body
             body = kwargs.get("body", None)
             if body is None:
@@ -113,7 +115,7 @@ def ConnectBody(Class):
                         return lambda *args, **kwargs: local_copy_of_attribute(*args, **kwargs)
                     # attach the method to the body object
                     setattr(body, callback_name, scope_fixer())
-    return ConnectedBrain
+    return ConnectedAgent
 
 add_special_decorator(ConnectBody, "when_mission_starts")
 add_special_decorator(ConnectBody, "when_episode_starts")
@@ -246,3 +248,56 @@ class MinimalWorld:
             each_body.when_mission_ends()
         if hasattr(self, "after_mission_ends"):
             self.after_mission_ends()
+
+
+
+# 
+# 
+# mission helpers
+# 
+# 
+@namespace
+def Missions():
+    
+    def simple(world, max_number_of_episodes=float("inf"), max_number_of_timesteps=float("inf")):
+        import itertools
+        try:
+            world.when_mission_starts()
+            # 
+            # episodes
+            # 
+            for episode_index in itertools.count(0): # starting at 0, count forever
+                # break conditions
+                if episode_index > max_number_of_episodes:
+                    break
+                if world.wants_to_end_mission:
+                    world.wants_to_end_mission = False
+                    break
+                if any(each_body.wants_to_end_mission for each_body in world.bodies):
+                    for each_body in world.bodies: each_body.wants_to_end_mission = False
+                    break
+                
+                world.when_episode_starts(episode_index)
+                
+                # 
+                # timesteps
+                # 
+                for timestep_index in itertools.count(0): # starting at 0, count forever
+                    if timestep_index > max_number_of_timesteps:
+                        break
+                    if world.wants_to_end_episode:
+                        world.wants_to_end_episode = False
+                        break
+                    if any(each_body.wants_to_end_episode for each_body in world.bodies):
+                        for each_body in world.bodies: each_body.wants_to_end_episode = False
+                        break
+                    
+                    world.when_timestep_happens(timestep_index)
+                
+        finally:
+            # 
+            # end timestep
+            # 
+            world.when_mission_ends()
+    
+    return locals()

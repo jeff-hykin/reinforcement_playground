@@ -1,5 +1,5 @@
 from world_builders.atari.main import WorldBuilder
-from brain_builders.ppo.main import BrainBuilder
+from agent_builders.ppo.main import AgentBuilder
 
 def main():
     # 
@@ -9,7 +9,7 @@ def main():
     # 
     # connect the brain to the body
     # 
-    mr_bond = BrainBuilder(
+    mr_bond = AgentBuilder(
         body=enduro_world.bodies[0],
     )
     # 
