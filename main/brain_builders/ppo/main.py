@@ -31,7 +31,7 @@ class Brain:
         self.action_standard_deviation_decay_rate      = action_standard_deviation_decay_rate
         self.minimum_action_standard_deviation         = minimum_action_standard_deviation
         self.save_folder                               = save_folder
-        self.agent = PPO(
+        self.agent = PpoAgent(
             state_dim=product(self.observation_space.shape),
             action_dim=product(self.action_space.shape),
             has_continuous_action_space=(not isinstance(self.action_space, gym.spaces.Discrete)),
@@ -123,6 +123,11 @@ class Brain:
             max_number += 1
         save_point = FS.join(self.save_folder, str(max_number)+".model")
         print("saving model at : " + save_point)
-        ppo_agent.save(save_point+)
+        ppo_agent.save(save_point)
         print("model saved")
-        
+
+
+# for testing:
+#     from world_builders.atari.main import WorldBuilder
+#     atari = WorldBuilder(game="enduro")
+#     ppo_brain = Brain(body=atari.bodies[0])

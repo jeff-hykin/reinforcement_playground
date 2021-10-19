@@ -14,6 +14,9 @@ import gym
 # local
 from tools.pytorch_tools import device
 
+from brain_builders.ppo.rollout_buffer import RolloutBuffer
+from brain_builders.ppo.actor_critic import ActorCritic
+
 class PpoAgent:
     def __init__(self, state_dim, action_dim, has_continuous_action_space, lr_actor=0.0003, lr_critic=0.001, gamma=0.99, K_epochs=40, eps_clip=0.2, action_std_init=0.6):
         self.has_continuous_action_space = has_continuous_action_space
