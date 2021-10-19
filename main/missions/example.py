@@ -54,6 +54,7 @@ def begin_mission(world, max_number_of_episodes=float("inf"), max_number_of_time
                 
                 world.when_timestep_happens(timestep_index)
             
+            world.when_episode_ends(episode_index)
     finally:
         # 
         # end timestep

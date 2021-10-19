@@ -57,6 +57,7 @@ class AgentBuilder:
         # save the reward for the previous action
         # 
         reward = self.body.get_reward()
+        self.accumulated_reward += reward
         self.brain.buffer.rewards.append(reward)
         self.brain.buffer.is_terminals.append(False)
         
@@ -88,7 +89,9 @@ class AgentBuilder:
         # 
         # save last reward
         # 
-        self.brain.buffer.rewards.append(self.body.get_reward())
+        reward = self.body.get_reward()
+        self.accumulated_reward += reward
+        self.brain.buffer.rewards.append(reward)
         self.brain.buffer.is_terminals.append(True)
         
         #

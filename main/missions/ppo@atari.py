@@ -17,4 +17,8 @@ mr_bond = AgentBuilder(
 # 
 # begin mission
 # 
-Missions.simple(enduro_world, max_number_of_episodes=100, max_number_of_timesteps=1000)
+Missions.simple(
+    enduro_world,
+    max_number_of_episodes=10000,
+    max_number_of_timesteps=10000,
+)

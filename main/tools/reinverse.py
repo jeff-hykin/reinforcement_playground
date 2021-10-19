@@ -232,11 +232,11 @@ class MinimalWorld:
             similar to when_episode_starts, this can be used to set/reset reality
         """
         if hasattr(self, "before_episode_ends"):
-            self.before_episode_ends()
+            self.before_episode_ends(episode_index)
         for each_body in self.bodies:
-            each_body.when_episode_ends()
+            each_body.when_episode_ends(episode_index)
         if hasattr(self, "after_episode_ends"):
-            self.after_episode_ends()
+            self.after_episode_ends(episode_index)
     
     def when_mission_ends(self):
         """
@@ -293,6 +293,8 @@ def Missions():
                         break
                     
                     world.when_timestep_happens(timestep_index)
+                
+                world.when_episode_ends(episode_index)
                 
         finally:
             # 
