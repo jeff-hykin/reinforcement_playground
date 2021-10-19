@@ -12,7 +12,7 @@ from brain_builders.ppo.actor_critic import ActorCritic
 from brain_builders.ppo.ppo_agent import PpoAgent
 
 @ConnectBody
-class Brain:
+class BrainBuilder:
     def __init__(
         self,
         body,
@@ -31,30 +31,31 @@ class Brain:
         self.action_standard_deviation_decay_rate      = action_standard_deviation_decay_rate
         self.minimum_action_standard_deviation         = minimum_action_standard_deviation
         self.save_folder                               = save_folder
+        
         self.agent = PpoAgent(
-            state_dim=product(self.observation_space.shape),
-            action_dim=product(self.action_space.shape),
+            state_dim=product(self.observation_space.shape or [self.observation_space.n]),
+            action_dim=product(self.action_space.shape or [self.action_space.n]),
             has_continuous_action_space=(not isinstance(self.action_space, gym.spaces.Discrete)),
             **kwargs,
         )
     
     @ConnectBody.when_mission_starts
-    def _(self, episode_index):
+    def when_mission_starts(self):
         # a simple counter
         self.remaining_timesteps_before_update = self.timesteps_before_weight_update
         self.remaining_timesteps_before_standard_deviation_decay = self.timesteps_before_standard_deviation_decay
         
     @ConnectBody.when_episode_starts
-    def _(self, episode_index):
+    def when_episode_starts(self, episode_index):
         self.episode_index = 0
         self.accumulated_reward = 0
     
     @ConnectBody.when_timestep_happens
-    def _(self, timestep_index):
+    def when_timestep_happens(self, timestep_index):
         # 
         # save the reward for the previous action
         # 
-        if timestep_index != 0:
+        if True:
             reward = self.body.get_reward()
             self.agent.buffer.rewards.append(reward)
             self.agent.buffer.is_terminals.append(False)
@@ -82,13 +83,13 @@ class Brain:
         # take action!
         # 
         observation = self.body.get_observation()
-        # brain decides action
-        action_choice = self.agent.select_action(observation)
+        # brain decides action (reshape because the agent wants a batch)
+        action_choice = self.agent.select_action(observation.reshape((1,*observation.shape)))
         # actually perform the action in the world
-        self.body.take_action(action_choice)
+        self.body.perform_action(action_choice)
         
     @ConnectBody.when_episode_ends
-    def _(self, episode_index):
+    def when_episode_ends(self, episode_index):
         # 
         # save last reward
         # 
@@ -97,7 +98,7 @@ class Brain:
         # (no action/observation logic needed)
     
     @ConnectBody.when_mission_ends
-    def _(self, episode_index):
+    def when_mission_ends(self, episode_index):
         # 
         # save the network
         # 
@@ -130,4 +131,4 @@ class Brain:
 # for testing:
 #     from world_builders.atari.main import WorldBuilder
 #     atari = WorldBuilder(game="enduro")
-#     ppo_brain = Brain(body=atari.bodies[0])
+#     ppo_brain = BrainBuilder(body=atari.bodies[0])

@@ -1,9 +1,47 @@
+# 
+# 
+# Body
+#
+#  
+
+# Class decorator
+def BodyBuilder(Class):
+    """
+        Example:
+            @BodyBuilder
+            class Player1(MinimalBody):
+                observation_space = None
+                action_space = None
+                
+                def get_reward(self):
+                    return world.state.reward # depends on your world setup
+    """
+    # inherit
+    class BodyBuilder(Class):
+        def __init__(self, *args, **kwargs):
+            self.wants_to_end_mission = False
+            self.wants_to_end_episode = False
+            self.action = None
+            # the Brain will overwrite all of these lambdas
+            self.when_mission_starts   = lambda               : None
+            self.when_episode_starts   = lambda episode_index : None
+            self.when_timestep_happens = lambda timestep_index: None
+            self.when_episode_ends     = lambda episode_index : None
+            self.when_mission_ends     = lambda               : None
+            super(BodyBuilder, self).__init__(*args, **kwargs)
+            
+    return BodyBuilder
+
 class MinimalBody:
     observation_space = None
     action_space = None
-    
-    def __init__(self):
-        pass
+    # callbacks that need to be overwritten (use the @ConnectBody)
+    # (these are redundantly placed here to help python-autocomplete tools)
+    when_mission_starts   = lambda               : None
+    when_episode_starts   = lambda episode_index : None
+    when_timestep_happens = lambda timestep_index: None
+    when_episode_ends     = lambda episode_index : None
+    when_mission_ends     = lambda               : None
     
     def get_reward(self):
         # use a subset of self._reality to decide the reward
@@ -16,60 +54,47 @@ class MinimalBody:
     def perform_action(self, action):
         # do something to self._reality
         pass
-    
-    # callbacks that need to be overwritten (use the @ConnectBody)
-    # (these are redundantly placed here to help python-autocomplete tools)
-    when_mission_starts   = lambda               : None
-    when_episode_starts   = lambda episode_index : None
-    when_timestep_happens = lambda timestep_index: None
-    when_episode_ends     = lambda episode_index : None
-    when_mission_ends     = lambda               : None
 
-# Class decorator
-def Body(Class):
-    """
-        Example:
-            @Body
-            class Player1:
-                observation_space = None
-                action_space = None
-                
-                def get_reward(self):
-                    return world.state.reward # depends on your world setup
-    """
-    # inherit
-    class Body(Class):
-        def __init__(self, *args, **kwargs):
-            self.wants_to_end_mission = False
-            self.wants_to_end_episode = False
-            self.action = None
-            super(Body, self).__init__(*args, **kwargs)
-            # connect special methods to the body
-            self.when_mission_starts   = lambda               : None
-            self.when_episode_starts   = lambda episode_index : None
-            self.when_timestep_happens = lambda timestep_index: None
-            self.when_episode_ends     = lambda episode_index : None
-            self.when_mission_ends     = lambda               : None
-            
-    return Body
+# 
+# 
+# Brain
+# 
+# 
 
+# helper
+def add_special_decorator(main_object, method_name):
+    def wrapper(method):
+        method.__dict__ = {}
+        method.__dict__[main_object] = method_name
+        return method
+    setattr(main_object, method_name, wrapper) 
 
 # Class decorator
 def ConnectBody(Class):
     """
         Example:
             @ConnectBody
-            class Foo:
+            class BrainBuilder:
                 def __init__(self, body, config_arg1="hi"):
-                    print('config_arg1 = ', config_arg1)
+                    self.body = body
+                    self.config_arg1 = self.config_arg1
                 
                 @ConnectBody.when_mission_starts
-                def do_stuff(self):
+                def when_mission_starts(self):
                     print('mission is starting')
                 
                 @ConnectBody.when_episode_starts
-                def do_stuff(self, episode_index):
+                def when_episode_starts(self, episode_index):
                     print('episode '+str(episode_index)+' is starting')
+                
+                @ConnectBody.when_timestep_happens
+                def when_timestep_happens(self, timestep_index):
+                    if timestep_index > 0:
+                        reward = self.body.get_reward()
+                    
+                    observation = self.body.get_observation()
+                    action = self.body.action_space.sample()
+                    self.body.perform_action(action)
     """
     # inherit
     class ConnectedBrain(Class):
@@ -83,41 +108,61 @@ def ConnectBody(Class):
                 each_attribute = getattr(self, attribute_name)
                 if callable(each_attribute) and hasattr(each_attribute, '__dict__') and each_attribute.__dict__.get(ConnectBody, False):
                     callback_name = each_attribute.__dict__.get(ConnectBody, False)
-                    wrapped_callback = lambda *args, **kwargs: each_attribute(self, *args, **kwargs)
+                    def scope_fixer():
+                        local_copy_of_attribute = each_attribute
+                        return lambda *args, **kwargs: local_copy_of_attribute(*args, **kwargs)
                     # attach the method to the body object
-                    setattr(body, callback_name, wrapped_callback)
+                    setattr(body, callback_name, scope_fixer())
     return ConnectedBrain
 
-def _when_mission_starts(method):
-    method.__dict__ = {}
-    method.__dict__[ConnectBody] = "when_mission_starts"
-    return method
-ConnectBody.when_mission_starts = _when_mission_starts
+add_special_decorator(ConnectBody, "when_mission_starts")
+add_special_decorator(ConnectBody, "when_episode_starts")
+add_special_decorator(ConnectBody, "when_timestep_happens")
+add_special_decorator(ConnectBody, "when_episode_ends")
+add_special_decorator(ConnectBody, "when_mission_ends")
 
-def _when_episode_starts(method):
-    method.__dict__ = {}
-    method.__dict__[ConnectBody] = "when_episode_starts"
-    return method
-ConnectBody.when_episode_starts = _when_episode_starts
+# 
+# 
+# World
+#
+#  
 
-def _when_timestep_happens(method):
-    method.__dict__ = {}
-    method.__dict__[ConnectBody] = "when_timestep_happens"
-    return method
-ConnectBody.when_timestep_happens = _when_timestep_happens
-
-def _when_episode_ends(method):
-    method.__dict__ = {}
-    method.__dict__[ConnectBody] = "when_episode_ends"
-    return method
-ConnectBody.when_episode_ends = _when_episode_ends
-
-def _when_mission_ends(method):
-    method.__dict__ = {}
-    method.__dict__[ConnectBody] = "when_mission_ends"
-    return method
-ConnectBody.when_mission_ends = _when_mission_ends
-
+# Class decorator
+def WorldBuilder(Class):
+    """
+        Example:
+            @WorldBuilder
+            class WorldBuilder:
+                def __init__(self, config_arg1="hi"):
+                    self.config_arg1 = self.config_arg1
+                
+                def when_mission_starts(self):
+                    print('mission is starting')
+                
+                def when_episode_starts(self, episode_index):
+                    print('episode '+str(episode_index)+' is starting')
+                
+                def when_timestep_happens(self, timestep_index):
+                    if timestep_index > 0:
+                        reward = self.body.get_reward()
+                    
+                    observation = self.body.get_observation()
+                    action = self.body.action_space.sample()
+                    self.body.perform_action(action)
+    """
+    # inherit
+    class World(Class):
+        def __init__(self, *args, **kwargs):
+            self.wants_to_end_episode = False
+            self.wants_to_end_mission = False
+            self.bodies = []
+            super(World, self).__init__(*args, **kwargs)
+        
+        def when_mission_starts(self, *args, **kwargs):
+            super(World, self).when_mission_starts(*args, **kwargs)
+            if len(self.bodies) <= 0:
+                raise Exception(f"There's a class ({Class}) marked with @WorldBuilder that doesn't create a self.bodies attribute\nWorldBuilder needs:\n    self.bodies (list of body objects, see `BodyBuilder`)\n    self.wants_to_end_episode (true/false)\n    self.wants_to_end_mission (true/false)\nThose are the only special attributes that need to be set")
+    return World
 
 class MinimalWorld:
     """

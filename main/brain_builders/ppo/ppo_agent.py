@@ -100,7 +100,8 @@ class PpoAgent:
 
 
     def update(self):
-
+        
+        self.buffer.equalize()
         # Monte Carlo estimate of returns
         rewards = []
         discounted_reward = 0

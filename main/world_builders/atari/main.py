@@ -1,9 +1,10 @@
 from super_map import Map, LazyDict
 
 # local
-from tools.reinverse import MinimalWorld, Body, MinimalBody
+from tools.reinverse import WorldBuilder, MinimalWorld, BodyBuilder, MinimalBody
 from world_builders.atari.environment import Environment
 
+@WorldBuilder
 class WorldBuilder(MinimalWorld):
     """
         required attributes:
@@ -39,7 +40,7 @@ class WorldBuilder(MinimalWorld):
         world.debugging_info = None
         
         # define a body and create it
-        @Body
+        @BodyBuilder
         class Player(MinimalBody):
             observation_space = world.game.observation_space
             action_space      = world.game.action_space
