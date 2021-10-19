@@ -73,5 +73,5 @@ class WorldBuilder(MinimalWorld):
         # update the state, and episode status
         self.state.image, self.state.score, self.wants_to_end_episode, self.debugging_info = self.game.step(player_1.action)
     
-    def when_mission_ends(self):
+    def after_mission_ends(self):
         self.game.close()

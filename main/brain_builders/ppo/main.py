@@ -49,6 +49,7 @@ class BrainBuilder:
     def when_episode_starts(self, episode_index):
         self.episode_index = 0
         self.accumulated_reward = 0
+        print(f'episode: {episode_index}')
     
     @ConnectBody.when_timestep_happens
     def when_timestep_happens(self, timestep_index):
@@ -98,7 +99,8 @@ class BrainBuilder:
         # (no action/observation logic needed)
     
     @ConnectBody.when_mission_ends
-    def when_mission_ends(self, episode_index):
+    def when_mission_ends(self):
+        print('Brain:when_mission_ends')
         # 
         # save the network
         # 
