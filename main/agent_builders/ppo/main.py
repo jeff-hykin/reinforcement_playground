@@ -56,10 +56,10 @@ class AgentBuilder:
         # 
         # save the reward for the previous action
         # 
-        if True:
-            reward = self.body.get_reward()
-            self.brain.buffer.rewards.append(reward)
-            self.brain.buffer.is_terminals.append(False)
+        reward = self.body.get_reward()
+        self.brain.buffer.rewards.append(reward)
+        self.brain.buffer.is_terminals.append(False)
+        
         # 
         # occasionally update the network
         # 
@@ -100,11 +100,12 @@ class AgentBuilder:
     
     @ConnectBody.when_mission_ends
     def when_mission_ends(self):
-        print('Brain:when_mission_ends')
         # 
         # save the network
         # 
+        print("saving model in " + self.save_folder)
         self.save_network()
+        print("model saved")
         
     
     # helper
@@ -125,9 +126,9 @@ class AgentBuilder:
         if not overwrite_previous:
             max_number += 1
         save_point = FS.join(self.save_folder, str(max_number)+".model")
-        print("saving model at : " + save_point)
+        if overwrite_previous:
+            FS.delete(save_point)
         self.brain.save(save_point)
-        print("model saved")
 
 
 # for testing:
