@@ -250,43 +250,51 @@ def sac(
     logger.setup_pytorch_saver(ac)
 
     def update(data):
-        # First run one gradient descent step for Q1 and Q2
-        q_optimizer.zero_grad()
-        loss_q, q_info = compute_loss_q(data)
-        loss_q.backward()
-        q_optimizer.step()
+        try:
+            # First run one gradient descent step for Q1 and Q2
+            q_optimizer.zero_grad()
+            loss_q, q_info = compute_loss_q(data)
+            loss_q.backward()
+            q_optimizer.step()
 
-        # Record things
-        logger.store(LossQ=loss_q.item(), **q_info)
+            # Record things
+            logger.store(LossQ=loss_q.item(), **q_info)
 
-        # Freeze Q-networks so you don't waste computational effort
-        # computing gradients for them during the policy learning step.
-        for p in q_params:
-            p.requires_grad = False
+            # Freeze Q-networks so you don't waste computational effort
+            # computing gradients for them during the policy learning step.
+            for p in q_params:
+                p.requires_grad = False
 
-        # Next run one gradient descent step for pi.
-        pi_optimizer.zero_grad()
-        loss_pi, pi_info = compute_loss_pi(data)
-        loss_pi.backward()
-        pi_optimizer.step()
+            # Next run one gradient descent step for pi.
+            pi_optimizer.zero_grad()
+            loss_pi, pi_info = compute_loss_pi(data)
+            loss_pi.backward()
+            pi_optimizer.step()
 
-        # Unfreeze Q-networks so you can optimize it at next DDPG step.
-        for p in q_params:
-            p.requires_grad = True
+            # Unfreeze Q-networks so you can optimize it at next DDPG step.
+            for p in q_params:
+                p.requires_grad = True
 
-        # Record things
-        logger.store(LossPi=loss_pi.item(), **pi_info)
+            # Record things
+            logger.store(LossPi=loss_pi.item(), **pi_info)
 
-        # Finally, update target networks by polyak averaging.
-        with torch.no_grad():
-            for p, p_targ in zip(ac.parameters(), ac_targ.parameters()):
-                # NB: We use an in-place operations "mul_", "add_" to update target
-                # params, as opposed to "mul" and "add", which would make new tensors.
-                p_targ.data.mul_(polyak)
-                p_targ.data.add_((1 - polyak) * p.data)
+            # Finally, update target networks by polyak averaging.
+            with torch.no_grad():
+                for p, p_targ in zip(ac.parameters(), ac_targ.parameters()):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.mul_(polyak)
+                    p_targ.data.add_((1 - polyak) * p.data)
+        except Exception as error:
+            pass
 
     def get_action(o, deterministic=False):
-        return ac.act(torch.as_tensor(o, dtype=torch.float32), deterministic)
+        try:
+            return ac.act(torch.as_tensor(o, dtype=torch.float32), deterministic)
+        except Exception as error:
+            print(f'error when getting action: {error}')
+            print('o.shape = ', o.shape)
+            return env.action_space.sample()
 
     def test_agent():
         for j in range(num_test_episodes):

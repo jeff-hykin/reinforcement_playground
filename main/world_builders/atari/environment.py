@@ -4,6 +4,7 @@ import gym
 from gym import error, spaces
 from gym import utils
 from gym.utils import seeding
+from super_map import Map, LazyDict
 
 try:
     import atari_py
@@ -55,7 +56,7 @@ class Environment(gym.Env, utils.EzPickle):
     ):
         """
         Arguments:
-            game: the name of the game ("pong", "Enduro", etc) dont add the "-v0"
+            game: the name of the game ("pong", "enduro", etc) dont add the "-v0"
             mode: different modes are available for different games.
             frameskip should be either a tuple (indicating a random range to choose from, with the top value exclude), or an int.
         """
