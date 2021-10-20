@@ -49,10 +49,12 @@ class AgentBuilder:
     def when_episode_starts(self, episode_index):
         self.episode_index = 0
         self.accumulated_reward = 0
-        print(f'episode: {episode_index}')
+        self.timestep = 0
+        print("{"+f' "episode": {str(episode_index).ljust(5)},', end="")
     
     @ConnectBody.when_timestep_happens
     def when_timestep_happens(self, timestep_index):
+        self.timestep = timestep_index
         # 
         # save the reward for the previous action
         # 
@@ -93,6 +95,13 @@ class AgentBuilder:
         self.accumulated_reward += reward
         self.brain.buffer.rewards.append(reward)
         self.brain.buffer.is_terminals.append(True)
+        
+        # 
+        # log
+        # 
+        formatted_reward   = f"{self.accumulated_reward:,.2f}".rjust(8)
+        formatted_timestep = f"{self.timestep}".rjust(6)
+        print(f' "rewardSum": {formatted_reward}, "numberOfTimesteps": {formatted_timestep}'+"}", flush=True)
         
         #
         # occasionally save the model

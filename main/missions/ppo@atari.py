@@ -5,20 +5,20 @@ from tools.reinverse import Missions
 # 
 # create the world
 # 
-enduro_world = WorldBuilder(game="enduro")
+atari_world = WorldBuilder(game="breakout")
 
 # 
 # give the agent a body
 # 
 mr_bond = AgentBuilder(
-    body=enduro_world.bodies[0],
+    body=atari_world.bodies[0],
 )
 
 # 
 # begin mission
 # 
 Missions.simple(
-    enduro_world,
-    max_number_of_episodes=10000,
+    atari_world,
+    max_number_of_episodes=25000,
     max_number_of_timesteps=10000,
 )

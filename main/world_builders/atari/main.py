@@ -38,6 +38,7 @@ class WorldBuilder(MinimalWorld):
         world.game = Environment(**kwargs)
         world.state = None
         world.debugging_info = None
+        world.timestep = 0
         
         # define a body and create it
         @BodyBuilder
@@ -49,7 +50,9 @@ class WorldBuilder(MinimalWorld):
                 return world.state.image
             
             def get_reward(self):
-                return world.state.score
+                import math
+                small_stay_alive_bonus = math.log((world.timestep/300000)+1)
+                return world.state.score + small_stay_alive_bonus
             
             def perform_action(self, action):
                 self.action = action
@@ -66,6 +69,7 @@ class WorldBuilder(MinimalWorld):
         )
     
     def after_timestep_happens(self, timestep_index):
+        self.timestep = timestep_index
         player_1 = self.bodies[0]
         # act randomly when no action given (for DEBUGGING, this is not good general practice)
         if player_1.action is None:
