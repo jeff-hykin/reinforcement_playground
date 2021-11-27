@@ -40,41 +40,4 @@ with ExperimentCollection("logs/record_keeping/ppo_atari_breakout.ignore").new_e
     by_update_records = tuple(each for each in record_keeper if each["by_update"])
     y_values = tuple( each["reward"]       for each in by_update_records )
     x_values = tuple( each["update_index"] for each in by_update_records )
-    y_stats = LiquidData.stats(y_values)
-    x_stats = LiquidData.stats(x_values)
-    
     ss.DisplayCard("quickLine", list(zip(x_values, y_values)))
-    # axis_padding = 0.10 # 10 % 
-    # color = 'rgb(100, 92, 192, 0.9)'
-    # ss.DisplayCard("chartjs", {
-    #     "type": "line",
-    #     "options": {
-    #         "pointRadius": 3,
-    #         "scales": {
-    #             "y": {
-    #                 "min": round(y_stats.min - y_stats.range*axis_padding, ndigits=0),
-    #                 "max": round(y_stats.max + y_stats.range*axis_padding, ndigits=0),
-    #             }
-    #         },
-    #         "layout": {
-    #         },
-    #         "plugins": {
-    #             "legend" : {
-    #                 "maxWidth": 600,
-    #             }
-    #         }
-    #     },
-    #     "data": {
-    #         "labels": list(range(0,x_stats.max)),
-    #         "datasets": [
-    #             {
-    #                 "label": "Reward By Update",
-    #                 "backgroundColor": color,
-    #                 "borderColor": color,
-    #                 "color": color,
-    #                 # x and y pairs
-    #                 "data": list(zip(x_values, y_values)),
-    #             }
-    #         ],
-    #     }
-    # })
