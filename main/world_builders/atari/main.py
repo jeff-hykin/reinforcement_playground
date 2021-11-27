@@ -1,7 +1,7 @@
 from super_map import Map, LazyDict
 
 # local
-from tools.reinverse import WorldBuilder, MinimalWorld, BodyBuilder, MinimalBody
+from tools.reinverse import WorldBuilder, MinimalWorld, BodyBuilder, MinimalBody, DefaultBody
 from world_builders.atari.environment import Environment
 
 @WorldBuilder
@@ -42,17 +42,19 @@ class WorldBuilder(MinimalWorld):
         
         # define a body and create it
         @BodyBuilder
-        class Player(MinimalBody):
+        class Player(DefaultBody):
             observation_space = world.game.observation_space
             action_space      = world.game.action_space
             
             def get_observation(self):
+                if world.state is None:
+                    return None
                 return world.state.image
             
             def get_reward(self):
-                import math
-                small_stay_alive_bonus = math.log((world.timestep/300000)+1)
-                return world.state.score + small_stay_alive_bonus
+                if world.state is None:
+                    return 0
+                return world.state.score
             
             def perform_action(self, action):
                 self.action = action

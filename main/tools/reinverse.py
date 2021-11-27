@@ -57,6 +57,22 @@ class MinimalBody:
         # do something to self._reality
         pass
 
+class DefaultBody(MinimalBody):
+    def as_env(self):
+        import gym
+        class Env(gym.Env):
+            observation_space = self.observation_space
+            action_space      = self.action_space
+            def step(_, action):
+                self.perform_action(action)
+                return self.get_observation(), self.get_reward(), False, None
+            
+            def reset(_):
+                self.wants_to_end_episode = True
+                return self.get_observation()
+        
+        return Env()
+
 # 
 # 
 # Agent
