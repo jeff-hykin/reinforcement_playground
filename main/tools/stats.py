@@ -1,3 +1,5 @@
+from super_map import LazyDict
+
 def create_linear_interpolater(from_min, from_max, to_min, to_max):
     from_range = from_max - from_min
     to_range = to_max - to_min
