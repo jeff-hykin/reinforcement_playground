@@ -18,47 +18,53 @@ from agent_builders.ppo.rollout_buffer import RolloutBuffer
 from agent_builders.ppo.actor_critic import ActorCritic
 
 class PpoBrain:
-    def __init__(self, state_dim, action_dim, has_continuous_action_space, lr_actor=0.0003, lr_critic=0.001, gamma=0.99, K_epochs=40, eps_clip=0.2, action_std_init=0.6):
-        self.has_continuous_action_space = has_continuous_action_space
+    def __init__(
+        self,
+        state_dim,
+        action_dim,
+        is_continuous_action_space,
+        actor_learning_rate=0.0003,
+        critic_learning_rate=0.001,
+        discount_factor=0.99,
+        number_of_epochs_to_optimize=40,
+        loss_clamp_boundary=0.2,
+        action_std_init=0.6,
+    ):
+        # Copy in values
+        self.is_continuous_action_space  = is_continuous_action_space
+        self.discount_factor              = discount_factor
+        self.loss_clamp_boundary          = loss_clamp_boundary
+        self.number_of_epochs_to_optimize = number_of_epochs_to_optimize
 
-        if has_continuous_action_space:
+        # Setup Networks and tools
+        self.buffer     = RolloutBuffer()
+        self.policy     = ActorCritic(state_dim, action_dim, is_continuous_action_space, action_std_init).to(device)
+        self.old_policy = ActorCritic(state_dim, action_dim, is_continuous_action_space, action_std_init).to(device)
+        self.old_policy.load_state_dict(self.policy.state_dict())
+        self.MseLoss = nn.MSELoss()
+        self.optimizer = torch.optim.Adam([
+            {'params': self.policy.actor.parameters(), 'lr': actor_learning_rate},
+            {'params': self.policy.critic.parameters(), 'lr': critic_learning_rate}
+        ])
+        
+        # Special logic
+        if is_continuous_action_space:
             self.action_std = action_std_init
 
-        self.gamma = gamma
-        self.eps_clip = eps_clip
-        self.K_epochs = K_epochs
-        
-        self.buffer = RolloutBuffer()
-
-        self.policy = ActorCritic(state_dim, action_dim, has_continuous_action_space, action_std_init).to(device)
-        self.optimizer = torch.optim.Adam([
-                        {'params': self.policy.actor.parameters(), 'lr': lr_actor},
-                        {'params': self.policy.critic.parameters(), 'lr': lr_critic}
-                    ])
-
-        self.policy_old = ActorCritic(state_dim, action_dim, has_continuous_action_space, action_std_init).to(device)
-        self.policy_old.load_state_dict(self.policy.state_dict())
-        
-        self.MseLoss = nn.MSELoss()
-
-
     def set_action_std(self, new_action_std):
-        
-        if self.has_continuous_action_space:
+        if self.is_continuous_action_space:
             self.action_std = new_action_std
             self.policy.set_action_std(new_action_std)
-            self.policy_old.set_action_std(new_action_std)
-        
+            self.old_policy.set_action_std(new_action_std)
         else:
             print("--------------------------------------------------------------------------------------------")
             print("WARNING : Calling PpoBrain::set_action_std() on discrete action space policy")
             print("--------------------------------------------------------------------------------------------")
 
-
     def decay_action_std(self, action_std_decay_rate, min_action_std):
         print("--------------------------------------------------------------------------------------------")
 
-        if self.has_continuous_action_space:
+        if self.is_continuous_action_space:
             self.action_std = self.action_std - action_std_decay_rate
             self.action_std = round(self.action_std, 4)
             if (self.action_std <= min_action_std):
@@ -76,10 +82,10 @@ class PpoBrain:
 
     def select_action(self, state):
 
-        if self.has_continuous_action_space:
+        if self.is_continuous_action_space:
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(device)
-                action, action_logprob = self.policy_old.act(state)
+                action, action_logprob = self.old_policy.act(state)
 
             self.buffer.states.append(state)
             self.buffer.actions.append(action)
@@ -90,7 +96,7 @@ class PpoBrain:
         else:
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(device)
-                action, action_logprob = self.policy_old.act(state)
+                action, action_logprob = self.old_policy.act(state)
             
             self.buffer.states.append(state)
             self.buffer.actions.append(action)
@@ -108,7 +114,7 @@ class PpoBrain:
         for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
             if is_terminal:
                 discounted_reward = 0
-            discounted_reward = reward + (self.gamma * discounted_reward)
+            discounted_reward = reward + (self.discount_factor * discounted_reward)
             rewards.insert(0, discounted_reward)
             
         # Normalizing the rewards
@@ -122,7 +128,7 @@ class PpoBrain:
 
         
         # Optimize policy for K epochs
-        for _ in range(self.K_epochs):
+        for _ in range(self.number_of_epochs_to_optimize):
 
             # Evaluating old actions and values
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
@@ -136,7 +142,7 @@ class PpoBrain:
             # Finding Surrogate Loss
             advantages = rewards - state_values.detach()   
             surr1 = ratios * advantages
-            surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
+            surr2 = torch.clamp(ratios, 1-self.loss_clamp_boundary, 1+self.loss_clamp_boundary) * advantages
 
             # final loss of clipped objective PpoBrain
             loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy
@@ -147,17 +153,17 @@ class PpoBrain:
             self.optimizer.step()
             
         # Copy new weights into old policy
-        self.policy_old.load_state_dict(self.policy.state_dict())
+        self.old_policy.load_state_dict(self.policy.state_dict())
 
         # clear buffer
         self.buffer.clear()
     
     
     def save(self, checkpoint_path):
-        torch.save(self.policy_old.state_dict(), checkpoint_path)
+        torch.save(self.old_policy.state_dict(), checkpoint_path)
    
 
     def load(self, checkpoint_path):
-        self.policy_old.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+        self.old_policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         

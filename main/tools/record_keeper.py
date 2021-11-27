@@ -365,7 +365,7 @@ class ExperimentCollection:
     
     def __init__(self, file_path, records=None, extension=".pickle"):
         self.file_path              = file_path+extension
-        self.experiment_info_keeper             = None
+        self.experiment_info_keeper = None
         self.collection_name        = ""
         self.experiment_keeper      = None
         self._records               = records or []

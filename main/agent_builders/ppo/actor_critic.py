@@ -12,12 +12,12 @@ import numpy as np
 import gym
 
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, has_continuous_action_space, action_std_init):
+    def __init__(self, state_dim, action_dim, is_continuous_action_space, action_std_init):
         super(ActorCritic, self).__init__()
         
-        self.has_continuous_action_space = has_continuous_action_space
+        self.is_continuous_action_space = is_continuous_action_space
 
-        if has_continuous_action_space:
+        if is_continuous_action_space:
             self.action_dim = action_dim
             self.action_var = torch.full((action_dim,), action_std_init * action_std_init).to(device)
 
@@ -29,7 +29,7 @@ class ActorCritic(nn.Module):
             nn.Linear(64, 64),
             nn.Tanh(),
             nn.Linear(64, action_dim),
-            nn.Tanh() if has_continuous_action_space else nn.Softmax(dim=-1)
+            nn.Tanh() if is_continuous_action_space else nn.Softmax(dim=-1)
         )
         
         # critic
@@ -44,7 +44,7 @@ class ActorCritic(nn.Module):
         
     def set_action_std(self, new_action_std):
 
-        if self.has_continuous_action_space:
+        if self.is_continuous_action_space:
             self.action_var = torch.full((self.action_dim,), new_action_std * new_action_std).to(device)
         else:
             print("--------------------------------------------------------------------------------------------")
@@ -57,7 +57,7 @@ class ActorCritic(nn.Module):
     
 
     def act(self, state):
-        if self.has_continuous_action_space:
+        if self.is_continuous_action_space:
             action_mean = self.actor(state)
             cov_mat = torch.diag(self.action_var).unsqueeze(dim=0)
             dist = MultivariateNormal(action_mean, cov_mat)
@@ -73,7 +73,7 @@ class ActorCritic(nn.Module):
 
     def evaluate(self, state, action):
 
-        if self.has_continuous_action_space:
+        if self.is_continuous_action_space:
             action_mean = self.actor(state)
             action_var = self.action_var.expand_as(action_mean)
             cov_mat = torch.diag_embed(action_var).to(device)

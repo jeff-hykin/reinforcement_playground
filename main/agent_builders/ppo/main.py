@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import gym
+from super_map import LazyDict
+from tools.record_keeper import RecordKeeper
 
 # local 
 from tools.all_tools import PATHS, product, FS, Countdown
@@ -15,31 +17,91 @@ from agent_builders.ppo.ppo_brain import PpoBrain
 class AgentBuilder:
     def __init__(
         self,
+        # Agent parameters
         body,
-        timesteps_before_weight_update=1600,
         episodes_before_checkpoint=400,
+        timesteps_before_weight_update=1600,
         timesteps_before_standard_deviation_decay=160,
         action_standard_deviation_decay_rate=0.1,
         minimum_action_standard_deviation=0.0001,
         save_folder="./logs/ppo/",
-        **kwargs
+        record_keeper=None,
+        # Model parameters
+        actor_learning_rate=0.0003,
+        critic_learning_rate=0.001,
+        discount_factor=0.99,
+        number_of_epochs_to_optimize=40,
+        loss_clamp_boundary=0.2,
+        action_std_init=0.6,
     ):
-        self.body = body
-        self.action_space = self.body.action_space
-        self.observation_space = self.body.observation_space
-        self.countdown_till_update     = Countdown(size=timesteps_before_weight_update)
-        self.countdown_till_checkpoint = Countdown(size=episodes_before_checkpoint)
-        self.countdown_till_decay      = Countdown(size=timesteps_before_standard_deviation_decay)
+        # Copy args to self
+        self.body                                      = body
+        self.episodes_before_checkpoint                = episodes_before_checkpoint
+        self.timesteps_before_weight_update            = timesteps_before_weight_update
+        self.timesteps_before_standard_deviation_decay = timesteps_before_standard_deviation_decay
         self.action_standard_deviation_decay_rate      = action_standard_deviation_decay_rate
         self.minimum_action_standard_deviation         = minimum_action_standard_deviation
         self.save_folder                               = save_folder
+        self.record_keeper                             = record_keeper
+        self.actor_learning_rate                       = actor_learning_rate
+        self.critic_learning_rate                      = critic_learning_rate
+        self.discount_factor                           = discount_factor
+        self.number_of_epochs_to_optimize              = number_of_epochs_to_optimize
+        self.loss_clamp_boundary                       = loss_clamp_boundary
+        self.action_std_init                           = action_std_init
         
+        # Save config
+        self.action_space                              = self.body.action_space
+        self.observation_space                         = self.body.observation_space
+        self.is_continuous_action_space                = not isinstance(self.action_space, gym.spaces.Discrete)
+        
+        # setup countdowns
+        self.countdown_till_update     = Countdown(size=timesteps_before_weight_update)
+        self.countdown_till_checkpoint = Countdown(size=episodes_before_checkpoint)
+        self.countdown_till_decay      = Countdown(size=timesteps_before_standard_deviation_decay)
+        
+        # setup brain
         self.brain = PpoBrain(
             state_dim=product(self.observation_space.shape or [self.observation_space.n]),
             action_dim=product(self.action_space.shape or [self.action_space.n]),
-            has_continuous_action_space=(not isinstance(self.action_space, gym.spaces.Discrete)),
-            **kwargs,
+            is_continuous_action_space=(not isinstance(self.action_space, gym.spaces.Discrete)),
+            actor_learning_rate=self.actor_learning_rate,
+            critic_learning_rate=self.critic_learning_rate,
+            discount_factor=self.discount_factor,
+            number_of_epochs_to_optimize=self.number_of_epochs_to_optimize,
+            loss_clamp_boundary=self.loss_clamp_boundary,
+            action_std_init=self.action_std_init,
         )
+        
+        # setup record keeper
+        self.records = []
+        self.record_keeper = record_keeper if (record_keeper is not None) else RecordKeeper(
+            parent_record_keeper=None,
+            local_data={"model": "ppo"},
+            collection=None,
+            records=self.records,
+            file_path=self.save_folder,
+        )
+        attributes_to_record = [
+            # agent
+            "timesteps_before_weight_update",
+            "timesteps_before_standard_deviation_decay",
+            # model
+            "actor_learning_rate",
+            "critic_learning_rate",
+            "discount_factor",
+            "number_of_epochs_to_optimize",
+            "loss_clamp_boundary",
+            "action_std_init",
+            # world
+            "action_space",
+            "observation_space",
+            "is_continuous_action_space",
+        ]
+        self.record_keeper = self.record_keeper.sub_record_keeper(**{
+            each_attribute: getattr(self, each_attribute)
+                for each_attribute in attributes_to_record
+        })
     
     @ConnectBody.when_mission_starts
     def when_mission_starts(self):
@@ -67,13 +129,14 @@ class AgentBuilder:
         # occasionally update the network
         # 
         if self.countdown_till_update():
+            print('"update":true,', end="")
             self.brain.update()
         
         # 
         # update action standard deviation
         # 
         # if continuous action space; then decay action std of ouput action distribution
-        if self.brain.has_continuous_action_space:
+        if self.brain.is_continuous_action_space:
             if self.countdown_till_decay():
                 self.brain.decay_action_std(self.action_standard_deviation_decay_rate, self.minimum_action_standard_deviation)
         
