@@ -1,5 +1,6 @@
 from tools.basics import flatten_once
 from super_hash import super_hash
+from super_map import LazyDict
 
 class LazyList:
     def __init__(self, iterable, length=None):
@@ -131,6 +132,66 @@ class LiquidData():
                     "data": tuple(zip(each["index"], each["loss_1"]))
                 })
     """
+    @classmethod
+    def stats(cls, list_of_numbers: [float]) -> LazyDict:
+        """
+        Example:
+            stats = LiquidData.stats([ 1, 4, 24.4, 5, 99 ])
+            print(stats.min)
+            print(stats.max)
+            print(stats.range)
+            print(stats.average)
+            print(stats.median)
+            print(stats.sum)
+            print(stats.was_dirty)
+            print(stats.cleaned)
+            print(stats.count) # len(stats.cleaned)
+        """
+        import math
+        numbers_as_tuple = tuple(list_of_numbers)
+        original_length = len(numbers_as_tuple)
+        # sort and filter bad values
+        list_of_numbers = tuple(
+            each
+                for each in sorted(numbers_as_tuple)
+                if not (each is None or each is math.nan)
+        )
+        # if empty return mostly bad values
+        if len(list_of_numbers) == 0:
+            return LazyDict(
+                min=None,
+                max=None,
+                range=0,
+                average=0,
+                median=None,
+                sum=0,
+                was_dirty=(original_length != len(list_of_numbers)),
+                cleaned=list_of_numbers,
+                count=len(list_of_numbers),
+            )
+        # 
+        # Calculate stats
+        # 
+        # TODO: make this more efficient by making a new class, and having getters 
+        #       for each of these values, so that theyre calculated as-needed (and then cached)
+        median = list_of_numbers[math.floor(len(list_of_numbers)/2.0)]
+        minimum = list_of_numbers[0]
+        maximum = list_of_numbers[-1]
+        sum_total = 0
+        for each in list_of_numbers:
+            sum_total += each
+        return LazyDict(
+            min=minimum,
+            max=maximum,
+            range=minimum-maximum,
+            average=sum_total/len(list_of_numbers),
+            median=median,
+            sum=sum_total,
+            was_dirty=(original_length != len(list_of_numbers)),
+            cleaned=list_of_numbers,
+            count=len(list_of_numbers),
+        )
+    
     def __init__(self, records=None, group_levels=None, internally_called=False):
         if internally_called:
             self.group_levels = group_levels

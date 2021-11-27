@@ -359,6 +359,12 @@ class ExperimentCollection:
                 model_1_losses.pending_record["index"] = each
                 model_1_losses.pending_record["loss_1"] = random()
                 model_1_losses.commit_record()
+    Note:
+        the top most record keeper will be automatically be given these values:
+        - experiment_number
+        - error_number
+        - had_error
+        - experiment_start_time
     """
     
     # TODO: make it so that Experiments uses database with detached/reattached pickled objects instead of a single pickle file

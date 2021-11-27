@@ -105,13 +105,18 @@ class AgentBuilder:
     
     @ConnectBody.when_mission_starts
     def when_mission_starts(self):
-        pass
+        self.record_keeper_by_update = self.record_keeper.sub_record_keeper(by_update=True)
+        self.record_keeper_by_update.pending_record["reward"] = 0
+        self.record_keeper_by_update.pending_record["update_index"] = 0
         
     @ConnectBody.when_episode_starts
     def when_episode_starts(self, episode_index):
-        self.episode_index = 0
         self.accumulated_reward = 0
         self.timestep = 0
+        # 
+        # logging
+        # 
+        self.record_keeper.pending_record["updated_weights"] = False
         print("{"+f' "episode": {str(episode_index).ljust(5)},', end="")
     
     @ConnectBody.when_timestep_happens
@@ -122,6 +127,7 @@ class AgentBuilder:
         # 
         reward = self.body.get_reward()
         self.accumulated_reward += reward
+        self.record_keeper_by_update.pending_record["reward"] += reward
         self.brain.buffer.rewards.append(reward)
         self.brain.buffer.is_terminals.append(False)
         
@@ -130,6 +136,13 @@ class AgentBuilder:
         # 
         if self.countdown_till_update():
             print('"update":true,', end="")
+            # save the existing record
+            update_index = self.record_keeper_by_update.pending_record["update_index"]
+            self.record_keeper_by_update.commit_record()
+            # setup for the next record
+            self.record_keeper_by_update.pending_record["update_index"] = update_index + 1
+            self.record_keeper_by_update.pending_record["reward"] = 0
+            # perform the update
             self.brain.update()
         
         # 
@@ -161,7 +174,10 @@ class AgentBuilder:
         
         # 
         # log
-        # 
+        #
+        self.record_keeper.pending_record["accumulated_reward"] = self.accumulated_reward
+        self.record_keeper.pending_record["episode_index"] = episode_index
+        self.record_keeper.commit_record()
         formatted_reward   = f"{self.accumulated_reward:,.2f}".rjust(8)
         formatted_timestep = f"{self.timestep}".rjust(6)
         print(f' "rewardSum": {formatted_reward}, "numberOfTimesteps": {formatted_timestep}'+"}", flush=True)
@@ -183,7 +199,6 @@ class AgentBuilder:
         self.save_network()
         print("model saved")
         
-    
     # helper
     def save_network(self, overwrite_previous=False):
         # make sure the folder exists
