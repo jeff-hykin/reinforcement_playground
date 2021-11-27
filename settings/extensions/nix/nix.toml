@@ -51,6 +51,9 @@
 load = [ "git-subrepo",]
 
 [[packages]]
+load = [ "mpi",]
+
+[[packages]]
 load = [ "freetype",]
 
 [[packages]]
