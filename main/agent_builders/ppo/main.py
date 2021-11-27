@@ -180,7 +180,7 @@ class AgentBuilder:
         self.record_keeper.commit_record()
         formatted_reward   = f"{self.accumulated_reward:,.2f}".rjust(8)
         formatted_timestep = f"{self.timestep}".rjust(6)
-        print(f' "rewardSum": {formatted_reward}, "numberOfTimesteps": {formatted_timestep}'+"}", flush=True)
+        print(f' "rewardSum": {formatted_reward}, "numberOfTimesteps": {formatted_timestep}'+" },", flush=True)
         
         #
         # occasionally save the model

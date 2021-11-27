@@ -231,18 +231,9 @@ class RecordKeeper():
         self.sub_record_keepers   = []
         self.pending_record       = AncestorDict(ancestors=self.local_data_lineage,)
         self.collection           = collection
-        self.records              = records or []
+        self.local_records        = records or []
         if not isinstance(self.local_data, dict):
             raise Exception('Parent needs to be a dict')
-        self.setup()
-    
-    def setup(self):
-        if self.collection is not None:
-            self.get_records = lambda: self.collection.records
-            self.add_record  = lambda each: self.collection.add_record(each)
-        else:
-            self.get_records = lambda: self.records
-            self.add_record  = lambda each: self.records.append(each)
     
     def local_data_lineage_generator(self):
         yield self.local_data
@@ -254,7 +245,22 @@ class RecordKeeper():
     @property
     def local_data_lineage(self):
         return tuple(self.local_data_lineage_generator())
-        
+    
+    @property
+    def records(self):
+        if self.collection is not None:
+            return self.collection.records
+            self.add_record  = lambda each: self.collection.add_record(each)
+        else:
+            return self.local_records
+            self.add_record  = lambda each: self.local_records.append(each)
+    
+    def add_record(self, record):
+        if self.collection is not None:
+            return self.collection.add_record(record)
+        else:
+            return self.local_records.append(record)
+    
     def swap_out(self, old_record_keeper, new_record_keeper):
         next_keeper = self
         while isinstance(next_keeper.parent_record_keeper, RecordKeeper):
@@ -280,14 +286,14 @@ class RecordKeeper():
             parent_record_keeper=self,
             local_data=kwargs,
             collection=self.collection,
-            records=self.records,
+            records=self.local_records,
             file_path=self.file_path,
         )
         self.sub_record_keepers.append(sub_record_keeper)
         return sub_record_keeper
     
     def __iter__(self):
-        return (each for each in self.get_records() if self.local_data in each.ancestors)
+        return (each for each in self.records if self.local_data in each.ancestors)
     
     def __len__(self):
         # apparently this is the fastest way (no idea why converting to tuple is faster than using reduce)
@@ -324,14 +330,13 @@ class RecordKeeper():
         return self.pending_record.values(*args, **kwargs)
     
     def __getstate__(self):
-        return (self.parent_record_keeper, self.local_data, self.file_path, self.kids, self.pending_record, self.records)
+        return (self.parent_record_keeper, self.local_data, self.file_path, self.kids, self.pending_record, self.local_records)
     
     def __setstate__(self, state):
-        self.parent_record_keeper, self.local_data, self.file_path, self.kids, self.pending_record, self.records = state
+        self.parent_record_keeper, self.local_data, self.file_path, self.kids, self.pending_record, self.local_records = state
         self.collection = None
         if self.file_path is not None:
             self.collection = globals().get("_ExperimentCollection_register",{}).get(self.file_path, None)
-        self.setup()
         if not isinstance(self.local_data, dict):
             raise Exception('local_data needs to be a dict')
 
@@ -473,7 +478,9 @@ class ExperimentCollection:
                 print(f'However, the partial experiment data was saved')
                 experiment_number = self.experiment_keeper.local_data["experiment_number"]
                 error_number = self.experiment_keeper.local_data["error_number"]
+                import traceback
                 print(f'This happend on:\n    dict(experiment_number={experiment_number}, error_number={error_number})')
+                print(traceback.format_exc())
                 raise error
         
         return Experiment(
