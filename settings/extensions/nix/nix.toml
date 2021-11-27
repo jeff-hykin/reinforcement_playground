@@ -51,9 +51,6 @@
 load = [ "git-subrepo",]
 
 [[packages]]
-load = [ "mpi",]
-
-[[packages]]
 load = [ "freetype",]
 
 [[packages]]
@@ -179,6 +176,10 @@ onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]]
 load = [ "libGLU",]
+onlyIf = [ [ "stdenv", "isLinux",],]
+
+[[packages]]
+load = [ "xvfb-run",]
 onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]]

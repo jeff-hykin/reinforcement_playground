@@ -30,7 +30,7 @@ with ExperimentCollection("logs/record_keeping/ppo_atari_breakout.ignore").new_e
     # 
     Missions.simple(
         atari_world,
-        max_number_of_episodes=100,
+        max_number_of_episodes=2500,
         max_number_of_timesteps=10000,
     )
     
