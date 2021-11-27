@@ -63,51 +63,33 @@ class PpoBrain:
 
     def decay_action_std(self, action_std_decay_rate, min_action_std):
         print("--------------------------------------------------------------------------------------------")
-
-        if self.is_continuous_action_space:
+        if not self.is_continuous_action_space:
+            print("WARNING : Calling PpoBrain::decay_action_std() on discrete action space policy")
+        else:
             self.action_std = self.action_std - action_std_decay_rate
             self.action_std = round(self.action_std, 4)
-            if (self.action_std <= min_action_std):
+            if self.action_std <= min_action_std:
                 self.action_std = min_action_std
                 print("setting actor output action_std to min_action_std : ", self.action_std)
             else:
                 print("setting actor output action_std to : ", self.action_std)
             self.set_action_std(self.action_std)
-
-        else:
-            print("WARNING : Calling PpoBrain::decay_action_std() on discrete action space policy")
-
         print("--------------------------------------------------------------------------------------------")
 
-
     def select_action(self, state):
-
-        if self.is_continuous_action_space:
-            with torch.no_grad():
-                state = torch.FloatTensor(state).to(device)
-                action, action_logprob = self.old_policy.act(state)
-
-            self.buffer.states.append(state)
-            self.buffer.actions.append(action)
-            self.buffer.logprobs.append(action_logprob)
-
-            return action.detach().cpu().numpy().flatten()
-
-        else:
-            with torch.no_grad():
-                state = torch.FloatTensor(state).to(device)
-                action, action_logprob = self.old_policy.act(state)
-            
-            self.buffer.states.append(state)
-            self.buffer.actions.append(action)
-            self.buffer.logprobs.append(action_logprob)
-
-            return action.item()
-
+        with torch.no_grad():
+            state = torch.FloatTensor(state).to(device)
+            action, action_logprob = self.old_policy.act(state)
+        # update buffer
+        self.buffer.states.append(state)
+        self.buffer.actions.append(action)
+        self.buffer.log_probabilities.append(action_logprob)
+        # return action as value
+        return action.item() if not self.is_continuous_action_space else action.detach().cpu().numpy().flatten()
 
     def update(self):
-        
         self.buffer.equalize()
+        
         # Monte Carlo estimate of returns
         rewards = []
         discounted_reward = 0
@@ -120,50 +102,37 @@ class PpoBrain:
         # Normalizing the rewards
         rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
-
         # convert list to tensor
         old_states = torch.squeeze(torch.stack(self.buffer.states, dim=0)).detach().to(device)
         old_actions = torch.squeeze(torch.stack(self.buffer.actions, dim=0)).detach().to(device)
-        old_logprobs = torch.squeeze(torch.stack(self.buffer.logprobs, dim=0)).detach().to(device)
-
+        old_log_probabilities = torch.squeeze(torch.stack(self.buffer.log_probabilities, dim=0)).detach().to(device)
         
         # Optimize policy for K epochs
         for _ in range(self.number_of_epochs_to_optimize):
-
             # Evaluating old actions and values
-            logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
-
+            log_probabilities, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
             # match state_values tensor dimensions with rewards tensor
             state_values = torch.squeeze(state_values)
-            
             # Finding the ratio (pi_theta / pi_theta__old)
-            ratios = torch.exp(logprobs - old_logprobs.detach())
-
+            ratios = torch.exp(log_probabilities - old_log_probabilities.detach())
             # Finding Surrogate Loss
             advantages = rewards - state_values.detach()   
             surr1 = ratios * advantages
             surr2 = torch.clamp(ratios, 1-self.loss_clamp_boundary, 1+self.loss_clamp_boundary) * advantages
-
             # final loss of clipped objective PpoBrain
             loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy
-            
-            # take gradient step
+            # gradient step
             self.optimizer.zero_grad()
             loss.mean().backward()
             self.optimizer.step()
-            
-        # Copy new weights into old policy
+        
+        # Copy new weights into old policy, then reset the buffer
         self.old_policy.load_state_dict(self.policy.state_dict())
-
-        # clear buffer
         self.buffer.clear()
-    
     
     def save(self, checkpoint_path):
         torch.save(self.old_policy.state_dict(), checkpoint_path)
    
-
     def load(self, checkpoint_path):
         self.old_policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
-        
