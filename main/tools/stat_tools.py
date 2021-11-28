@@ -91,3 +91,57 @@ def get_stats(list_of_numbers: [float]) -> LazyDict:
         cleaned=list_of_numbers,
         count=len(list_of_numbers),
     )
+
+def rolling_average(a_list, window):
+    results = []
+    if len(a_list) < window * 2:
+        return a_list
+    near_the_end = len(a_list) - 1 - window 
+    for index, each in enumerate(a_list):
+        # at the start
+        if index < window:
+            average_items = a_list[0:index]+a_list[index:index+window]
+        # at the end
+        elif index > near_the_end:
+            average_items = a_list[index-window:index]+a_list[index:len(a_list)]
+        else:
+            # this could be done a lot more efficiently with a rolling sum, oh well! ¯\_(ツ)_/¯ 
+            average_items = a_list[index-window:index+window+1]
+        results.append(sum(average_items)/len(average_items))
+    return results
+            
+
+# def savitzky_golay_smoothing(a_list, strength):
+#     from SGCC.savgol import get_coefficients # pip install savgol-calculator
+#     import math
+#     size = len(a_list)
+#     if size < 3:
+#         return a_list
+#     # map strength logarithmically to percentages
+#     strength_scaled = math.ceil(math.log(create_linear_interpolater(0, 1, 0, 2**size)(strength))/2)*2
+# 
+#     derivative = 0
+#     cubic_polynomial = 3
+#     coefficients = get_coefficients(
+#         smoothing=derivative,
+#         order=cubic_polynomial,
+#         window_size=strength_scaled,
+#         offset=0
+#     )
+#     normalizer = sum(coefficients)
+#     half_window_size = window_size/2
+#     rolling_average = []
+#     for index, each in enumerate(a_list):
+#         backwards_index = index*window_size - half_window_size
+#         forwards_index  = index*window_size + half_window_size
+#         in_the_middle = backwards_index <= 0 and forwards_index < len(a_list)
+#         if in_the_middle:
+#             nearby_numbers = a_list[backwards_index:forwards_index]
+#             rolling_average.append(
+#                 sum([
+#                     coefficient * number
+#                         for coefficient, number in zip(coeffs, nearby_numbers)
+#                 ]) / normalizer
+#             )
+#         elif 
+    

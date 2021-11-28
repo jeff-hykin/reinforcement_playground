@@ -7,6 +7,7 @@ from tools.record_keeper import ExperimentCollection
 from tools.liquid_data import LiquidData
 from tools.debug import debug
 import silver_spectacle as ss
+import tools.stat_tools as stat_tools
 
 
 # add logging
@@ -30,7 +31,7 @@ with ExperimentCollection("logs/record_keeping/ppo_atari_breakout.ignore").new_e
     # 
     Missions.simple(
         atari_world,
-        max_number_of_episodes=2500,
+        max_number_of_episodes=100,
         max_number_of_timesteps=10000,
     )
     
@@ -38,6 +39,7 @@ with ExperimentCollection("logs/record_keeping/ppo_atari_breakout.ignore").new_e
     # Display results
     # 
     by_update_records = tuple(each for each in record_keeper if each["by_update"])
-    y_values = tuple( each["reward"]       for each in by_update_records )
     x_values = tuple( each["update_index"] for each in by_update_records )
+    y_values = tuple( each["reward"]       for each in by_update_records )
+    y_values = stat_tools.rolling_average(y_values, window=4)
     ss.DisplayCard("quickLine", list(zip(x_values, y_values)))

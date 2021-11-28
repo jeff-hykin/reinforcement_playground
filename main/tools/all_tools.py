@@ -38,5 +38,5 @@ from tools.pytorch_tools import *
 from tools.dataset_tools import *
 from tools.config_tools import *
 from tools.debug import *
-from tools.stats import *
+from tools.stat_tools import *
 #%% 
