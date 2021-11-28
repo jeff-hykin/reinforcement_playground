@@ -418,6 +418,22 @@ class ExperimentCollection:
         if self.prev_experiment_local_data == None:
             self.load()
     
+    @property
+    def experiment_numbers(self):
+        experiment_numbers = set()
+        for each in self.records:
+            experiment_numbers.add(each.get("experiment_number", None))
+        return tuple(experiment_numbers)
+        
+    def __getitem__(self, key):
+        self.ensure_loaded()
+        experiment_numbers = self.experiment_numbers
+        if key < 0:
+            key = experiment_numbers[key]
+        if key not in experiment_numbers:
+            return []
+        return tuple(each for each in self._records if each.get("experiment_number",None) == key)
+    
     def add_record(self, record):
         self.ensure_loaded()
         self._records.append(record)
