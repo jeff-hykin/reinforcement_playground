@@ -48,6 +48,9 @@
 # load = [ "docker",]
 
 [[packages]]
+load = [ "screen",]
+
+[[packages]]
 load = [ "git-subrepo",]
 
 [[packages]]
