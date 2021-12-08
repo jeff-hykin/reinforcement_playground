@@ -4,12 +4,15 @@ from stable_baselines3 import PPO
 from old.environments.atari.main import Environment
 
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 
 # 
 # setup Env
 # 
-os.makedirs("logs/stable_baselines/", exist_ok=True)
-env = Monitor(Environment(), "logs/stable_baselines/")
+log_dir = "logs/stable_baselines/"
+os.makedirs(log_dir, exist_ok=True)
+env = Monitor(Environment(), log_dir)
 
 # 
 # setup Model
@@ -66,10 +69,14 @@ class Hooks(BaseCallback):
         return True
 
 # Train the agent
+timesteps = 100000
 model.learn(
-    total_timesteps=int(100000),
+    total_timesteps=int(timesteps),
     callback=Hooks(
         check_freq=1000,
         log_dir=log_dir
     ),
 )
+
+plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO Atari Breakout")
+plt.show()
