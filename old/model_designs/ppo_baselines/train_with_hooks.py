@@ -1,4 +1,6 @@
 import gym
+import os
+import numpy as np
 
 from stable_baselines3 import PPO
 from old.environments.atari.main import Environment
@@ -15,12 +17,12 @@ os.makedirs(log_dir, exist_ok=True)
 env = Monitor(Environment(), log_dir)
 
 # 
+# 
 # setup Model
 # 
+# 
+
 model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=10000)
-
-
 # 
 # setup hooks
 # 
@@ -68,7 +70,9 @@ class Hooks(BaseCallback):
 
         return True
 
+# 
 # Train the agent
+# 
 timesteps = 100000
 model.learn(
     total_timesteps=int(timesteps),
@@ -78,5 +82,8 @@ model.learn(
     ),
 )
 
+# 
+# display
+# 
 plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO Atari Breakout")
 plt.show()
