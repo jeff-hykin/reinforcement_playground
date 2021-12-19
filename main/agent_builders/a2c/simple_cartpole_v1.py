@@ -3,6 +3,7 @@ import gym
 import numpy as np
 import silver_spectacle as ss
 import torch
+from super_map import LazyDict
 
 from tools.basics import product, flatten
 from tools.stat_tools import rolling_average
@@ -16,7 +17,7 @@ class Actor(nn.Module):
             nn.Linear(64, 32),
             nn.Tanh(),
             nn.Linear(32, n_actions),
-            nn.Softmax()
+            nn.Softmax(dim=0),
         )
     
     def forward(self, X):
@@ -38,7 +39,7 @@ class Critic(nn.Module):
 
 
 class Agent():
-    def __init__(self, observation_space, action_space):
+    def __init__(self, observation_space, action_space, **config):
         # 
         # special
         # 
@@ -57,37 +58,55 @@ class Agent():
         self.adam_actor = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=1e-3)
         self.discount_factor = 0.99
-        self.episode_rewards = []
         self.action_choice_distribution = None
         self.prev_observation = None
         self.action_with_gradient_tracking = None
+        self.logging = LazyDict()
+        self.logging.should_display = config.get("should_display", True)
+        self.logging.episode_rewards = []
+        self.logging.episode_critic_losses = []
+        self.logging.episode_actor_losses  = []
     
     # 
     # Hooks (Special Names)
     # 
     def when_mission_starts(self):
-        self.episode_rewards = []
+        self.logging.episode_rewards       = []
+        self.logging.episode_critic_losses = []
+        self.logging.episode_actor_losses  = []
         
     def when_episode_starts(self, episode_index):
-        self.accumulated_reward = 0
+        self.logging.accumulated_reward      = 0
+        self.logging.accumulated_critic_loss = 0
+        self.logging.accumulated_actor_loss  = 0
     
     def when_timestep_starts(self, timestep_index):
         self.action = self.make_decision(self.observation)
         self.prev_observation = self.observation
         
     def when_timestep_ends(self, timestep_index):
-        self.accumulated_reward += self.reward
-        advantage = self.compute_advantage(
+        self.logging.accumulated_reward += self.reward
+        self.update_weights(self.compute_advantage(
             reward=self.reward,
             observation=self.prev_observation,
             next_observation=self.observation,
             episode_is_over=self.episode_is_over,
-        )
-        self.update_weights(advantage)
+        ))
     
     def when_episode_ends(self, episode_index):
-        # record the rewards
-        self.episode_rewards.append(self.accumulated_reward)
+        self.logging.episode_rewards.append(self.logging.accumulated_reward)
+        self.logging.episode_critic_losses.append(self.logging.accumulated_critic_loss)
+        self.logging.episode_actor_losses.append(self.logging.accumulated_actor_loss)
+    
+    def when_mission_ends(self,):
+        if self.logging.should_display:
+            # graph reward results
+            ss.DisplayCard("quickLine", rolling_average(self.logging.episode_critic_losses, 5))
+            ss.DisplayCard("quickMarkdown", "## Critic Losses Per Episode")
+            ss.DisplayCard("quickLine", rolling_average(self.logging.episode_actor_losses, 5))
+            ss.DisplayCard("quickMarkdown", "## Actor Losses Per Episode")
+            ss.DisplayCard("quickLine", rolling_average(self.logging.episode_rewards, 5))
+            ss.DisplayCard("quickMarkdown", "## Rewards Per Episode")
     
     # 
     # Misc Helpers
@@ -111,36 +130,40 @@ class Agent():
         self.adam_critic.zero_grad()
         critic_loss.backward()
         self.adam_critic.step()
+        self.logging.accumulated_critic_loss += critic_loss.item()
         
         actor_loss = -self.action_choice_distribution.log_prob(self.action_with_gradient_tracking)*advantage.detach()
         self.adam_actor.zero_grad()
         actor_loss.backward()
         self.adam_actor.step()
+        self.logging.accumulated_actor_loss += actor_loss.item()
+
+
+
 
 # 
-# setup mission
+# do mission if run directly
 # 
-env = gym.make("CartPole-v1")
-mr_bond = Agent(
-    observation_space=env.observation_space,
-    action_space=env.action_space
-)
-mr_bond.when_mission_starts(episode_index)
-for episode_index in range(500):
-    mr_bond.episode_is_over = False
-    mr_bond.observation = env.reset()
-    mr_bond.when_episode_starts(episode_index)
-    
-    timestep_index = -1
-    while not mr_bond.episode_is_over:
-        timestep_index += 1
+if __name__ == '__main__':
+    env = gym.make("CartPole-v1")
+    mr_bond = Agent(
+        observation_space=env.observation_space,
+        action_space=env.action_space
+    )
+    mr_bond.when_mission_starts()
+    for episode_index in range(500):
+        mr_bond.episode_is_over = False
+        mr_bond.observation = env.reset()
+        mr_bond.when_episode_starts(episode_index)
         
-        mr_bond.when_timestep_starts(timestep_index)
-        mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
-        mr_bond.when_timestep_ends(timestep_index)
+        timestep_index = -1
+        while not mr_bond.episode_is_over:
+            timestep_index += 1
             
-    mr_bond.when_episode_ends(episode_index)
-mr_bond.when_mission_ends(episode_index)
-env.close()
-
-ss.DisplayCard("quickLine", rolling_average(mr_bond.episode_rewards, 5))
+            mr_bond.when_timestep_starts(timestep_index)
+            mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+            mr_bond.when_timestep_ends(timestep_index)
+                
+        mr_bond.when_episode_ends(episode_index)
+    mr_bond.when_mission_ends()
+    env.close()
