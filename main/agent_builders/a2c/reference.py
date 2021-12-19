@@ -5,6 +5,7 @@ import silver_spectacle as ss
 import torch
 
 from tools.basics import product, flatten
+from tools.stat_tools import rolling_average
 
 class Actor(nn.Module):
     def __init__(self, state_dim, n_actions):
@@ -122,7 +123,7 @@ mr_bond = Agent(
     observation_space=env.observation_space,
     action_space=env.action_space
 )
-episode_rewards = []
+mr_bond.when_mission_starts(episode_index)
 for episode_index in range(500):
     mr_bond.episode_is_over = False
     mr_bond.observation = env.reset()
@@ -137,6 +138,7 @@ for episode_index in range(500):
         mr_bond.when_timestep_ends(timestep_index)
             
     mr_bond.when_episode_ends(episode_index)
+mr_bond.when_mission_ends(episode_index)
+env.close()
 
-
-ss.DisplayCard("quickScatter", mr_bond.episode_rewards)
+ss.DisplayCard("quickLine", rolling_average(mr_bond.episode_rewards, 5))
