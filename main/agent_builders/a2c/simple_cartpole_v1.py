@@ -117,7 +117,9 @@ class Agent():
         actor_loss.backward()
         self.adam_actor.step()
 
-# setup
+# 
+# setup mission
+# 
 env = gym.make("CartPole-v1")
 mr_bond = Agent(
     observation_space=env.observation_space,
