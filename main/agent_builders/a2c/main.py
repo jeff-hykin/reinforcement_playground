@@ -165,6 +165,11 @@ def test_runtime(number_of_episodes=1000, max_number_of_timesteps=10000):
         observation_values[-1] = 0 if env_stopped_the_episode else observation_values[-1]
         # difference between the partially-observed value and the pure-estimate value
         deltas = np.array([    each_observation_value - value_approximator(each_observation)    for each_observation_value, each_observation zip(observation_values, observations) ])
+        
+        advantage = reward + ((1.0 - done) * discount_factor * value_approximator(next_state))
+                    -
+                    value_approximator(state)
+        
         # one-hot encoding for actions (matrix)
         actions_one_hot = np.zeros([len(actions), self.env.action_space.n])
         actions_one_hot[np.arange(len(actions)), actions] = 1

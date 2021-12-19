@@ -18,7 +18,6 @@ class A2cNetwork(nn.Module):
         self.layer_sizes        = config.get('layer_sizes'       , [64,64])
         self.actor_output_size  = config.get('actor_output_size' , (2,))
         self.learning_rate      = config.get('learning_rate'     , 0.01)
-        self.momentum           = config.get('momentum'          , 0.5 )
         
         # 
         # common layers
@@ -33,7 +32,7 @@ class A2cNetwork(nn.Module):
         size_before_last_layer = self.size_of_last_layer
         
         # 
-        # actor output
+        # actor
         # 
         self.actor_layers = nn.Sequential([
             nn.Linear(size_before_last_layer, last_common_layer_size),
@@ -44,7 +43,7 @@ class A2cNetwork(nn.Module):
         ])
         
         # 
-        # Critic output
+        # critic
         # 
         self.critic_layers = nn.Sequential([
             nn.Linear(size_before_last_layer, last_common_layer_size),
@@ -60,22 +59,26 @@ class A2cNetwork(nn.Module):
         # 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         
-        # 
-        # loss
-        # 
+    @property
+    def size_of_last_layer(self):
+        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.input_shape, self.layers)[-1])
+    
+    def actor_loss(self, advantage, predicted_output):
         # args:
         #     advantage: a matrix, each row is an action that is one-hot encoded
         #     predicted_output: vector of probabilies (one for each acton)
         # returns:
-        #     integral of the policy gradient, a one-hot encoded value for each action a_t
-        self.actor_loss = lambda advantage, predicted_output: torch.sum(advantage * -torch.log(torch.clip(predicted_output, 1e-8, 1-1e-8)))
-        self.critic_loss = lambda advantage, predicted_output: torch.sum(-advantage * predicted_output)
-        
+        #     integral of the policy/decision-making gradient, a one-hot encoded value for each action a_t
+        return torch.sum(advantage * -torch.log(torch.clip(predicted_output, 1e-8, 1-1e-8)))
     
-    @property
-    def size_of_last_layer(self):
-        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.input_shape, self.layers)[-1])
-        
+    def critic_loss(self, advantage, predicted_output):
+        # args:
+        #     advantage: a matrix, each row is an action that is one-hot encoded
+        #     predicted_output: vector of probabilies (one for each acton)
+        # returns:
+        #     integral of the value approximation gradient, a one-hot encoded value for each action a_t
+        return torch.sum(-advantage * predicted_output)
+    
     def loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
         ideal_output = from_onehot_batch(ideal_output).to(self.device)
