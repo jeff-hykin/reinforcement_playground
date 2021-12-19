@@ -102,11 +102,11 @@ class Agent():
         if self.logging.should_display:
             # graph reward results
             ss.DisplayCard("quickLine", rolling_average(self.logging.episode_critic_losses, 5))
-            ss.DisplayCard("quickMarkdown", "## Critic Losses Per Episode")
+            ss.DisplayCard("quickMarkdown", "#### Critic Losses Per Episode")
             ss.DisplayCard("quickLine", rolling_average(self.logging.episode_actor_losses, 5))
-            ss.DisplayCard("quickMarkdown", "## Actor Losses Per Episode")
+            ss.DisplayCard("quickMarkdown", "#### Actor Losses Per Episode")
             ss.DisplayCard("quickLine", rolling_average(self.logging.episode_rewards, 5))
-            ss.DisplayCard("quickMarkdown", "## Rewards Per Episode")
+            ss.DisplayCard("quickMarkdown", "#### Rewards Per Episode")
     
     # 
     # Misc Helpers
