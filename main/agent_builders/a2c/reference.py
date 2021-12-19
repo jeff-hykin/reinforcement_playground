@@ -6,7 +6,6 @@ import torch
 
 from tools.basics import product, flatten
 
-# Actor module, categorical actions only
 class Actor(nn.Module):
     def __init__(self, state_dim, n_actions):
         super().__init__()
@@ -22,8 +21,6 @@ class Actor(nn.Module):
     def forward(self, X):
         return self.model(X)
     
-
-# Critic module
 class Critic(nn.Module):
     def __init__(self, state_dim):
         super().__init__()
@@ -40,22 +37,65 @@ class Critic(nn.Module):
 
 
 class Agent():
-    def __init__(self, ):
-        self.observation_size = env.observation_space.shape[0]
-        self.number_of_actions = env.action_space.n
+    def __init__(self, observation_space, action_space):
+        # 
+        # special
+        # 
+        self.observation = None     # external world will change this
+        self.reward = None          # external world will change this
+        self.action = None          # extrenal world will read this
+        self.episode_is_over = None # extrenal world will change this
+        
+        # 
+        # regular/misc attributes
+        # 
+        self.observation_size = product(observation_space.shape)
+        self.number_of_actions = action_space.n
         self.actor = Actor(self.observation_size, self.number_of_actions)
         self.critic = Critic(self.observation_size)
         self.adam_actor = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=1e-3)
         self.discount_factor = 0.99
-        self.prev_action = None
-        self.prev_action_choice_distribution = None
+        self.episode_rewards = []
+        self.action_choice_distribution = None
+        self.prev_observation = None
+        self.action_with_gradient_tracking = None
     
+    # 
+    # Hooks (Special Names)
+    # 
+    def when_mission_starts(self):
+        self.episode_rewards = []
+        
+    def when_episode_starts(self, episode_index):
+        self.accumulated_reward = 0
+    
+    def when_timestep_starts(self, timestep_index):
+        self.action = self.make_decision(self.observation)
+        self.prev_observation = self.observation
+        
+    def when_timestep_ends(self, timestep_index):
+        self.accumulated_reward += self.reward
+        advantage = self.compute_advantage(
+            reward=self.reward,
+            observation=self.prev_observation,
+            next_observation=self.observation,
+            episode_is_over=self.episode_is_over,
+        )
+        self.update_weights(advantage)
+    
+    def when_episode_ends(self, episode_index):
+        # record the rewards
+        self.episode_rewards.append(self.accumulated_reward)
+    
+    # 
+    # Misc Helpers
+    # 
     def make_decision(self, observation):
         probs = self.actor(torch.from_numpy(observation).float())
-        self.prev_action_choice_distribution = torch.distributions.Categorical(probs=probs)
-        self.prev_action = self.prev_action_choice_distribution.sample()
-        return self.prev_action.detach().data.numpy()
+        self.action_choice_distribution = torch.distributions.Categorical(probs=probs)
+        self.action_with_gradient_tracking = self.action_choice_distribution.sample()
+        return self.action_with_gradient_tracking.item()
     
     def approximate_value_of(self, observation):
         return self.critic(torch.from_numpy(observation).float())
@@ -70,117 +110,33 @@ class Agent():
         self.adam_critic.zero_grad()
         critic_loss.backward()
         self.adam_critic.step()
-
-        actor_loss = -self.prev_action_choice_distribution.log_prob(self.prev_action)*advantage.detach()
+        
+        actor_loss = -self.action_choice_distribution.log_prob(self.action_with_gradient_tracking)*advantage.detach()
         self.adam_actor.zero_grad()
         actor_loss.backward()
         self.adam_actor.step()
-    
-    # @ConnectBody.when_episode_starts
-    def when_episode_starts(self, episode_index):
-        self.accumulated_reward = 0
-        self.timestep = 0
-        # 
-        # logging
-        # 
-        self.record_keeper.pending_record["updated_weights"] = False
-        print("{"+f' "episode": {str(episode_index).ljust(5)},', end="")
-    
-    # @ConnectBody.when_timestep_happens
-    def when_timestep_happens(self, timestep_index):
-        self.timestep = timestep_index
-        # 
-        # save the reward for the previous action
-        # 
-        reward = self.body.get_reward()
-        self.accumulated_reward += reward
-        self.record_keeper_by_update.pending_record["reward"] += reward
-        self.brain.buffer.rewards.append(reward)
-        self.brain.buffer.is_terminals.append(False)
-        
-        # 
-        # occasionally update the network
-        # 
-        if self.countdown_till_update():
-            print('"update":true,', end="")
-            # save the existing record
-            update_index = self.record_keeper_by_update.pending_record["update_index"]
-            self.record_keeper_by_update.commit_record()
-            # setup for the next record
-            self.record_keeper_by_update.pending_record["update_index"] = update_index + 1
-            self.record_keeper_by_update.pending_record["reward"] = 0
-            # perform the update
-            self.brain.update()
-        
-        # 
-        # update action standard deviation
-        # 
-        # if continuous action space; then decay action std of ouput action distribution
-        if self.brain.is_continuous_action_space:
-            if self.countdown_till_decay():
-                self.brain.decay_action_std(self.action_standard_deviation_decay_rate, self.minimum_action_standard_deviation)
-        
-        # 
-        # take action!
-        # 
-        observation = self.body.get_observation()
-        # brain decides action (reshape because the agent wants a batch)
-        action_choice = self.brain.select_action(observation.reshape((1,*observation.shape)))
-        # actually perform the action in the world
-        self.body.perform_action(action_choice)
-        
-    # @ConnectBody.when_episode_ends
-    def when_episode_ends(self, episode_index):
-        # 
-        # save last reward
-        # 
-        reward = self.body.get_reward()
-        self.accumulated_reward += reward
-        self.brain.buffer.rewards.append(reward)
-        self.brain.buffer.is_terminals.append(True)
-        
-        # 
-        # log
-        #
-        self.record_keeper.pending_record["accumulated_reward"] = self.accumulated_reward
-        self.record_keeper.pending_record["episode_index"] = episode_index
-        self.record_keeper.commit_record()
-        formatted_reward   = f"{self.accumulated_reward:,.2f}".rjust(8)
-        formatted_timestep = f"{self.timestep}".rjust(6)
-        print(f' "rewardSum": {formatted_reward}, "numberOfTimesteps": {formatted_timestep}'+" },", flush=True)
-        
-        #
-        # occasionally save the model
-        #
-        if self.countdown_till_checkpoint():
-            print("saving model in " + self.save_folder)
-            self.save_network()
-            print("model saved")
-    
 
+# setup
 env = gym.make("CartPole-v1")
-
-
-# config
-mr_bond = Agent()
+mr_bond = Agent(
+    observation_space=env.observation_space,
+    action_space=env.action_space
+)
 episode_rewards = []
-
-for i in range(500):
-    done = False
-    total_reward = 0
-    observation = env.reset()
-
-
-    while not done:
-        next_observation, reward, done, info = env.step(mr_bond.make_decision(observation))
-        advantage = mr_bond.compute_advantage(reward=reward,observation=observation, next_observation=next_observation, episode_is_over=done)
+for episode_index in range(500):
+    mr_bond.episode_is_over = False
+    mr_bond.observation = env.reset()
+    mr_bond.when_episode_starts(episode_index)
+    
+    timestep_index = -1
+    while not mr_bond.episode_is_over:
+        timestep_index += 1
         
-        total_reward += reward
-        observation = next_observation
-
-        mr_bond.update_weights(advantage)
+        mr_bond.when_timestep_starts(timestep_index)
+        mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+        mr_bond.when_timestep_ends(timestep_index)
             
-    episode_rewards.append(total_reward)
+    mr_bond.when_episode_ends(episode_index)
 
 
-ss.DisplayCard("quickScatter", episode_rewards)
+ss.DisplayCard("quickScatter", mr_bond.episode_rewards)
