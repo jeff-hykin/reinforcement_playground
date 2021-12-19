@@ -1,12 +1,10 @@
-import numpy as np
-import torch
-import gym
 from torch import nn
+import gym
+import numpy as np
 import silver_spectacle as ss
+import torch
 
-# helper function to convert numpy arrays to tensors
-def t(x): return torch.from_numpy(x).float()
-
+from tools.basics import product, flatten
 
 # Actor module, categorical actions only
 class Actor(nn.Module):
@@ -43,19 +41,21 @@ class Critic(nn.Module):
 
 class Agent():
     def __init__(self, ):
-        self.state_dim = env.observation_space.shape[0]
-        self.n_actions = env.action_space.n
-        self.actor = Actor(self.state_dim, self.n_actions)
-        self.critic = Critic(self.state_dim)
+        self.observation_size = env.observation_space.shape[0]
+        self.number_of_actions = env.action_space.n
+        self.actor = Actor(self.observation_size, self.number_of_actions)
+        self.critic = Critic(self.observation_size)
         self.adam_actor = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=1e-3)
-        self.discount_factor = self.gamma = 0.99
+        self.discount_factor = 0.99
+        self.prev_action = None
+        self.prev_action_choice_distribution = None
     
     def make_decision(self, observation):
         probs = self.actor(torch.from_numpy(observation).float())
-        dist = torch.distributions.Categorical(probs=probs)
-        action = dist.sample()
-        return action.detach().data.numpy()
+        self.prev_action_choice_distribution = torch.distributions.Categorical(probs=probs)
+        self.prev_action = self.prev_action_choice_distribution.sample()
+        return self.prev_action.detach().data.numpy()
     
     def approximate_value_of(self, observation):
         return self.critic(torch.from_numpy(observation).float())
@@ -64,6 +64,17 @@ class Agent():
         return reward + \
             self.approximate_value_of(next_observation)*self.discount_factor*(1-int(episode_is_over))\
             - self.approximate_value_of(observation)
+    
+    def update_weights(self, advantage):
+        critic_loss = advantage.pow(2).mean()
+        self.adam_critic.zero_grad()
+        critic_loss.backward()
+        self.adam_critic.step()
+
+        actor_loss = -self.prev_action_choice_distribution.log_prob(self.prev_action)*advantage.detach()
+        self.adam_actor.zero_grad()
+        actor_loss.backward()
+        self.adam_actor.step()
     
     # @ConnectBody.when_episode_starts
     def when_episode_starts(self, episode_index):
@@ -167,15 +178,7 @@ for i in range(500):
         total_reward += reward
         observation = next_observation
 
-        critic_loss = advantage.pow(2).mean()
-        adam_critic.zero_grad()
-        critic_loss.backward()
-        adam_critic.step()
-
-        actor_loss = -dist.log_prob(action)*advantage.detach()
-        adam_actor.zero_grad()
-        actor_loss.backward()
-        adam_actor.step()
+        mr_bond.update_weights(advantage)
             
     episode_rewards.append(total_reward)
 
