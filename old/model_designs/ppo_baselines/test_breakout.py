@@ -2,13 +2,13 @@ import gym
 
 from stable_baselines3 import PPO
 from old.environments.atari.main import Environment
+from old.model_designs.ppo_baselines.breakout import env
 import silver_spectacle as ss
 from main.tools.basics import large_pickle_load, large_pickle_save, project_folder
 
 # 
 # setup the model
 # 
-env = Environment()
 model = PPO("MlpPolicy", env, verbose=1)
 model = model.load("./1200000_breakout_ppo.ignore.zip")
 

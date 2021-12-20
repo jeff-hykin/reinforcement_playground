@@ -5,10 +5,19 @@ from gym import error, spaces
 from gym import utils
 from gym.utils import seeding
 
+import include
+to_tensor = include.file("/home/jeffhykin/repos/reinforcement_playground/main/tools/pytorch_tools.py", {"__file__":__file__}).to_tensor
+
+# from main.tools.pytorch_tools import to_tensor
+print('to_tensor = ', to_tensor)
+
 try:
     import atari_py
 except ImportError as e:
     raise error.DependencyNotInstalled("{}. (HINT: you can install Atari dependencies by running 'pip install gym[atari]'.)".format(e))
+
+import torch
+
 
 class Environment(gym.Env, utils.EzPickle):
     """
@@ -138,6 +147,9 @@ class Environment(gym.Env, utils.EzPickle):
 
         return [seed1, seed2]
 
+    def observation_wrapper(self,):
+        return torch.ones_like(to_tensor(self._get_obs()),requires_grad=True)
+    
     def step(self, a):
         reward = 0.0
         action = self._action_set[a]
@@ -148,8 +160,8 @@ class Environment(gym.Env, utils.EzPickle):
             num_steps = self.np_random.randint(self.frameskip[0], self.frameskip[1])
         for _ in range(num_steps):
             reward += self.ale.act(action)
-        ob = self._get_obs()
-
+        ob = self.observation_wrapper()
+        
         return ob, reward, self.ale.game_over(), {"ale.lives": self.ale.lives()}
 
     def _get_image(self):
@@ -172,7 +184,7 @@ class Environment(gym.Env, utils.EzPickle):
     # return: (states, observations)
     def reset(self):
         self.ale.reset_game()
-        return self._get_obs()
+        return self.observation_wrapper()
 
     def render(self, mode="human"):
         img = self._get_image()

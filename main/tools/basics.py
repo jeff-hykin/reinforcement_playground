@@ -349,6 +349,7 @@ def Countdown(size):
     return countdown
 
 here = "os.path.dirname(__file__)"
+project_folder = os.environ.get('FORNIX_FOLDER', ".")
 if os.environ.get('FORNIX_FOLDER', None):
     temp_folder = f"{os.environ.get('FORNIX_FOLDER')}/settings/.cache/"
 else:
