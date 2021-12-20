@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import silver_spectacle as ss
 
 from stable_baselines3 import PPO
-from old.environments.atari.main import Environment
+from old.model_designs.ppo_baselines.breakout import env
+
 
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
@@ -17,7 +18,7 @@ from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_r
 # 
 log_dir = "logs/stable_baselines/"
 os.makedirs(log_dir, exist_ok=True)
-env = Monitor(Environment(), log_dir)
+env = Monitor(env,log_dir)
 
 # 
 # 
@@ -76,7 +77,7 @@ class Hooks(BaseCallback):
 # 
 # Train the agent
 # 
-timesteps = 1000000
+timesteps = 100000
 model.learn(
     total_timesteps=int(timesteps),
     callback=Hooks(
