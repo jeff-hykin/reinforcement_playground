@@ -90,8 +90,8 @@ class Agent():
         self.critic_learning_rate = config.get("critic_learning_rate", 0.001)
         self.dropout_rate         = config.get("dropout_rate", 0.2)
         self.number_of_actions = action_space.n
-        self.actor = Actor(input_shape=observation_space.shape, output_size=self.number_of_actions, dropout_rate=dropout_rate)
-        self.critic = Critic(input_shape=observation_space.shape, dropout_rate=dropout_rate)
+        self.actor = Actor(input_shape=observation_space.shape, output_size=self.number_of_actions, dropout_rate=self.dropout_rate)
+        self.critic = Critic(input_shape=observation_space.shape, dropout_rate=self.dropout_rate)
         self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
         self.action_choice_distribution = None
@@ -225,7 +225,7 @@ def default_mission(env_name="BreakoutNoFrameskip-v4", number_of_episodes=500, d
     env.close()
     return mr_bond
 
-def fitness_measurement_average_episode_reward(episode_rewards):
+def fitness_measurement_average_reward(episode_rewards):
     return stat_tools.average(episode_rewards)
 
 def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=3, min_bucket_size=6, max_bucket_proportion=0.5):
@@ -259,7 +259,7 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-def tune_hyperparams(initial_number_of_episodes_per_trial=10, episode_compounding_rate=1.07, fitness_func=fitness_measurement_reward_per_time)
+def tune_hyperparams(initial_number_of_episodes_per_trial=10, episode_compounding_rate=1.07, fitness_func=fitness_measurement_average_reward):
     import optuna
     # setup the number of episodes
     def increasing_number_of_episodes():
