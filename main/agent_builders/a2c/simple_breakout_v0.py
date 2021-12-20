@@ -10,7 +10,7 @@ import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image
 
-class Actor(nn.Module):
+class ImageNetwork(nn.Module):
     def __init__(self, *, input_shape, output_size, **config):
         super().__init__()
         color_channels = 3
@@ -26,11 +26,6 @@ class Actor(nn.Module):
         self.layers.add_module('conv3_activation', nn.ReLU())
         self.layers.add_module('flatten', nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
         self.layers.add_module('linear1', nn.Linear(self.size_of_last_layer, 64)) 
-        self.layers.add_module('linear1_activation', nn.Tanh()) 
-        self.layers.add_module('linear2', nn.Linear(64, 32)) 
-        self.layers.add_module('linear2_activation', nn.Tanh()) 
-        self.layers.add_module('linear3', nn.Linear(32, output_size)) 
-        self.layers.add_module('softmax', nn.Softmax(dim=0))
     
     @property
     def size_of_last_layer(self):
@@ -40,37 +35,32 @@ class Actor(nn.Module):
         X = opencv_image_to_torch_image(X)
         X = X.reshape((-1,*X.shape)) # add a dimension to create a "batch" of 1
         return self.layers(X)
-    
-class Critic(nn.Module):
-    def __init__(self, input_shape, **config):
+
+class Actor(nn.Module):
+    def __init__(self, *, input_size, output_size, **config):
         super().__init__()
-        color_channels = 3
-        self.dropout_rate = config.get("dropout_rate", 0.2) # note: not currently in use
-        # convert from cv_image shape to torch tensor shape
-        self.input_shape = (input_shape[2], input_shape[0], input_shape[1])
         self.layers = nn.Sequential()
-        self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
-        self.layers.add_module('conv1_activation', nn.ReLU())
-        self.layers.add_module('conv2', nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
-        self.layers.add_module('conv2_activation', nn.ReLU())
-        self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
-        self.layers.add_module('conv3_activation', nn.ReLU())
-        self.layers.add_module('flatten', nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module('linear1', nn.Linear(self.size_of_last_layer, 64)) 
-        self.layers.add_module('linear1_activation', nn.ReLU()) 
-        self.layers.add_module('linear2', nn.Linear(64, 32)) 
-        self.layers.add_module('linear2_activation', nn.ReLU()) 
-        self.layers.add_module('linear3', nn.Linear(32, 1)) 
-        
-    @property
-    def size_of_last_layer(self):
-        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
-        
+        self.layers.add_module('linear1_activation', nn.Tanh()) 
+        self.layers.add_module('linear2', nn.Linear(input_size, 32)) 
+        self.layers.add_module('linear2_activation', nn.Tanh()) 
+        self.layers.add_module('linear3', nn.Linear(32, output_size)) 
+        self.layers.add_module('softmax', nn.Softmax(dim=0))
+    
     def forward(self, X):
-        X = opencv_image_to_torch_image(X)
-        X = X.reshape((-1,*X.shape))
         return self.layers(X)
 
+class Critic(nn.Module):
+    def __init__(self, *, input_size, **config):
+        super().__init__()
+        self.layers = nn.Sequential()
+        self.layers.add_module('linear1_activation', nn.ReLU()) 
+        self.layers.add_module('linear2', nn.Linear(input_size, 32)) 
+        self.layers.add_module('linear2_activation', nn.ReLU()) 
+        self.layers.add_module('linear3', nn.Linear(32, 1)) 
+    
+    def forward(self, X):
+        return self.layers(X)
+    
 agent_number = 1
 class Agent():
     def __init__(self, observation_space, action_space, **config):
@@ -90,8 +80,10 @@ class Agent():
         self.critic_learning_rate = config.get("critic_learning_rate", 0.001)
         self.dropout_rate         = config.get("dropout_rate", 0.2)
         self.number_of_actions = action_space.n
-        self.actor = Actor(input_shape=observation_space.shape, output_size=self.number_of_actions, dropout_rate=self.dropout_rate)
-        self.critic = Critic(input_shape=observation_space.shape, dropout_rate=self.dropout_rate)
+        self.connection_size = 64 # neurons
+        self.image_model = ImageNetwork(input_shape = observation_space.shape, output_size  = self.connection_size  , dropout_rate = self.dropout_rate)
+        self.actor       = nn.Sequential(self.image_model, Actor(input_size=self.connection_size , output_size=self.number_of_actions, dropout_rate=self.dropout_rate))
+        self.critic      = nn.Sequential(self.image_model, Critic(input_size=self.connection_size, dropout_rate=self.dropout_rate))
         self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
         self.action_choice_distribution = None
@@ -160,11 +152,11 @@ class Agent():
         if self.logging.should_display:
             # graph reward results
             ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_actor_losses, 5))
-            ss.DisplayCard("quickMarkdown", "#### Actor Losses Per Episode")
+            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Actor Losses Per Episode")
             ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_critic_losses, 5))
-            ss.DisplayCard("quickMarkdown", "#### Critic Losses Per Episode")
+            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Critic Losses Per Episode")
             ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_rewards, 5))
-            ss.DisplayCard("quickMarkdown", "#### Rewards Per Episode")
+            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Rewards Per Episode")
     
     # 
     # Misc Helpers
@@ -186,7 +178,7 @@ class Agent():
     def update_weights(self, advantage):
         critic_loss = advantage.pow(2).mean()
         self.adam_critic.zero_grad()
-        critic_loss.backward()
+        critic_loss.backward(retain_graph=True)
         self.adam_critic.step()
         self.logging.accumulated_critic_loss += critic_loss.item()
         
