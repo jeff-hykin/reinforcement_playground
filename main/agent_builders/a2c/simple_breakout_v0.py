@@ -11,10 +11,10 @@ import functools
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
 from tools.debug import debug
-from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, Sequential
+from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
 class ImageNetwork(nn.Module):
-    # @init.hardware
+    @init.hardware
     def __init__(self, *, input_shape, output_size, **config):
         super().__init__()
         self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
@@ -36,19 +36,14 @@ class ImageNetwork(nn.Module):
     def size_of_last_layer(self):
         return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
     
-    # @forward.to_device
-    # @forward.to_batched_tensor(4)
-    # @forward.from_opencv_image_to_torch_image
+    @forward.to_device
+    @forward.to_batched_tensor(4)
+    @forward.from_opencv_image_to_torch_image
     def forward(self, X):
-        X = to_tensor(X.clone()).type(torch.float)
-        if len(X.shape) == 4-1:
-            X = X.clone().reshape((-1,*X.shape))
-        X = opencv_image_to_torch_image(X.clone())
-        output = self.layers.forward(X)
-        return output
+        return self.layers.forward(X)
 
 class Actor(nn.Module):
-    # @init.hardware
+    @init.hardware
     def __init__(self, *, input_size, output_size, **config):
         super().__init__()
         self.layers = Sequential()
@@ -58,12 +53,12 @@ class Actor(nn.Module):
         self.layers.add_module('linear3', nn.Linear(32, output_size)) 
         self.layers.add_module('softmax', nn.Softmax(dim=0))
         
-    # @forward.to_device
+    @forward.to_device
     def forward(self, X):
         return self.layers(X)
 
 class Critic(nn.Module):
-    # @init.hardware
+    @init.hardware
     def __init__(self, *, input_size, **config):
         super().__init__()
         self.layers = Sequential()
@@ -72,7 +67,7 @@ class Critic(nn.Module):
         self.layers.add_module('linear2_activation', nn.ReLU()) 
         self.layers.add_module('linear3', nn.Linear(32, 1)) 
     
-    # @forward.to_device
+    @forward.to_device
     def forward(self, X):
         return self.layers(X)
     
