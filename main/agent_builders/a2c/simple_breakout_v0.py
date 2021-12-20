@@ -33,7 +33,9 @@ class ImageNetwork(nn.Module):
         
     def forward(self, X):
         X = opencv_image_to_torch_image(X)
-        X = X.reshape((-1,*X.shape)) # add a dimension to create a "batch" of 1
+        # if X wasn't a batch, make it a batch of 1
+        if len(X.shape) == 3:
+            X = X.reshape((-1,*X.shape))
         return self.layers(X)
 
 class Actor(nn.Module):
