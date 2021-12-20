@@ -164,7 +164,7 @@ def bundle(iterable, bundle_size):
     next_bundle = []
     for each in iterable:
         next_bundle.append(each)
-        if len(next_bundle) == bundle_size:
+        if len(next_bundle) >= bundle_size:
             yield tuple(next_bundle)
             next_bundle = []
     # return any half-made bundles

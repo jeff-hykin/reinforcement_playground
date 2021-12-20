@@ -1,4 +1,6 @@
 from super_map import LazyDict
+from statistics import mean as average
+import math
 
 def create_linear_interpolater(from_min, from_max, to_min, to_max):
     from_range = from_max - from_min
@@ -109,7 +111,32 @@ def rolling_average(a_list, window):
             average_items = a_list[index-window:index+window+1]
         results.append(sum(average_items)/len(average_items))
     return results
-            
+
+def bundle(iterable, bundle_size):
+    next_bundle = []
+    for each in iterable:
+        next_bundle.append(each)
+        if len(next_bundle) >= bundle_size:
+            yield tuple(next_bundle)
+            next_bundle = []
+    # return any half-made bundles
+    if len(next_bundle) > 0:
+        yield tuple(next_bundle)
+
+def recursive_splits(a_list, branching_factor=2, min_size=2, max_proportion=0.5):
+    number_of_splits = int(math.log(len(a_list))/math.log(branching_factor))
+    splits = []
+    for each_exponential_size in reversed(range(0, number_of_splits)):
+        bundle_size = branching_factor**each_exponential_size
+        print('bundle_size = ', bundle_size)
+        print('bundle_size < min_size = ', bundle_size < min_size)
+        print('bundle_size/len(a_list) > max_proportion = ', bundle_size/len(a_list) > max_proportion)
+        if bundle_size < min_size:
+            break
+        if bundle_size/len(a_list) > max_proportion:
+            continue
+        splits.append(tuple(bundle(a_list, bundle_size=bundle_size)))
+    return splits
 
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
