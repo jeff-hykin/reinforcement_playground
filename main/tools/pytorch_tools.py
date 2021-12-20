@@ -42,6 +42,14 @@ def tensor_to_image(tensor):
     import torchvision.transforms.functional as TF
     return TF.to_pil_image(tensor)
 
+def opencv_image_to_torch_image(array):
+    # 1, 210, 160, 3 => 1, 3, 210, 160
+    tensor = to_tensor(array)
+    if len(tensor.shape) == 3:
+        return tensor.permute(2, 0, 1)
+    else:
+        return tensor.permute(0, 3, 1, 2)
+
 def to_tensor(an_object):
     from tools.basics import is_iterable
     
