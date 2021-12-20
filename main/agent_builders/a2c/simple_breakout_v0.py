@@ -174,29 +174,37 @@ class Agent():
         self.adam_actor.step()
         self.logging.accumulated_actor_loss += actor_loss.item()
 
-
-
-
-# 
-# do mission if run directly
-# 
-if __name__ == '__main__':
-    env = gym.make("Breakout-v0")
-    mr_bond = Agent(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        live_updates=True,
+def fitness_measurement(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=4, min_bucket_size=6, max_bucket_proportion=0.5):
+    # measure: should trend up, more improvement is better, but trend is most important
+    # trend is measured at recusively granular levels: default splits of (1/4th's, 1/16th's, 1/64th's ...)
+    # the default max proportion (0.5) prevents bucket from being more than 50% of the full list (set to max to 1 to allow entire list as first "bucket")
+    recursive_splits_list = stat_tools.recursive_splits(
+        episode_rewards,
+        branching_factor=granuality_branching_factor,
+        min_size=min_bucket_size,
+        max_proportion=max_bucket_proportion, 
     )
-    mr_bond.when_mission_starts()
-    for episode_index in range(100):
-        mr_bond.episode_is_over = False
-        mr_bond.observation = env.reset()
-        mr_bond.when_episode_starts(episode_index)
-        
-        timestep_index = -1
-        while not mr_bond.episode_is_over:
-            timestep_index += 1
+    improvements_at_each_bucket_level = []
+    for buckets in recursive_splits_list:
+        bucket_averages = [ stat_tools.average(each_bucket) for each_bucket in buckets ]
+        improvement_at_this_bucket_level = 0
+        for prev_average, next_average in stat_tools.pairwise(bucket_averages):
+            absolute_improvement = next_average - prev_average
+            # pow is being used as an Nth-root
+            # and Nth-root is used because we don't care about big spikes
+            # we want to measure general improvement, while still keeping the property that more=>better
+            if absolute_improvement > 0:
+                improvement = math.pow(absolute_improvement, 1/spike_suppression_magnitude)
+            else:
+                # just mirror the negative values
+                improvement = -math.pow(-absolute_improvement, 1/spike_suppression_magnitude)
             
+            improvement_at_this_bucket_level += improvement
+        average_improvement = improvement_at_this_bucket_level/(len(bucket_averages)-1) # minus one because its pairwise
+        improvements_at_each_bucket_level.append(average_improvement)
+    # all split levels given equal weight
+    return stat_tools.average(improvements_at_each_bucket_level)
+
             mr_bond.when_timestep_starts(timestep_index)
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
             mr_bond.when_timestep_ends(timestep_index)
