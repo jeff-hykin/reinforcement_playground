@@ -265,7 +265,7 @@ def tune_hyperparams(initial_number_of_episodes_per_trial=10, episode_compoundin
     def increasing_number_of_episodes():
         number_of_episodes = initial_number_of_episodes_per_trial
         while True:
-            yield number_of_episodes
+            yield int(number_of_episodes)
             # increase in size as more trials are done
             number_of_episodes *= episode_compounding_rate
     incrementally_more_episodes = increasing_number_of_episodes()
