@@ -1,8 +1,10 @@
 #%% pytorch_tools
 import torch
 import torch.nn as nn
+from tools.debug import debug
 from tools.basics import product, bundle
 from tools.record_keeper import RecordKeeper
+from simple_namespace import namespace
 #%% pytorch_tools
 
 default_seed = 1
@@ -178,7 +180,59 @@ class Sequential(nn.Sequential):
     def forward(self, neuron_activations):
         return functools.reduce((lambda x, each_layer: each_layer.forward(x)), self.children(), neuron_activations)
 
-from simple_namespace import namespace
+# 
+# 
+# network mixins
+# 
+# 
+@namespace
+def init():
+    def hardware(function_being_wrapped):
+        def wrapper(self, *args, **kwargs):
+            self.hardware = kwargs.get("device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            # not self.device because sometimes that conflicts with other things like pytorch lightning
+            init_output = function_being_wrapped(self, *args, **kwargs)
+            self.to(self.hardware)
+            return init_output
+        return wrapper
+    
+    return locals()
+
+@namespace
+def forward():
+    def to_device(function_being_wrapped):
+        def wrapper(self, input_data, *args, **kwargs):
+            # converts to torch if needed
+            if hasattr(self, "hardware"):
+                input_data = input_data.to(self.hardware)
+            elif hasattr(self, "device"):
+                input_data = input_data.to(self.device)
+            return function_being_wrapped(self, input_data, *args, **kwargs)
+        return wrapper
+        
+    def to_batched_tensor(number_of_dimensions=4):
+        """
+        Arguments:
+            number_of_dimensions: len(shape_of_batch) 
+        """
+        def wrapper1(function_being_wrapped):
+            def wrapper2(self, input_data, *args, **kwargs):
+                # converts to torch if needed
+                input_data = to_tensor(input_data).type(torch.float)
+                if len(input_data.shape) == number_of_dimensions-1:
+                    input_data = input_data.reshape((-1,*input_data.shape))
+                return function_being_wrapped(self, input_data, *args, **kwargs)
+            return wrapper2
+        return wrapper1
+    
+    def from_opencv_image_to_torch_image(function_being_wrapped):
+        def wrapper(self, input_data, *args, **kwargs):
+            # converts to torch if needed
+            return function_being_wrapped(self, opencv_image_to_torch_image(input_data), *args, **kwargs)
+        return wrapper
+    
+    return locals()
+
 
 @namespace
 def Network():

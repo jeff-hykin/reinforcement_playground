@@ -5,61 +5,74 @@ import silver_spectacle as ss
 import torch
 from super_map import LazyDict
 import math
+from collections import defaultdict
+import functools
 
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
-from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image
+from tools.debug import debug
+from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, Sequential
 
 class ImageNetwork(nn.Module):
+    # @init.hardware
     def __init__(self, *, input_shape, output_size, **config):
         super().__init__()
+        self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
+        
         color_channels = 3
-        self.dropout_rate = config.get("dropout_rate", 0.2) # note: not currently in use
         # convert from cv_image shape to torch tensor shape
         self.input_shape = (input_shape[2], input_shape[0], input_shape[1])
-        self.layers = nn.Sequential()
+        self.layers = Sequential()
         self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
-        self.layers.add_module('conv1_activation', nn.ReLU())
+        self.layers.add_module('conv1_activation', nn.ReLU(inplace=False))
         self.layers.add_module('conv2', nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
-        self.layers.add_module('conv2_activation', nn.ReLU())
+        self.layers.add_module('conv2_activation', nn.ReLU(inplace=False))
         self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
-        self.layers.add_module('conv3_activation', nn.ReLU())
+        self.layers.add_module('conv3_activation', nn.ReLU(inplace=False))
         self.layers.add_module('flatten', nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
         self.layers.add_module('linear1', nn.Linear(self.size_of_last_layer, 64)) 
     
     @property
     def size_of_last_layer(self):
         return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
-        
+    
+    # @forward.to_device
+    # @forward.to_batched_tensor(4)
+    # @forward.from_opencv_image_to_torch_image
     def forward(self, X):
-        X = opencv_image_to_torch_image(X)
-        # if X wasn't a batch, make it a batch of 1
-        if len(X.shape) == 3:
-            X = X.reshape((-1,*X.shape))
-        return self.layers(X)
+        X = to_tensor(X.clone()).type(torch.float)
+        if len(X.shape) == 4-1:
+            X = X.clone().reshape((-1,*X.shape))
+        X = opencv_image_to_torch_image(X.clone())
+        output = self.layers.forward(X)
+        return output
 
 class Actor(nn.Module):
+    # @init.hardware
     def __init__(self, *, input_size, output_size, **config):
         super().__init__()
-        self.layers = nn.Sequential()
+        self.layers = Sequential()
         self.layers.add_module('linear1_activation', nn.Tanh()) 
         self.layers.add_module('linear2', nn.Linear(input_size, 32)) 
         self.layers.add_module('linear2_activation', nn.Tanh()) 
         self.layers.add_module('linear3', nn.Linear(32, output_size)) 
         self.layers.add_module('softmax', nn.Softmax(dim=0))
-    
+        
+    # @forward.to_device
     def forward(self, X):
         return self.layers(X)
 
 class Critic(nn.Module):
+    # @init.hardware
     def __init__(self, *, input_size, **config):
         super().__init__()
-        self.layers = nn.Sequential()
+        self.layers = Sequential()
         self.layers.add_module('linear1_activation', nn.ReLU()) 
         self.layers.add_module('linear2', nn.Linear(input_size, 32)) 
         self.layers.add_module('linear2_activation', nn.ReLU()) 
         self.layers.add_module('linear3', nn.Linear(32, 1)) 
     
+    # @forward.to_device
     def forward(self, X):
         return self.layers(X)
     
@@ -84,17 +97,19 @@ class Agent():
         self.number_of_actions = action_space.n
         self.connection_size = 64 # neurons
         self.image_model = ImageNetwork(input_shape = observation_space.shape, output_size  = self.connection_size  , dropout_rate = self.dropout_rate)
-        self.actor       = nn.Sequential(self.image_model, Actor(input_size=self.connection_size , output_size=self.number_of_actions, dropout_rate=self.dropout_rate))
-        self.critic      = nn.Sequential(self.image_model, Critic(input_size=self.connection_size, dropout_rate=self.dropout_rate))
+        self.actor       = Sequential(self.image_model, Actor(input_size=self.connection_size , output_size=self.number_of_actions, dropout_rate=self.dropout_rate))
+        self.critic      = Sequential(self.image_model, Critic(input_size=self.connection_size, dropout_rate=self.dropout_rate))
         self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
         self.action_choice_distribution = None
         self.prev_observation = None
         self.action_with_gradient_tracking = None
+        self.episode_observations = []
+        self.episode_rewards = []
         self.logging = LazyDict()
         self.logging.should_display = config.get("should_display", True)
         self.logging.live_updates   = config.get("live_updates"  , False)
-        self.logging.episode_rewards = []
+        self.logging.episode_rewards = self.episode_rewards
         self.logging.episode_critic_losses = []
         self.logging.episode_actor_losses  = []
         self.logging.episode_reward_card = None
@@ -109,9 +124,9 @@ class Agent():
     # Hooks (Special Names)
     # 
     def when_mission_starts(self):
-        self.logging.episode_rewards       = []
-        self.logging.episode_critic_losses = []
-        self.logging.episode_actor_losses  = []
+        self.logging.episode_rewards.clear()
+        self.logging.episode_critic_losses.clear()
+        self.logging.episode_actor_losses.clear()
         if self.logging.live_updates:
             self.logging.episode_actor_loss_card = ss.DisplayCard("quickLine",[])
             ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Actor Loss, ➡️ Per Episode")
@@ -121,6 +136,10 @@ class Agent():
             ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
         
     def when_episode_starts(self, episode_index):
+        self.episode_observations.clear()
+        self.episode_rewards.clear()
+        self.episode_observations.append(self.observation) # first observation is ready/valid at the start (if mission is setup correctly)
+        
         self.logging.accumulated_reward      = 0
         self.logging.accumulated_critic_loss = 0
         self.logging.accumulated_actor_loss  = 0
@@ -130,15 +149,38 @@ class Agent():
         self.prev_observation = self.observation
         
     def when_timestep_ends(self, timestep_index):
-        self.logging.accumulated_reward += self.reward
+        self.episode_observations.append(self.observation)
+        self.episode_rewards.append(self.reward)
+        # self.trajectory.append((timestep_index, self.prev_observation, self.action_choice_distribution, self.reward, self.observation, self.episode_is_over))
         self.update_weights(self.compute_advantage(
             reward=self.reward,
             observation=self.prev_observation,
             next_observation=self.observation,
             episode_is_over=self.episode_is_over,
         ))
+        # logging
+        self.logging.accumulated_reward += self.reward
     
     def when_episode_ends(self, episode_index):
+        # one giant batch of observations
+        
+        # value_approximations = self.critic(to_tensor(self.episode_observations).to(self.device))
+        # rewards              = to_tensor(self.episode_rewards)
+        
+        # # real reward + discounted estimated-reward (multiplied by 0 if last timestep)
+        # observation_values = [     reward + (self.discount_factor*approximated_value)     for reward, approximated_value in zip(rewards, value_approximations) ]
+        # # sometimes the last value is set to zero (env_stopped_the_episode is false when max_number_of_timesteps is hit)
+        # observation_values[-1] = 0 if env_stopped_the_episode else observation_values[-1]
+        # # difference between the partially-observed value and the pure-estimate value
+        # deltas = np.array([    each_observation_value - value_approximator(each_observation)    for each_observation_value, each_observation zip(observation_values, observations) ])
+        
+        # advantage = reward + ((1.0 - done) * discount_factor * value_approximator(next_state)) - value_approximator(state)
+        # # one-hot encoding for actions (matrix)
+        # actions_one_hot = np.zeros([len(actions), self.env.action_space.n])
+        # actions_one_hot[np.arange(len(actions)), actions] = 1
+        # FIXME: self.update_weights
+        
+        # logging
         self.logging.episode_rewards.append(self.logging.accumulated_reward)
         self.logging.episode_critic_losses.append(self.logging.accumulated_critic_loss)
         self.logging.episode_actor_losses.append(self.logging.accumulated_actor_loss)
@@ -164,7 +206,7 @@ class Agent():
     # Misc Helpers
     # 
     def make_decision(self, observation):
-        probs = self.actor(torch.from_numpy(observation).float())
+        probs = self.actor.forward(torch.from_numpy(observation).float())
         self.action_choice_distribution = torch.distributions.Categorical(probs=probs)
         self.action_with_gradient_tracking = self.action_choice_distribution.sample()
         return self.action_with_gradient_tracking.item()
@@ -178,17 +220,17 @@ class Agent():
             - self.approximate_value_of(observation)
     
     def update_weights(self, advantage):
+        actor_loss = -self.action_choice_distribution.log_prob(self.action_with_gradient_tracking)*advantage.clone().detach()
         critic_loss = advantage.pow(2).mean()
+        self.adam_actor.zero_grad()
         self.adam_critic.zero_grad()
-        critic_loss.backward(retain_graph=True)
+        actor_loss.backward()
+        critic_loss.backward()
+        self.adam_actor.step()
         self.adam_critic.step()
+        self.logging.accumulated_actor_loss += actor_loss.item()
         self.logging.accumulated_critic_loss += critic_loss.item()
         
-        actor_loss = -self.action_choice_distribution.log_prob(self.action_with_gradient_tracking)*advantage.detach()
-        self.adam_actor.zero_grad()
-        actor_loss.backward()
-        self.adam_actor.step()
-        self.logging.accumulated_actor_loss += actor_loss.item()
 
 def default_mission(env_name="BreakoutNoFrameskip-v4", number_of_episodes=500, discount_factor=0.99, actor_learning_rate=0.001, critic_learning_rate=0.001):
     env = gym.make(env_name)
@@ -281,5 +323,5 @@ def tune_hyperparams(initial_number_of_episodes_per_trial=10, episode_compoundin
 # do mission if run directly
 # 
 if __name__ == '__main__':
-    # torch.autograd.set_detect_anomaly(True)
+    torch.autograd.set_detect_anomaly(True)
     study = tune_hyperparams()
