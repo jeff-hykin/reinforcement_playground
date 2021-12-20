@@ -37,7 +37,7 @@ class Actor(nn.Module):
         
     def forward(self, X):
         X = opencv_image_to_torch_image(X)
-        X = X.reshape((-1,*X.shape))
+        X = X.reshape((-1,*X.shape)) # add a dimension to create a "batch" of 1
         return self.layers(X)
     
 class Critic(nn.Module):
@@ -95,9 +95,11 @@ class Agent():
         self.action_with_gradient_tracking = None
         self.logging = LazyDict()
         self.logging.should_display = config.get("should_display", True)
+        self.logging.live_updates   = config.get("live_updates"  , False)
         self.logging.episode_rewards = []
         self.logging.episode_critic_losses = []
         self.logging.episode_actor_losses  = []
+        
     
     # 
     # Hooks (Special Names)
@@ -106,6 +108,9 @@ class Agent():
         self.logging.episode_rewards       = []
         self.logging.episode_critic_losses = []
         self.logging.episode_actor_losses  = []
+        if self.logging.live_updates:
+            self.logging.card = ss.DisplayCard("quickLine",[])
+            ss.DisplayCard("quickMarkdown", "#### Live Rewards Per Episode")
         
     def when_episode_starts(self, episode_index):
         self.logging.accumulated_reward      = 0
@@ -129,6 +134,7 @@ class Agent():
         self.logging.episode_rewards.append(self.logging.accumulated_reward)
         self.logging.episode_critic_losses.append(self.logging.accumulated_critic_loss)
         self.logging.episode_actor_losses.append(self.logging.accumulated_actor_loss)
+        self.logging.card.send([episode_index, self.logging.accumulated_reward])
     
     def when_mission_ends(self,):
         if self.logging.should_display:
@@ -180,10 +186,11 @@ if __name__ == '__main__':
     env = gym.make("Breakout-v0")
     mr_bond = Agent(
         observation_space=env.observation_space,
-        action_space=env.action_space
+        action_space=env.action_space,
+        live_updates=True,
     )
     mr_bond.when_mission_starts()
-    for episode_index in range(500):
+    for episode_index in range(100):
         mr_bond.episode_is_over = False
         mr_bond.observation = env.reset()
         mr_bond.when_episode_starts(episode_index)
