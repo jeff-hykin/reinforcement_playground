@@ -173,6 +173,10 @@ def unnormalize(mean, std, image):
     normalizer = transforms.Normalize((-mean / std), (1.0 / std))
     return normalizer(image)
 
+import functools
+class Sequential(nn.Sequential):
+    def forward(self, neuron_activations):
+        return functools.reduce((lambda x, each_layer: each_layer.forward(x)), self.children(), neuron_activations)
 
 from simple_namespace import namespace
 
