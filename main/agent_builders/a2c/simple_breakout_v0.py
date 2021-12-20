@@ -99,12 +99,13 @@ class Agent():
         self.action_choice_distribution = None
         self.prev_observation = None
         self.action_with_gradient_tracking = None
-        self.episode_observations = []
-        self.episode_rewards = []
+        self.episode = LazyDict()
+        self.episode.observations = []
+        self.episode.rewards = []
         self.logging = LazyDict()
         self.logging.should_display = config.get("should_display", True)
         self.logging.live_updates   = config.get("live_updates"  , False)
-        self.logging.episode_rewards = self.episode_rewards
+        self.logging.episode_rewards = []
         self.logging.episode_critic_losses = []
         self.logging.episode_actor_losses  = []
         self.logging.episode_reward_card = None
@@ -131,9 +132,9 @@ class Agent():
             ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
         
     def when_episode_starts(self, episode_index):
-        self.episode_observations.clear()
-        self.episode_rewards.clear()
-        self.episode_observations.append(self.observation) # first observation is ready/valid at the start (if mission is setup correctly)
+        self.episode.observations.clear()
+        self.episode.rewards.clear()
+        self.episode.observations.append(self.observation) # first observation is ready/valid at the start (if mission is setup correctly)
         
         self.logging.accumulated_reward      = 0
         self.logging.accumulated_critic_loss = 0
@@ -144,8 +145,8 @@ class Agent():
         self.prev_observation = self.observation
         
     def when_timestep_ends(self, timestep_index):
-        self.episode_observations.append(self.observation)
-        self.episode_rewards.append(self.reward)
+        self.episode.observations.append(self.observation)
+        self.episode.rewards.append(self.reward)
         # self.trajectory.append((timestep_index, self.prev_observation, self.action_choice_distribution, self.reward, self.observation, self.episode_is_over))
         self.update_weights(self.compute_advantage(
             reward=self.reward,
@@ -159,7 +160,7 @@ class Agent():
     def when_episode_ends(self, episode_index):
         # one giant batch of observations
         
-        # value_approximations = self.critic(to_tensor(self.episode_observations).to(self.device))
+        # value_approximations = self.critic(to_tensor(self.episode.observations).to(self.device))
         # rewards              = to_tensor(self.episode_rewards)
         
         # # real reward + discounted estimated-reward (multiplied by 0 if last timestep)
