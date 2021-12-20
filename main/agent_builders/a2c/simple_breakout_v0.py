@@ -4,15 +4,17 @@ import numpy as np
 import silver_spectacle as ss
 import torch
 from super_map import LazyDict
+import math
 
+import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
-from tools.stat_tools import rolling_average
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image
 
 class Actor(nn.Module):
-    def __init__(self, *, input_shape, output_size):
+    def __init__(self, *, input_shape, output_size, **config):
         super().__init__()
         color_channels = 3
+        self.dropout_rate = config.get("dropout_rate", 0.2) # note: not currently in use
         # convert from cv_image shape to torch tensor shape
         self.input_shape = (input_shape[2], input_shape[0], input_shape[1])
         self.layers = nn.Sequential()
@@ -40,9 +42,10 @@ class Actor(nn.Module):
         return self.layers(X)
     
 class Critic(nn.Module):
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, **config):
         super().__init__()
         color_channels = 3
+        self.dropout_rate = config.get("dropout_rate", 0.2) # note: not currently in use
         # convert from cv_image shape to torch tensor shape
         self.input_shape = (input_shape[2], input_shape[0], input_shape[1])
         self.layers = nn.Sequential()
@@ -68,7 +71,7 @@ class Critic(nn.Module):
         X = X.reshape((-1,*X.shape))
         return self.layers(X)
 
-
+agent_number = 1
 class Agent():
     def __init__(self, observation_space, action_space, **config):
         # 
@@ -82,12 +85,15 @@ class Agent():
         # 
         # regular/misc attributes
         # 
+        self.discount_factor      = config.get("discount_factor", 0.99)
+        self.actor_learning_rate  = config.get("actor_learning_rate", 0.001)
+        self.critic_learning_rate = config.get("critic_learning_rate", 0.001)
+        self.dropout_rate         = config.get("dropout_rate", 0.2)
         self.number_of_actions = action_space.n
-        self.actor = Actor(input_shape=observation_space.shape, output_size=self.number_of_actions)
-        self.critic = Critic(input_shape=observation_space.shape)
-        self.adam_actor = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
-        self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=1e-3)
-        self.discount_factor = 0.99
+        self.actor = Actor(input_shape=observation_space.shape, output_size=self.number_of_actions, dropout_rate=dropout_rate)
+        self.critic = Critic(input_shape=observation_space.shape, dropout_rate=dropout_rate)
+        self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
+        self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
         self.action_choice_distribution = None
         self.prev_observation = None
         self.action_with_gradient_tracking = None
@@ -97,7 +103,13 @@ class Agent():
         self.logging.episode_rewards = []
         self.logging.episode_critic_losses = []
         self.logging.episode_actor_losses  = []
+        self.logging.episode_reward_card = None
+        self.logging.episode_critic_loss_card = None
+        self.logging.episode_actor_loss_card = None
         
+        global agent_number
+        self.agent_number = agent_number
+        agent_number += 1
     
     # 
     # Hooks (Special Names)
@@ -107,8 +119,12 @@ class Agent():
         self.logging.episode_critic_losses = []
         self.logging.episode_actor_losses  = []
         if self.logging.live_updates:
-            self.logging.card = ss.DisplayCard("quickLine",[])
-            ss.DisplayCard("quickMarkdown", "#### Live Rewards Per Episode")
+            self.logging.episode_actor_loss_card = ss.DisplayCard("quickLine",[])
+            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Actor Loss, ➡️ Per Episode")
+            self.logging.episode_critic_loss_card = ss.DisplayCard("quickLine",[])
+            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Critic Loss, ➡️ Per Episode")
+            self.logging.episode_reward_card = ss.DisplayCard("quickLine",[])
+            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
         
     def when_episode_starts(self, episode_index):
         self.logging.accumulated_reward      = 0
@@ -132,16 +148,22 @@ class Agent():
         self.logging.episode_rewards.append(self.logging.accumulated_reward)
         self.logging.episode_critic_losses.append(self.logging.accumulated_critic_loss)
         self.logging.episode_actor_losses.append(self.logging.accumulated_actor_loss)
-        self.logging.card.send([episode_index, self.logging.accumulated_reward])
+        if self.logging.live_updates:
+            self.logging.episode_reward_card.send     ([episode_index, self.logging.accumulated_reward      ])
+            self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
+            self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
+            print(f'self.logging.accumulated_reward      :{self.logging.accumulated_reward      }',)
+            print(f'self.logging.accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
+            print(f'self.logging.accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
     
     def when_mission_ends(self,):
         if self.logging.should_display:
             # graph reward results
-            ss.DisplayCard("quickLine", rolling_average(self.logging.episode_critic_losses, 5))
-            ss.DisplayCard("quickMarkdown", "#### Critic Losses Per Episode")
-            ss.DisplayCard("quickLine", rolling_average(self.logging.episode_actor_losses, 5))
+            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_actor_losses, 5))
             ss.DisplayCard("quickMarkdown", "#### Actor Losses Per Episode")
-            ss.DisplayCard("quickLine", rolling_average(self.logging.episode_rewards, 5))
+            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_critic_losses, 5))
+            ss.DisplayCard("quickMarkdown", "#### Critic Losses Per Episode")
+            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_rewards, 5))
             ss.DisplayCard("quickMarkdown", "#### Rewards Per Episode")
     
     # 
@@ -174,7 +196,39 @@ class Agent():
         self.adam_actor.step()
         self.logging.accumulated_actor_loss += actor_loss.item()
 
-def fitness_measurement(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=4, min_bucket_size=6, max_bucket_proportion=0.5):
+def default_mission(env_name="BreakoutNoFrameskip-v4", number_of_episodes=500, discount_factor=0.99, actor_learning_rate=0.001, critic_learning_rate=0.001):
+    env = gym.make(env_name)
+    mr_bond = Agent(
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        live_updates=True,
+        discount_factor=discount_factor,
+        actor_learning_rate=actor_learning_rate,
+        critic_learning_rate=critic_learning_rate,
+    )
+    mr_bond.when_mission_starts()
+    for episode_index in range(number_of_episodes):
+        mr_bond.episode_is_over = False
+        mr_bond.observation = env.reset()
+        mr_bond.when_episode_starts(episode_index)
+        
+        timestep_index = -1
+        while not mr_bond.episode_is_over:
+            timestep_index += 1
+            
+            mr_bond.when_timestep_starts(timestep_index)
+            mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+            mr_bond.when_timestep_ends(timestep_index)
+                
+        mr_bond.when_episode_ends(episode_index)
+    mr_bond.when_mission_ends()
+    env.close()
+    return mr_bond
+
+def fitness_measurement_average_episode_reward(episode_rewards):
+    return stat_tools.average(episode_rewards)
+
+def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=3, min_bucket_size=6, max_bucket_proportion=0.5):
     # measure: should trend up, more improvement is better, but trend is most important
     # trend is measured at recusively granular levels: default splits of (1/4th's, 1/16th's, 1/64th's ...)
     # the default max proportion (0.5) prevents bucket from being more than 50% of the full list (set to max to 1 to allow entire list as first "bucket")
@@ -205,10 +259,33 @@ def fitness_measurement(episode_rewards, spike_suppression_magnitude=8, granuali
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-            mr_bond.when_timestep_starts(timestep_index)
-            mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
-            mr_bond.when_timestep_ends(timestep_index)
-                
-        mr_bond.when_episode_ends(episode_index)
-    mr_bond.when_mission_ends()
-    env.close()
+def tune_hyperparams(initial_number_of_episodes_per_trial=10, episode_compounding_rate=1.07, fitness_func=fitness_measurement_reward_per_time)
+    import optuna
+    # setup the number of episodes
+    def increasing_number_of_episodes():
+        number_of_episodes = initial_number_of_episodes_per_trial
+        while True:
+            yield number_of_episodes
+            # increase in size as more trials are done
+            number_of_episodes *= episode_compounding_rate
+    incrementally_more_episodes = increasing_number_of_episodes()
+        
+    # connect the trial-object to hyperparams and setup a measurement of fitness
+    objective_func = lambda trial: fitness_func(
+        default_mission(
+            number_of_episodes=next(incrementally_more_episodes),
+            discount_factor=trial.suggest_loguniform('discount_factor', 0.8, 1),
+            actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 1e-5, 1e-1),
+            critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 1e-5, 1e-1),    
+        ).logging.episode_rewards
+    )
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective_func, n_trials=100)
+    return study
+
+# 
+# do mission if run directly
+# 
+if __name__ == '__main__':
+    # torch.autograd.set_detect_anomaly(True)
+    study = tune_hyperparams()

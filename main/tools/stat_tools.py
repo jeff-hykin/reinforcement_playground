@@ -112,6 +112,13 @@ def rolling_average(a_list, window):
         results.append(sum(average_items)/len(average_items))
     return results
 
+def pairwise(an_iterable):
+    # grab the first one
+    prev = next(an_iterable)
+    for current in an_iterable:
+        yield prev, current
+        prev = current
+
 def bundle(iterable, bundle_size):
     next_bundle = []
     for each in iterable:
