@@ -52,36 +52,64 @@ def opencv_image_to_torch_image(array):
     else:
         return tensor.permute(0, 3, 1, 2)
 
+try:
+    import numpy
+except Exception as error:
+    numpy = None
 def to_tensor(an_object):
     from tools.basics import is_iterable
     
     # if already a tensor, just return
     if isinstance(an_object, torch.Tensor):
         return an_object
-        
+    # if numpy, just convert
+    if numpy and isinstance(an_object, numpy.ndarray):
+        return torch.from_numpy(an_object).float()
+    
     # if scalar, wrap it with a tensor
     if not is_iterable(an_object):
         return torch.tensor(an_object)
     else:
-        as_list = tuple([ each for each in an_object ])
+        # fastest (by a lot) way to convert list of numpy elements to torch tensor
+        try:
+            return torch.from_numpy(numpy.stack(an_object)).float()
+        except Exception as error:
+            pass
+        # if all tensors of the same shape
+        try:
+            return torch.stack(tuple(an_object), dim=0)
+        except Exception as error:
+            pass
+        # if all scalar tensors
+        try:
+            return torch.tensor(tuple(an_object))
+        except Exception as error:
+            pass
         
-        # # check for all-scalar container
-        # is_all_scalar = True
-        # for each in as_list:
-        #     if is_iterable(each):
-        #         is_all_scalar = False
-        #         break
-        # if is_all_scalar:
-        #     return torch.tensor(as_list)
+        # 
+        # convert each element, and make sure its not a generator
+        # 
+        converted_data = tuple(to_tensor(each) for each in an_object)
+        # now try try again 
         
+        # if all tensors of the same shape
+        try:
+            return torch.stack(tuple(an_object), dim=0)
+        except Exception as error:
+            pass
+        # if all scalar tensors
+        try:
+            return torch.tensor(tuple(an_object))
+        except Exception as error:
+            pass
+        # 
+        # fallback: reshape to fit (give error if too badly mishapen)
+        # 
         size_mismatch = False
         biggest_number_of_dimensions = 0
         non_one_dimensions = None
-        converted_data = []
         # check the shapes of everything
-        for each in as_list:
-            tensor = to_tensor(each)
-            converted_data.append(tensor)
+        for tensor in converted_data:
             skipping = True
             each_non_one_dimensions = []
             for index, each_dimension in enumerate(tensor.shape):
@@ -107,7 +135,7 @@ def to_tensor(an_object):
                     break
         
         if size_mismatch:
-            sizes = "\n".join([ f"    {tuple(to_tensor(each).shape)}" for each in as_list])
+            sizes = "\n".join([ f"    {tuple(each.shape)}" for each in converted_data])
             raise Exception(f'When converting an object to a torch tensor, there was an issue with the shapes not being uniform. All shapes need to be the same, but instead the shapes were:\n {sizes}')
         
         # make all the sizes the same by filling in the dimensions with a size of one
@@ -192,7 +220,8 @@ def init():
             self.hardware = kwargs.get("device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
             # not self.device because sometimes that conflicts with other things like pytorch lightning
             init_output = function_being_wrapped(self, *args, **kwargs)
-            self.to(self.hardware)
+            if hasattr(self, "to") and callable(self.to):
+                self.to(self.hardware)
             return init_output
         return wrapper
     

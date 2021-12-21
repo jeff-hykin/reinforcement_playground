@@ -73,6 +73,7 @@ class Critic(nn.Module):
     
 agent_number = 1
 class Agent():
+    @init.hardware
     def __init__(self, observation_space, action_space, **config):
         # 
         # special
@@ -99,9 +100,11 @@ class Agent():
         self.action_choice_distribution = None
         self.prev_observation = None
         self.action_with_gradient_tracking = None
-        self.episode = LazyDict()
-        self.episode.observations = []
-        self.episode.rewards = []
+        self.buffer = LazyDict()
+        self.buffer.observations = []
+        self.buffer.rewards = []
+        self.buffer.action_log_probabilies = []
+        
         self.logging = LazyDict()
         self.logging.should_display = config.get("should_display", True)
         self.logging.live_updates   = config.get("live_updates"  , False)
@@ -112,9 +115,10 @@ class Agent():
         self.logging.episode_critic_loss_card = None
         self.logging.episode_actor_loss_card = None
         
-        global agent_number
-        self.agent_number = agent_number
-        agent_number += 1
+        if not hasattr(Agent, "agent_number_count"):
+            Agent.agent_number_count = 0
+        Agent.agent_number_count += 1
+        self.agent_number = Agent.agent_number_count
     
     # 
     # Hooks (Special Names)
@@ -132,9 +136,10 @@ class Agent():
             ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
         
     def when_episode_starts(self, episode_index):
-        self.episode.observations.clear()
-        self.episode.rewards.clear()
-        self.episode.observations.append(self.observation) # first observation is ready/valid at the start (if mission is setup correctly)
+        self.buffer.observations = []
+        self.buffer.rewards = []
+        self.buffer.action_log_probabilies = []
+        self.buffer.observations.append(self.observation) # first observation is ready/valid at the start (if mission is setup correctly)
         
         self.logging.accumulated_reward      = 0
         self.logging.accumulated_critic_loss = 0
@@ -145,36 +150,15 @@ class Agent():
         self.prev_observation = self.observation
         
     def when_timestep_ends(self, timestep_index):
-        self.episode.observations.append(self.observation)
-        self.episode.rewards.append(self.reward)
-        # self.trajectory.append((timestep_index, self.prev_observation, self.action_choice_distribution, self.reward, self.observation, self.episode_is_over))
-        self.update_weights(self.compute_advantage(
-            reward=self.reward,
-            observation=self.prev_observation,
-            next_observation=self.observation,
-            episode_is_over=self.episode_is_over,
-        ))
+        # build up value for a large update step later
+        self.buffer.observations.append(self.observation)
+        self.buffer.rewards.append(self.reward)
+        self.buffer.action_log_probabilies.append(self.action_choice_distribution.log_prob(self.action_with_gradient_tracking))
         # logging
         self.logging.accumulated_reward += self.reward
     
     def when_episode_ends(self, episode_index):
-        # one giant batch of observations
-        
-        # value_approximations = self.critic(to_tensor(self.episode.observations).to(self.device))
-        # rewards              = to_tensor(self.episode_rewards)
-        
-        # # real reward + discounted estimated-reward (multiplied by 0 if last timestep)
-        # observation_values = [     reward + (self.discount_factor*approximated_value)     for reward, approximated_value in zip(rewards, value_approximations) ]
-        # # sometimes the last value is set to zero (env_stopped_the_episode is false when max_number_of_timesteps is hit)
-        # observation_values[-1] = 0 if env_stopped_the_episode else observation_values[-1]
-        # # difference between the partially-observed value and the pure-estimate value
-        # deltas = np.array([    each_observation_value - value_approximator(each_observation)    for each_observation_value, each_observation zip(observation_values, observations) ])
-        
-        # advantage = reward + ((1.0 - done) * discount_factor * value_approximator(next_state)) - value_approximator(state)
-        # # one-hot encoding for actions (matrix)
-        # actions_one_hot = np.zeros([len(actions), self.env.action_space.n])
-        # actions_one_hot[np.arange(len(actions)), actions] = 1
-        # FIXME: self.update_weights
+        self.update_weights_consume_buffer()
         
         # logging
         self.logging.episode_rewards.append(self.logging.accumulated_reward)
@@ -184,9 +168,9 @@ class Agent():
             self.logging.episode_reward_card.send     ([episode_index, self.logging.accumulated_reward      ])
             self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
             self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
-            print(f'self.logging.accumulated_reward      :{self.logging.accumulated_reward      }',)
-            print(f'self.logging.accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
-            print(f'self.logging.accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
+        print(f'self.logging.accumulated_reward      :{self.logging.accumulated_reward      }',)
+        print(f'self.logging.accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
+        print(f'self.logging.accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
     
     def when_mission_ends(self,):
         if self.logging.should_display:
@@ -214,6 +198,25 @@ class Agent():
         return reward + \
             self.approximate_value_of(next_observation)*self.discount_factor*(1-int(episode_is_over))\
             - self.approximate_value_of(observation)
+
+    def compute_buffered_advantages(self):
+        debug.self = self
+        self = debug.self
+        value_approximations   = self.critic(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
+        rewards                = to_tensor(self.buffer.rewards).to(self.hardware)
+        
+        current_approximates = value_approximations[:-1]
+        next_approximates = value_approximations[1:]
+        # vectorized: (vec + (scalar * vec))
+        observation_values = (rewards + (self.discount_factor*next_approximates)) 
+        # vectorized: (vec - vec)
+        advantages = observation_values - current_approximates
+        # last value doesn't have a "next" so manually add it
+        last_value = rewards[-1] - value_approximations[-1]
+        # append last value
+        advantages = torch.cat((advantages, to_tensor([last_value])), dim=0)
+        
+        return advantages
     
     def update_weights(self, advantage):
         actor_loss = -self.action_choice_distribution.log_prob(self.action_with_gradient_tracking)*advantage.clone().detach()
@@ -226,6 +229,30 @@ class Agent():
         self.adam_critic.step()
         self.logging.accumulated_actor_loss += actor_loss.item()
         self.logging.accumulated_critic_loss += critic_loss.item()
+    
+    def update_weights_consume_buffer(self):
+        advantages = self.compute_buffered_advantages()
+        action_log_probabilies = to_tensor(self.buffer.action_log_probabilies).to(self.hardware)
+        # 
+        # update step
+        # 
+        actor_losses  = -action_log_probabilies * advantages.detach()
+        critic_losses = advantages.pow(2)
+        actor_episode_loss = actor_losses.mean()
+        critic_episode_loss = critic_losses.mean()
+        self.adam_actor.zero_grad()
+        self.adam_critic.zero_grad()
+        actor_episode_loss.backward()
+        critic_episode_loss.backward()
+        self.adam_actor.step()
+        self.adam_critic.step()
+        self.logging.accumulated_actor_loss += actor_episode_loss.item()
+        self.logging.accumulated_critic_loss += critic_episode_loss.item()
+        
+        # 
+        # clear buffer
+        # 
+        self.buffer = LazyDict()
         
 
 def default_mission(env_name="BreakoutNoFrameskip-v4", number_of_episodes=500, discount_factor=0.99, actor_learning_rate=0.001, critic_learning_rate=0.001):
@@ -233,7 +260,7 @@ def default_mission(env_name="BreakoutNoFrameskip-v4", number_of_episodes=500, d
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        live_updates=True,
+        # live_updates=True,
         discount_factor=discount_factor,
         actor_learning_rate=actor_learning_rate,
         critic_learning_rate=critic_learning_rate,
