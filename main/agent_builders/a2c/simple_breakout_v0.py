@@ -8,6 +8,7 @@ import math
 from collections import defaultdict
 import functools
 from gym.wrappers import AtariPreprocessing
+from main.agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
@@ -97,6 +98,8 @@ class Agent():
         self.critic      = Sequential(self.image_model, Critic(input_size=self.connection_size, dropout_rate=self.dropout_rate))
         self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
+        self.rms_actor  = RMSpropTFLike(self.actor.parameters() , lr=1e-2, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
+        self.rms_critic = RMSpropTFLike(self.critic.parameters(), lr=1e-2, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
         self.action_choice_distribution = None
         self.prev_observation = None
         self.action_with_gradient_tracking = None
