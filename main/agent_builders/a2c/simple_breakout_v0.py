@@ -7,6 +7,7 @@ from super_map import LazyDict
 import math
 from collections import defaultdict
 import functools
+from gym.wrappers import AtariPreprocessing
 
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
@@ -71,7 +72,6 @@ class Critic(nn.Module):
     def forward(self, X):
         return self.layers(X)
     
-agent_number = 1
 class Agent():
     @init.hardware
     def __init__(self, observation_space, action_space, **config):
@@ -245,8 +245,23 @@ class Agent():
         self.buffer = LazyDict()
         
 
-def default_mission(env_name="BreakoutNoFrameskip-v4", number_of_episodes=500, discount_factor=0.99, actor_learning_rate=0.001, critic_learning_rate=0.001):
-    env = gym.make(env_name)
+def default_mission(
+        env_name="BreakoutNoFrameskip-v4",
+        number_of_episodes=500,
+        grayscale=True,
+        frame_skip=0, # open ai defaults to 4
+        screen_size=84,
+        discount_factor=0.99,
+        actor_learning_rate=0.001,
+        critic_learning_rate=0.001,
+    ):
+    env = AtariPreprocessing(
+        lambda : gym.make(env_name),
+        grayscale_obs=grayscale,
+        frame_skip=frame_skip, #
+        noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
+        grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+    )
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
@@ -279,7 +294,7 @@ def fitness_measurement_average_reward(episode_rewards):
 
 def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=3, min_bucket_size=6, max_bucket_proportion=0.5):
     # measure: should trend up, more improvement is better, but trend is most important
-    # trend is measured at recusively granular levels: default splits of (1/4th's, 1/16th's, 1/64th's ...)
+    # trend is measured at recusively granular levels: default splits of (1/3th's, 1/9th's, 1/27th's ...)
     # the default max proportion (0.5) prevents bucket from being more than 50% of the full list (set to max to 1 to allow entire list as first "bucket")
     recursive_splits_list = stat_tools.recursive_splits(
         episode_rewards,
@@ -336,5 +351,5 @@ def tune_hyperparams(initial_number_of_episodes_per_trial=100, episode_compoundi
 # do mission if run directly
 # 
 if __name__ == '__main__':
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True) # comment out unless debugging 
     study = tune_hyperparams()
