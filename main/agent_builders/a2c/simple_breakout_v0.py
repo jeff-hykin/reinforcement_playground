@@ -197,23 +197,55 @@ class Agent():
     def approximate_value_of(self, observation):
         return self.critic(torch.from_numpy(observation).float()).item()
     
-    def update_weights_consume_buffer(self):
-        # TODO: probably need to calculate target values backwards like this:
-        # for i, (_, _, reward, done) in enumerate(memory.reversed()):
-        #     q_val = reward + gamma*q_val*(1.0-done)
-        #     q_vals[len(memory)-1 - i] = q_val # store values from the end to the beginning
-        # advantage = torch.tensor(q_vals) - values
-        
-        # 
-        # compute advantages (self.rewards, self.discount_factor, self.observations)
-        # 
-        value_approximations   = self.critic(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
-        rewards                = to_tensor(self.buffer.rewards).to(self.hardware)
+    def _observation_values_vectorized_method(self, value_approximations):
+        rewards = to_tensor(self.buffer.rewards).to(self.hardware)
         
         current_approximates = value_approximations[:-1]
         next_approximates = value_approximations[1:]
         # vectorized: (vec + (scalar * vec))
         observation_values = (rewards + (self.discount_factor*next_approximates)) 
+        return observation_values
+    
+    def _observation_values_backwards_chain_method(self):
+        observation_values = torch.zeros(len(self.rewards))
+        # the last one is just equal to the reward
+        observation_values[-1] = self.rewards[-1]
+        iterable = zip(
+            range(len(observation_values)-1),
+            self.buffer.rewards[:-1],
+            self.buffer.observations[:-1],
+        )
+        for reversed_index, each_reward, each_observation in reversed(tuple(iterable)):
+            next_estimate = observation_values[reversed_index+1]
+            observation_values[reversed_index] = each_reward + self.discount_factor * next_estimate
+        return observation_values
+    
+    def _observation_values_baselines(self):
+        # https://github.com/DLR-RM/stable-baselines3/blob/3b68dc731219f112ccc2a6745f216bca701080bb/stable_baselines3/ppo/ppo.py#L198
+        # seems like this method is complicated
+        # - they store the raw observation on the rollout buffer
+        # - then they do feature extraction (which depends/changes with the config)
+        # - ^ this is basically preprocessing
+        # - they then use an mlp_extractor, which IDK what that is 
+        # - its possible this whole thing is just a way to calculate the action distribution: which is something I just store/have directly
+        # - advantages are stored in the rollout buffer somehow. Found it: https://github.com/DLR-RM/stable-baselines3/blob/3b68dc731219f112ccc2a6745f216bca701080bb/stable_baselines3/common/buffers.py#L349
+        #    - does seem they are calculated in a reversed manner
+        #    - has gae_lambda as a tradeoff between TD0-style <-> MonteCarlo style updates
+        # - then theres some computation that utilizes entropy 
+        pass
+        
+    
+    def update_weights_consume_buffer(self):
+        value_approximations   = self.critic(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
+        
+        # 
+        # Observation values (not vectorizable)
+        # 
+        observation_values = self._observation_values_vectorized_method()
+        
+        # 
+        # compute advantages (self.rewards, self.discount_factor, self.observations)
+        # 
         # vectorized: (vec - vec)
         advantages = observation_values - current_approximates
         # last value doesn't have a "next" so manually add it
@@ -226,7 +258,7 @@ class Agent():
         # 
         action_log_probabilies = to_tensor(self.buffer.action_log_probabilies).to(self.hardware)
         actor_losses  = -action_log_probabilies * advantages.detach()
-        critic_losses = advantages.pow(2)
+        critic_losses = advantages.pow(2) # baselines does F.mse_loss((self.advantages + self.values), self.values) instead for some reason
         actor_episode_loss = actor_losses.mean()
         critic_episode_loss = critic_losses.mean()
         
