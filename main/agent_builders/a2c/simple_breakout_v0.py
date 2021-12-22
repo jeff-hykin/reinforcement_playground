@@ -106,7 +106,7 @@ class Agent():
         self.buffer.action_log_probabilies = []
         
         self.logging = LazyDict()
-        self.logging.should_display = config.get("should_display", True)
+        self.logging.should_display = config.get("should_display", False)
         self.logging.live_updates   = config.get("live_updates"  , False)
         self.logging.episode_rewards = []
         self.logging.episode_critic_losses = []
@@ -192,16 +192,18 @@ class Agent():
         return self.action_with_gradient_tracking.item()
     
     def approximate_value_of(self, observation):
-        return self.critic(torch.from_numpy(observation).float())
+        return self.critic(torch.from_numpy(observation).float()).item()
     
-    def compute_advantage(self, *, reward, observation, next_observation, episode_is_over):
-        return reward + \
-            self.approximate_value_of(next_observation)*self.discount_factor*(1-int(episode_is_over))\
-            - self.approximate_value_of(observation)
-
-    def compute_buffered_advantages(self):
-        debug.self = self
-        self = debug.self
+    def update_weights_consume_buffer(self):
+        # TODO: probably need to calculate target values backwards like this:
+        # for i, (_, _, reward, done) in enumerate(memory.reversed()):
+        #     q_val = reward + gamma*q_val*(1.0-done)
+        #     q_vals[len(memory)-1 - i] = q_val # store values from the end to the beginning
+        # advantage = torch.tensor(q_vals) - values
+        
+        # 
+        # compute advantages (self.rewards, self.discount_factor, self.observations)
+        # 
         value_approximations   = self.critic(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
         rewards                = to_tensor(self.buffer.rewards).to(self.hardware)
         
@@ -216,30 +218,18 @@ class Agent():
         # append last value
         advantages = torch.cat((advantages, to_tensor([last_value])), dim=0)
         
-        return advantages
-    
-    def update_weights(self, advantage):
-        actor_loss = -self.action_choice_distribution.log_prob(self.action_with_gradient_tracking)*advantage.clone().detach()
-        critic_loss = advantage.pow(2).mean()
-        self.adam_actor.zero_grad()
-        self.adam_critic.zero_grad()
-        actor_loss.backward()
-        critic_loss.backward()
-        self.adam_actor.step()
-        self.adam_critic.step()
-        self.logging.accumulated_actor_loss += actor_loss.item()
-        self.logging.accumulated_critic_loss += critic_loss.item()
-    
-    def update_weights_consume_buffer(self):
-        advantages = self.compute_buffered_advantages()
+        # 
+        # loss functions (advantages, self.action_log_probabilies)
+        # 
         action_log_probabilies = to_tensor(self.buffer.action_log_probabilies).to(self.hardware)
-        # 
-        # update step
-        # 
         actor_losses  = -action_log_probabilies * advantages.detach()
         critic_losses = advantages.pow(2)
         actor_episode_loss = actor_losses.mean()
         critic_episode_loss = critic_losses.mean()
+        
+        # 
+        # update weights accordingly
+        # 
         self.adam_actor.zero_grad()
         self.adam_critic.zero_grad()
         actor_episode_loss.backward()
@@ -318,7 +308,7 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-def tune_hyperparams(initial_number_of_episodes_per_trial=10, episode_compounding_rate=1.07, fitness_func=fitness_measurement_average_reward):
+def tune_hyperparams(initial_number_of_episodes_per_trial=100, episode_compounding_rate=1, fitness_func=fitness_measurement_average_reward):
     import optuna
     # setup the number of episodes
     def increasing_number_of_episodes():
