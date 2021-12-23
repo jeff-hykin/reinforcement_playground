@@ -10,6 +10,7 @@ import functools
 from gym.wrappers import AtariPreprocessing
 from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 
+from time import time
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
 from tools.debug import debug
@@ -73,7 +74,7 @@ class Critic(nn.Module):
     @forward.to_device
     def forward(self, X):
         return self.layers(X)
-    
+
 class Agent():
     @init.hardware
     def __init__(self, observation_space, action_space, **config):
@@ -123,6 +124,11 @@ class Agent():
             Agent.agent_number_count = 0
         Agent.agent_number_count += 1
         self.agent_number = Agent.agent_number_count
+        
+        if not hasattr(Agent, "total_number_of_episodes"):
+            Agent.total_number_of_episodes = 0
+        if not hasattr(Agent, "start_time"):
+            Agent.start_time = time()
     
     # 
     # Hooks (Special Names)
@@ -163,8 +169,8 @@ class Agent():
     
     def when_episode_ends(self, episode_index):
         self.update_weights_consume_buffer()
-        
         # logging
+        Agent.total_number_of_episodes += 1
         self.logging.episode_rewards.append(self.logging.accumulated_reward)
         self.logging.episode_critic_losses.append(self.logging.accumulated_critic_loss)
         self.logging.episode_actor_losses.append(self.logging.accumulated_actor_loss)
@@ -173,9 +179,10 @@ class Agent():
             self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
             self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
         print('episode_index = ', episode_index)
-        print(f'self.logging.accumulated_reward      :{self.logging.accumulated_reward      }',)
-        print(f'self.logging.accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
-        print(f'self.logging.accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
+        print(f'    average_episode_time    :{(time()-Agent.start_time)/Agent.total_number_of_episodes}',)
+        print(f'    accumulated_reward      :{self.logging.accumulated_reward      }',)
+        print(f'    accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
+        print(f'    accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
     
     def when_mission_ends(self,):
         if self.logging.should_display:
@@ -367,14 +374,14 @@ def tune_hyperparams(initial_number_of_episodes_per_trial=100, episode_compoundi
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         default_mission(
-            number_of_episodes=1000,
+            number_of_episodes=500,
             discount_factor=trial.suggest_loguniform('discount_factor', 0.9, 1),
             actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 0.001, 0.05),
             critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 0.001, 0.05),    
         ).logging.episode_rewards
     )
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective_func, n_trials=100)
+    study.optimize(objective_func, n_trials=50)
     return study
 
 # 
