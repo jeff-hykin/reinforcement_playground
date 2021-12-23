@@ -338,7 +338,7 @@ def default_mission(
 def fitness_measurement_average_reward(episode_rewards):
     return stat_tools.average(episode_rewards)
 
-def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=3, min_bucket_size=6, max_bucket_proportion=0.5):
+def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=3, min_bucket_size=5, max_bucket_proportion=0.65):
     # measure: should trend up, more improvement is better, but trend is most important
     # trend is measured at recusively granular levels: default splits of (1/3th's, 1/9th's, 1/27th's ...)
     # the default max proportion (0.5) prevents bucket from being more than 50% of the full list (set to max to 1 to allow entire list as first "bucket")
@@ -350,7 +350,7 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     )
     improvements_at_each_bucket_level = []
     for buckets in recursive_splits_list:
-        bucket_averages = [ stat_tools.average(each_bucket) for each_bucket in buckets ]
+        bucket_averages = [ stat_tools.average(each_bucket) for each_bucket in buckets if len(each_bucket) > 0 ]
         improvement_at_this_bucket_level = 0
         for prev_average, next_average in stat_tools.pairwise(bucket_averages):
             absolute_improvement = next_average - prev_average
@@ -369,12 +369,12 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-def tune_hyperparams(initial_number_of_episodes_per_trial=100, episode_compounding_rate=1, fitness_func=fitness_measurement_trend_up):
+def tune_hyperparams(number_of_episodes_per_trial=500, fitness_func=fitness_measurement_trend_up):
     import optuna
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         default_mission(
-            number_of_episodes=500,
+            number_of_episodes=number_of_episodes_per_trial,
             discount_factor=trial.suggest_loguniform('discount_factor', 0.9, 1),
             actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 0.001, 0.05),
             critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 0.001, 0.05),    

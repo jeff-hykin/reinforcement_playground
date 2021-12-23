@@ -114,8 +114,9 @@ def rolling_average(a_list, window):
 
 def pairwise(an_iterable):
     # grab the first one
-    prev = next(an_iterable)
-    for current in an_iterable:
+    iterable = (each for each in an_iterable)
+    prev = next(iterable)
+    for current in iterable:
         yield prev, current
         prev = current
 
@@ -130,20 +131,18 @@ def bundle(iterable, bundle_size):
     if len(next_bundle) > 0:
         yield tuple(next_bundle)
 
-def recursive_splits(a_list, branching_factor=2, min_size=2, max_proportion=0.5):
-    number_of_splits = int(math.log(len(a_list))/math.log(branching_factor))
+def recursive_splits(a_list, branching_factor=2, min_size=2, max_proportion=0.65):
+    list_length = len(a_list)
+    number_of_splits = int(math.log(list_length)/math.log(branching_factor))
     splits = []
     for each_exponential_size in reversed(range(0, number_of_splits)):
-        bundle_size = branching_factor**each_exponential_size
-        print('bundle_size = ', bundle_size)
-        print('bundle_size < min_size = ', bundle_size < min_size)
-        print('bundle_size/len(a_list) > max_proportion = ', bundle_size/len(a_list) > max_proportion)
+        bundle_size = math.ceil(list_length/(branching_factor**each_exponential_size))
         if bundle_size < min_size:
-            break
-        if bundle_size/len(a_list) > max_proportion:
+            continue
+        if bundle_size/list_length > max_proportion:
             continue
         splits.append(tuple(bundle(a_list, bundle_size=bundle_size)))
-    return splits
+    return tuple(reversed(splits))
 
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
