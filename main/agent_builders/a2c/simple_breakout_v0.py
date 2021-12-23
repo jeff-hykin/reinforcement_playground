@@ -162,7 +162,7 @@ class Agent():
     def when_timestep_ends(self, timestep_index):
         # build up value for a large update step later
         self.buffer.observations.append(self.observation)
-        self.buffer.rewards.append(self.reward)
+        self.buffer.rewards.append(self.reward + 0.004*timestep_index) # FIXME: the timestep reward is just a quick hack
         self.buffer.action_log_probabilies.append(self.action_choice_distribution.log_prob(self.action_with_gradient_tracking))
         # logging
         self.logging.accumulated_reward += self.reward
