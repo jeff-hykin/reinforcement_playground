@@ -8,7 +8,7 @@ import math
 from collections import defaultdict
 import functools
 from gym.wrappers import AtariPreprocessing
-from main.agent_builders.a2c.baselines_optimizer import RMSpropTFLike
+from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten
@@ -39,7 +39,7 @@ class ImageNetwork(nn.Module):
         return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
     
     @forward.to_device
-    @forward.to_batched_tensor(4)
+    @forward.to_batched_tensor(number_of_dimensions=4)
     @forward.from_opencv_image_to_torch_image
     def forward(self, X):
         return self.layers.forward(X)
@@ -98,8 +98,8 @@ class Agent():
         self.critic      = Sequential(self.image_model, Critic(input_size=self.connection_size, dropout_rate=self.dropout_rate))
         self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
-        self.rms_actor  = RMSpropTFLike(self.actor.parameters() , lr=1e-2, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
-        self.rms_critic = RMSpropTFLike(self.critic.parameters(), lr=1e-2, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
+        self.rms_actor  = RMSpropTFLike(self.actor.parameters() , lr=self.actor_learning_rate, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
+        self.rms_critic = RMSpropTFLike(self.critic.parameters(), lr=self.critic_learning_rate, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
         self.action_choice_distribution = None
         self.prev_observation = None
         self.action_with_gradient_tracking = None
@@ -197,19 +197,19 @@ class Agent():
     def approximate_value_of(self, observation):
         return self.critic(torch.from_numpy(observation).float()).item()
     
-    def _observation_values_vectorized_method(self, value_approximations):
-        rewards = to_tensor(self.buffer.rewards).to(self.hardware)
-        
+    # TD0-like
+    def _observation_values_vectorized_method(self, value_approximations, rewards_tensor):
         current_approximates = value_approximations[:-1]
         next_approximates = value_approximations[1:]
         # vectorized: (vec + (scalar * vec))
-        observation_values = (rewards + (self.discount_factor*next_approximates)) 
+        observation_values = (rewards_tensor + (self.discount_factor*next_approximates)) 
         return observation_values
     
+    # TD1/MonteCarlo-like
     def _observation_values_backwards_chain_method(self):
-        observation_values = torch.zeros(len(self.rewards))
+        observation_values = torch.zeros(len(self.buffer.rewards))
         # the last one is just equal to the reward
-        observation_values[-1] = self.rewards[-1]
+        observation_values[-1] = self.buffer.rewards[-1]
         iterable = zip(
             range(len(observation_values)-1),
             self.buffer.rewards[:-1],
@@ -232,6 +232,7 @@ class Agent():
         #    - does seem they are calculated in a reversed manner
         #    - has gae_lambda as a tradeoff between TD0-style <-> MonteCarlo style updates
         # - then theres some computation that utilizes entropy 
+        # - they also list the learning rate as "linear" which makes me think its a dynamic rate
         pass
         
     
@@ -241,22 +242,22 @@ class Agent():
         # 
         # Observation values (not vectorizable)
         # 
-        observation_values = self._observation_values_vectorized_method()
+        observation_values = self._observation_values_backwards_chain_method()
         
         # 
         # compute advantages (self.rewards, self.discount_factor, self.observations)
         # 
+        current_approximates = value_approximations[:-1]
+        rewards = to_tensor(self.buffer.rewards)
         # vectorized: (vec - vec)
         advantages = observation_values - current_approximates
-        # last value doesn't have a "next" so manually add it
-        last_value = rewards[-1] - value_approximations[-1]
-        # append last value
-        advantages = torch.cat((advantages, to_tensor([last_value])), dim=0)
+        # last value doesn't have a "next" so manually calculate that
+        advantages[-1] = rewards[-1] - value_approximations[-1]
         
         # 
         # loss functions (advantages, self.action_log_probabilies)
         # 
-        action_log_probabilies = to_tensor(self.buffer.action_log_probabilies).to(self.hardware)
+        action_log_probabilies = to_tensor(self.buffer.action_log_probabilies)
         actor_losses  = -action_log_probabilies * advantages.detach()
         critic_losses = advantages.pow(2) # baselines does F.mse_loss((self.advantages + self.values), self.values) instead for some reason
         actor_episode_loss = actor_losses.mean()
@@ -265,12 +266,12 @@ class Agent():
         # 
         # update weights accordingly
         # 
-        self.adam_actor.zero_grad()
-        self.adam_critic.zero_grad()
+        self.rms_actor.zero_grad()
+        self.rms_critic.zero_grad()
         actor_episode_loss.backward()
         critic_episode_loss.backward()
-        self.adam_actor.step()
-        self.adam_critic.step()
+        self.rms_actor.step()
+        self.rms_critic.step()
         self.logging.accumulated_actor_loss += actor_episode_loss.item()
         self.logging.accumulated_critic_loss += critic_episode_loss.item()
         
@@ -358,24 +359,15 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-def tune_hyperparams(initial_number_of_episodes_per_trial=100, episode_compounding_rate=1, fitness_func=fitness_measurement_average_reward):
+def tune_hyperparams(initial_number_of_episodes_per_trial=100, episode_compounding_rate=1, fitness_func=fitness_measurement_trend_up):
     import optuna
-    # setup the number of episodes
-    def increasing_number_of_episodes():
-        number_of_episodes = initial_number_of_episodes_per_trial
-        while True:
-            yield int(number_of_episodes)
-            # increase in size as more trials are done
-            number_of_episodes *= episode_compounding_rate
-    incrementally_more_episodes = increasing_number_of_episodes()
-        
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         default_mission(
-            number_of_episodes=next(incrementally_more_episodes),
+            number_of_episodes=1000,
             discount_factor=trial.suggest_loguniform('discount_factor', 0.8, 1),
-            actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 1e-5, 1e-1),
-            critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 1e-5, 1e-1),    
+            actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 0.001, 0.05),
+            critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 0.001, 0.05),    
         ).logging.episode_rewards
     )
     study = optuna.create_study(direction="maximize")
