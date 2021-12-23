@@ -20,10 +20,11 @@ class ImageNetwork(nn.Module):
     def __init__(self, *, input_shape, output_size, **config):
         super().__init__()
         self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
-        
-        color_channels = 3
+        # assuming its an opencv-style image
+        color_channels = input_shape[2]
         # convert from cv_image shape to torch tensor shape
-        self.input_shape = (input_shape[2], input_shape[0], input_shape[1])
+        self.input_shape = (color_channels, input_shape[0], input_shape[1])
+        
         self.layers = Sequential()
         self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
         self.layers.add_module('conv1_activation', nn.ReLU(inplace=False))
@@ -93,7 +94,7 @@ class Agent():
         self.dropout_rate         = config.get("dropout_rate", 0.2)
         self.number_of_actions = action_space.n
         self.connection_size = 64 # neurons
-        self.image_model = ImageNetwork(input_shape = observation_space.shape, output_size  = self.connection_size  , dropout_rate = self.dropout_rate)
+        self.image_model = ImageNetwork(input_shape=observation_space.shape, output_size =self.connection_size, dropout_rate=self.dropout_rate)
         self.actor       = Sequential(self.image_model, Actor(input_size=self.connection_size , output_size=self.number_of_actions, dropout_rate=self.dropout_rate))
         self.critic      = Sequential(self.image_model, Critic(input_size=self.connection_size, dropout_rate=self.dropout_rate))
         self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
@@ -171,6 +172,7 @@ class Agent():
             self.logging.episode_reward_card.send     ([episode_index, self.logging.accumulated_reward      ])
             self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
             self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
+        print('episode_index = ', episode_index)
         print(f'self.logging.accumulated_reward      :{self.logging.accumulated_reward      }',)
         print(f'self.logging.accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
         print(f'self.logging.accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
@@ -237,18 +239,20 @@ class Agent():
         
     
     def update_weights_consume_buffer(self):
+        # send data to device
         value_approximations   = self.critic(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
+        rewards                = to_tensor(self.buffer.rewards).to(self.hardware)
+        action_log_probabilies = to_tensor(self.buffer.action_log_probabilies).to(self.hardware)
         
         # 
         # Observation values (not vectorizable)
         # 
-        observation_values = self._observation_values_backwards_chain_method()
+        observation_values = self._observation_values_backwards_chain_method().to(self.hardware)
         
         # 
         # compute advantages (self.rewards, self.discount_factor, self.observations)
         # 
         current_approximates = value_approximations[:-1]
-        rewards = to_tensor(self.buffer.rewards)
         # vectorized: (vec - vec)
         advantages = observation_values - current_approximates
         # last value doesn't have a "next" so manually calculate that
@@ -257,7 +261,6 @@ class Agent():
         # 
         # loss functions (advantages, self.action_log_probabilies)
         # 
-        action_log_probabilies = to_tensor(self.buffer.action_log_probabilies)
         actor_losses  = -action_log_probabilies * advantages.detach()
         critic_losses = advantages.pow(2) # baselines does F.mse_loss((self.advantages + self.values), self.values) instead for some reason
         actor_episode_loss = actor_losses.mean()
@@ -285,14 +288,14 @@ def default_mission(
         env_name="BreakoutNoFrameskip-v4",
         number_of_episodes=500,
         grayscale=True,
-        frame_skip=0, # open ai defaults to 4
+        frame_skip=1, # open ai defaults to 4
         screen_size=84,
         discount_factor=0.99,
         actor_learning_rate=0.001,
         critic_learning_rate=0.001,
     ):
     env = AtariPreprocessing(
-        lambda : gym.make(env_name),
+        gym.make(env_name),
         grayscale_obs=grayscale,
         frame_skip=frame_skip, #
         noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
@@ -365,7 +368,7 @@ def tune_hyperparams(initial_number_of_episodes_per_trial=100, episode_compoundi
     objective_func = lambda trial: fitness_func(
         default_mission(
             number_of_episodes=1000,
-            discount_factor=trial.suggest_loguniform('discount_factor', 0.8, 1),
+            discount_factor=trial.suggest_loguniform('discount_factor', 0.9, 1),
             actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 0.001, 0.05),
             critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 0.001, 0.05),    
         ).logging.episode_rewards
