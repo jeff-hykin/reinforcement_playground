@@ -164,7 +164,7 @@ def test_runtime(number_of_episodes=1000, max_number_of_timesteps=10000):
         # sometimes the last value is set to zero (env_stopped_the_episode is false when max_number_of_timesteps is hit)
         observation_values[-1] = 0 if env_stopped_the_episode else observation_values[-1]
         # difference between the partially-observed value and the pure-estimate value
-        deltas = np.array([    each_observation_value - value_approximator(each_observation)    for each_observation_value, each_observation zip(observation_values, observations) ])
+        deltas = np.array([    each_observation_value - value_approximator(each_observation)    for each_observation_value, each_observation in zip(observation_values, observations) ])
         
         advantage = reward + ((1.0 - done) * discount_factor * value_approximator(next_state))
                     -
