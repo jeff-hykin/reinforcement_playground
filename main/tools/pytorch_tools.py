@@ -29,7 +29,7 @@ def layer_output_shapes(network, input_shape=None):
     for layer in network:
         # if its not a loss function
         if not isinstance(layer, torch.nn.modules.loss._Loss):
-            neuron_activations = layer(neuron_activations)
+            neuron_activations = layer.forward(neuron_activations)
             sizes.append(neuron_activations.size())
     
     return sizes
