@@ -9,6 +9,7 @@ from collections import defaultdict
 import functools
 from gym.wrappers import AtariPreprocessing
 from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
+from stable_baselines3.common.vec_env import VecFrameStack
 
 from time import time
 import tools.stat_tools as stat_tools
@@ -27,9 +28,9 @@ class ImageNetwork(nn.Module):
         self.input_shape = (color_channels, input_shape[0], input_shape[1])
         
         self.layers = Sequential()
-        self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
+        self.layers.add_module('conv1', nn.Conv2d(color_channels, 64, kernel_size=8, stride=4, padding=0))
         self.layers.add_module('conv1_activation', nn.ReLU(inplace=False))
-        self.layers.add_module('conv2', nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
+        self.layers.add_module('conv2', nn.Conv2d(64, 64, kernel_size=4, stride=2, padding=0))
         self.layers.add_module('conv2_activation', nn.ReLU(inplace=False))
         self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
         self.layers.add_module('conv3_activation', nn.ReLU(inplace=False))
@@ -160,7 +161,7 @@ class Agent():
         self.prev_observation = self.observation
         
     def when_timestep_ends(self, timestep_index):
-        reward = self.reward + 0.004*timestep_index # FIXME: the timestep reward is just a quick hack
+        reward = self.reward
         # build up value for a large update step later
         self.buffer.observations.append(self.observation)
         self.buffer.rewards.append(reward)
@@ -274,13 +275,16 @@ class Agent():
         actor_episode_loss = actor_losses.mean()
         critic_episode_loss = critic_losses.mean()
         
+        self.value_function_coefficient = 0.25 # from stable baselines atari hyperparams TODO: code this properly
+        combined_loss = actor_episode_loss + self.value_function_coefficient*critic_episode_loss
+
         # 
         # update weights accordingly
         # 
         self.rms_actor.zero_grad()
         self.rms_critic.zero_grad()
-        actor_episode_loss.backward()
-        critic_episode_loss.backward()
+        combined_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5) # 0.5 is a default parameter from stable baselines
         self.rms_actor.step()
         self.rms_critic.step()
         self.logging.accumulated_actor_loss += actor_episode_loss.item()
@@ -370,7 +374,7 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-def tune_hyperparams(number_of_episodes_per_trial=500, fitness_func=fitness_measurement_trend_up):
+def tune_hyperparams(number_of_episodes_per_trial=5000, fitness_func=fitness_measurement_trend_up):
     import optuna
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
