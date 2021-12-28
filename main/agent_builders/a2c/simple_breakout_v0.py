@@ -314,24 +314,26 @@ def default_mission(
         actor_learning_rate=0.001,
         critic_learning_rate=0.001,
     ):
-    
-    env = VecFrameStack(
-        AtariPreprocessing(
-            make_atari_env(
-                lambda : gym.make(env_name),
-                n_envs=16, # from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
-                seed=0
-            ),
-            grayscale_obs=grayscale,
-            frame_skip=frame_skip, #
-            noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
-            grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
-        )
-        n_stack=4, # from optimized stable baseline hyperparams
+    debug.env1 = AtariPreprocessing(
+        gym.make(env_name),
+        grayscale_obs=grayscale,
+        frame_skip=frame_skip, #
+        noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
+        grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
     )
-    
-    print('env.observation_space = ', env.observation_space)
-    debug.env = env
+    print('debug.env1.observation_space = ', debug.env1.observation_space)
+    debug.env2 = make_atari_env(
+        lambda : debug.env1,
+        n_envs=16, # from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
+        seed=0
+    )
+    print('debug.env2.observation_space = ', debug.env2.observation_space)
+    debug.env3 = VecFrameStack(
+        debug.env2,
+        n_stack=3, # = 4 from optimized stable baseline hyperparams
+    )
+    print('debug.env3.observation_space = ', debug.env3.observation_space)
+    env = debug.env3
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
