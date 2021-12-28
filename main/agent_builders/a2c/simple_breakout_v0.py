@@ -317,9 +317,9 @@ def default_mission(
     debug.env1 = AtariPreprocessing(
         gym.make(env_name),
         grayscale_obs=grayscale,
-        frame_skip=4, #
+        frame_skip=frame_skip, #
         noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
-        grayscale_newaxis=False, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+        grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
     )
     print('debug.env1.observation_space = ', debug.env1.observation_space)
     debug.env2 = make_atari_env(
