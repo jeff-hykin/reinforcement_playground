@@ -47,10 +47,17 @@ def tensor_to_image(tensor):
 def opencv_image_to_torch_image(array):
     # 1, 210, 160, 3 => 1, 3, 210, 160
     tensor = to_tensor(array)
+    # single rgb image
     if len(tensor.shape) == 3:
         return tensor.permute(2, 0, 1)
-    else:
+    # batched rgb image
+    elif len(tensor.shape) == 4:
         return tensor.permute(0, 3, 1, 2)
+    # batched and vectorized env rgb image ? (not really supported)
+    else:
+        exception = Exception(f'opencv_image_to_torch_image expects an input with either 3 or 4 dimensions (4 = batched with the image as the last 3 dimensions)\nbut instead it got {len(array.shape)} dimensions a shape of {array.shape}')
+        exception.data = [array]
+        raise exception
 
 try:
     import numpy
