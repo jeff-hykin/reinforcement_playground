@@ -315,19 +315,19 @@ def default_mission(
         critic_learning_rate=0.001,
     ):
     
-    env = VecFrameStack(
-        make_atari_env(
-            lambda : AtariPreprocessing(
-                gym.make(env_name),
-                grayscale_obs=grayscale,
-                frame_skip=frame_skip, #
-                noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
-                grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+    env = AtariPreprocessing(
+        VecFrameStack(
+            make_atari_env(
+                lambda : gym.make(env_name),
+                n_envs=16, # from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
+                seed=0
             ),
-            n_envs=16, # from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
-            seed=0
+            n_stack=4, # from optimized stable baseline hyperparams
         ),
-        n_stack=4, # from optimized stable baseline hyperparams
+        grayscale_obs=grayscale,
+        frame_skip=frame_skip, #
+        noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
+        grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
     )
     
     print('env.observation_space = ', env.observation_space)
