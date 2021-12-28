@@ -9,6 +9,7 @@ from collections import defaultdict
 import functools
 from gym.wrappers import AtariPreprocessing
 from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
+from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
 
 from time import time
@@ -121,6 +122,9 @@ class Agent():
         self.logging.episode_critic_loss_card = None
         self.logging.episode_actor_loss_card = None
         
+        # 
+        # class globals
+        # 
         if not hasattr(Agent, "agent_number_count"):
             Agent.agent_number_count = 0
         Agent.agent_number_count += 1
@@ -128,6 +132,8 @@ class Agent():
         
         if not hasattr(Agent, "total_number_of_episodes"):
             Agent.total_number_of_episodes = 0
+        if not hasattr(Agent, "total_number_of_timesteps"):
+            Agent.total_number_of_timesteps = 0
         if not hasattr(Agent, "start_time"):
             Agent.start_time = time()
     
@@ -157,6 +163,7 @@ class Agent():
         self.logging.accumulated_actor_loss  = 0
     
     def when_timestep_starts(self, timestep_index):
+        Agent.total_number_of_timesteps += 1
         self.action = self.make_decision(self.observation)
         self.prev_observation = self.observation
         
@@ -181,10 +188,11 @@ class Agent():
             self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
             self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
         print('episode_index = ', episode_index)
-        print(f'    average_episode_time    :{(time()-Agent.start_time)/Agent.total_number_of_episodes}',)
-        print(f'    accumulated_reward      :{self.logging.accumulated_reward      }',)
-        print(f'    accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
-        print(f'    accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
+        print(f'    total_number_of_timesteps:{Agent.total_number_of_timesteps}',)
+        # print(f'    average_episode_time     :{(time()-Agent.start_time)/Agent.total_number_of_episodes}',)
+        print(f'    accumulated_reward       :{self.logging.accumulated_reward      }',)
+        print(f'    accumulated_critic_loss  :{self.logging.accumulated_critic_loss }',)
+        print(f'    accumulated_actor_loss   :{self.logging.accumulated_actor_loss  }',)
     
     def when_mission_ends(self,):
         if self.logging.should_display:
@@ -306,13 +314,24 @@ def default_mission(
         actor_learning_rate=0.001,
         critic_learning_rate=0.001,
     ):
-    env = AtariPreprocessing(
-        gym.make(env_name),
-        grayscale_obs=grayscale,
-        frame_skip=frame_skip, #
-        noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
-        grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+    
+    env = VecFrameStack(
+        make_atari_env(
+            lambda : AtariPreprocessing(
+                gym.make(env_name),
+                grayscale_obs=grayscale,
+                frame_skip=frame_skip, #
+                noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
+                grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+            ),
+            n_envs=16, # from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
+            seed=0
+        ),
+        n_stack=4, # from optimized stable baseline hyperparams
     )
+    
+    print('env.observation_space = ', env.observation_space)
+    debug.env = env
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
@@ -374,15 +393,15 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-def tune_hyperparams(number_of_episodes_per_trial=5000, fitness_func=fitness_measurement_trend_up):
+def tune_hyperparams(number_of_episodes_per_trial=100000, fitness_func=fitness_measurement_trend_up):
     import optuna
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         default_mission(
             number_of_episodes=number_of_episodes_per_trial,
-            discount_factor=trial.suggest_loguniform('discount_factor', 0.9, 1),
-            actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 0.001, 0.05),
-            critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 0.001, 0.05),    
+            discount_factor=trial.suggest_loguniform('discount_factor', 0.97, 1),
+            actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 0.009, 0.01),
+            critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 0.009, 0.01),    
         ).logging.episode_rewards
     )
     study = optuna.create_study(direction="maximize")
