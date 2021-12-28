@@ -14,7 +14,7 @@ from stable_baselines3.common.vec_env import VecFrameStack
 
 from time import time
 import tools.stat_tools as stat_tools
-from tools.basics import product, flatten
+from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
@@ -211,10 +211,10 @@ class Agent():
         probs = self.actor.forward(torch.from_numpy(observation).float())
         self.action_choice_distribution = torch.distributions.Categorical(probs=probs)
         self.action_with_gradient_tracking = self.action_choice_distribution.sample()
-        return self.action_with_gradient_tracking.item()
+        return to_pure(self.action_with_gradient_tracking)
     
     def approximate_value_of(self, observation):
-        return self.critic(torch.from_numpy(observation).float()).item()
+        return to_pure(self.critic(torch.from_numpy(observation).float()))
     
     # TD0-like
     def _observation_values_vectorized_method(self, value_approximations, rewards_tensor):
@@ -226,12 +226,13 @@ class Agent():
     
     # TD1/MonteCarlo-like
     def _observation_values_backwards_chain_method(self):
-        observation_values = torch.zeros(len(self.buffer.rewards))
+        rewards_tensor = to_tensor(self.buffer.rewards)
+        observation_values = torch.zeros_like(rewards_tensor)
         # the last one is just equal to the reward
-        observation_values[-1] = self.buffer.rewards[-1]
+        observation_values[-1] = rewards_tensor[-1]
         iterable = zip(
             range(len(observation_values)-1),
-            self.buffer.rewards[:-1],
+            rewards_tensor[:-1],
             self.buffer.observations[:-1],
         )
         for reversed_index, each_reward, each_observation in reversed(tuple(iterable)):
@@ -257,7 +258,7 @@ class Agent():
     
     def update_weights_consume_buffer(self):
         # send data to device
-        value_approximations   = self.critic(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
+        value_approximations   = self.critic.forward(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
         rewards                = to_tensor(self.buffer.rewards).to(self.hardware)
         action_log_probabilies = to_tensor(self.buffer.action_log_probabilies).to(self.hardware)
         
@@ -314,26 +315,13 @@ def default_mission(
         actor_learning_rate=0.001,
         critic_learning_rate=0.001,
     ):
-    debug.env1 = AtariPreprocessing(
+    env = AtariPreprocessing(
         gym.make(env_name),
         grayscale_obs=grayscale,
         frame_skip=frame_skip, #
         noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
         grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
     )
-    print('debug.env1.observation_space = ', debug.env1.observation_space)
-    debug.env2 = make_atari_env(
-        lambda : debug.env1,
-        n_envs=16, # from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
-        seed=0
-    )
-    print('debug.env2.observation_space = ', debug.env2.observation_space)
-    debug.env3 = VecFrameStack(
-        debug.env2,
-        n_stack=3, # = 4 from optimized stable baseline hyperparams
-    )
-    print('debug.env3.observation_space = ', debug.env3.observation_space)
-    env = debug.env3
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
