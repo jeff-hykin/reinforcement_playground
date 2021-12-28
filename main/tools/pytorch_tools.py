@@ -53,7 +53,6 @@ def opencv_image_to_torch_image(array):
     # batched rgb image
     elif len(tensor.shape) == 4:
         return tensor.permute(0, 3, 1, 2)
-    # batched and vectorized env rgb image ? (not really supported)
     else:
         exception = Exception(f'opencv_image_to_torch_image expects an input with either 3 or 4 dimensions (4 = batched with the image as the last 3 dimensions)\nbut instead it got {len(array.shape)} dimensions a shape of {array.shape}')
         exception.data = [array]
@@ -255,8 +254,13 @@ def forward():
             def wrapper2(self, input_data, *args, **kwargs):
                 # converts to torch if needed
                 input_data = to_tensor(input_data).type(torch.float)
-                if len(input_data.shape) == number_of_dimensions-1:
-                    input_data = input_data.reshape((-1,*input_data.shape))
+                existing_dimensions = input_data.shape[-number_of_dimensions:]
+                number_missing = number_of_dimensions - len(existing_dimensions)
+                missing_dimensions = number_missing * [1]
+                dimensions = [*missing_dimensions, *existing_dimensions]
+                dimensions[0] = -1
+                # reshape to fit in the dimensions (either add dimensions, or crush dimensions)
+                input_data = input_data.reshape(dimensions)
                 return function_being_wrapped(self, input_data, *args, **kwargs)
             return wrapper2
         return wrapper1

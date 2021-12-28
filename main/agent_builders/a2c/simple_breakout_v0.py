@@ -309,18 +309,29 @@ def default_mission(
         env_name="BreakoutNoFrameskip-v4",
         number_of_episodes=500,
         grayscale=True,
-        frame_skip=1, # open ai defaults to 4
+        frame_skip=4, # open ai defaults to 4
         screen_size=84,
         discount_factor=0.99,
         actor_learning_rate=0.001,
         critic_learning_rate=0.001,
     ):
-    env = AtariPreprocessing(
-        gym.make(env_name),
-        grayscale_obs=grayscale,
-        frame_skip=frame_skip, #
-        noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
-        grayscale_newaxis=True, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+    # TODO: implementing the VecFrameStack made me loose customization control over the below commented-out code
+    # env = AtariPreprocessing(
+    #     gym.make(env_name),
+    #     grayscale_obs=grayscale,
+    #     frame_skip=frame_skip, #
+    #     noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
+    #     grayscale_newaxis=False, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+    # )
+    env = VecFrameStack(
+        make_atari_env(
+            env_name,
+            n_envs=1, # = 16 from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
+                      # but seems to just be a runtime optimization
+                      # and would take a good number of changes for the agent to be capable of handling it
+            seed=0
+        ),
+        n_stack=4, # = 4 from optimized stable baseline hyperparams
     )
     mr_bond = Agent(
         observation_space=env.observation_space,
@@ -341,7 +352,7 @@ def default_mission(
             timestep_index += 1
             
             mr_bond.when_timestep_starts(timestep_index)
-            mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+            (mr_bond.observation,), (mr_bond.reward,), (mr_bond.episode_is_over,), info = env.step(mr_bond.action)
             mr_bond.when_timestep_ends(timestep_index)
                 
         mr_bond.when_episode_ends(episode_index)
