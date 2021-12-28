@@ -29,9 +29,9 @@ class ImageNetwork(nn.Module):
         self.input_shape = (color_channels, input_shape[0], input_shape[1])
         
         self.layers = Sequential()
-        self.layers.add_module('conv1', nn.Conv2d(color_channels, 64, kernel_size=8, stride=4, padding=0))
+        self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
         self.layers.add_module('conv1_activation', nn.ReLU(inplace=False))
-        self.layers.add_module('conv2', nn.Conv2d(64, 64, kernel_size=4, stride=2, padding=0))
+        self.layers.add_module('conv2', nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
         self.layers.add_module('conv2_activation', nn.ReLU(inplace=False))
         self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
         self.layers.add_module('conv3_activation', nn.ReLU(inplace=False))
