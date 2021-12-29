@@ -2,6 +2,7 @@ from torch import nn
 import gym
 import numpy as np
 import silver_spectacle as ss
+from slick_siphon import siphon
 import torch
 from super_map import LazyDict
 import math
@@ -17,17 +18,15 @@ import tools.stat_tools as stat_tools
 from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
+import tools.pytorch_tools as pytorch_tools
 
 class ImageNetwork(nn.Module):
     @init.hardware
     def __init__(self, *, input_shape, output_size, **config):
         super().__init__()
         self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
-        # assuming its an opencv-style image
-        color_channels = input_shape[2]
         # convert from cv_image shape to torch tensor shape
-        self.input_shape = (color_channels, input_shape[0], input_shape[1])
-        
+        color_channels, *_ = self.input_shape = input_shape
         self.layers = Sequential()
         self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
         self.layers.add_module('conv1_activation', nn.ReLU(inplace=False))
@@ -44,7 +43,6 @@ class ImageNetwork(nn.Module):
     
     @forward.to_device
     @forward.to_batched_tensor(number_of_dimensions=4)
-    @forward.from_opencv_image_to_torch_image
     def forward(self, X):
         return self.layers.forward(X)
 
@@ -95,6 +93,7 @@ class Agent():
         self.actor_learning_rate  = config.get("actor_learning_rate", 0.001)
         self.critic_learning_rate = config.get("critic_learning_rate", 0.001)
         self.dropout_rate         = config.get("dropout_rate", 0.2)
+        self.observation_space    = observation_space
         self.number_of_actions = action_space.n
         self.connection_size = 64 # neurons
         self.image_model = ImageNetwork(input_shape=observation_space.shape, output_size =self.connection_size, dropout_rate=self.dropout_rate)
@@ -187,12 +186,7 @@ class Agent():
             self.logging.episode_reward_card.send     ([episode_index, self.logging.accumulated_reward      ])
             self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
             self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
-        print('episode_index = ', episode_index)
-        print(f'    total_number_of_timesteps:{Agent.total_number_of_timesteps}',)
-        # print(f'    average_episode_time     :{(time()-Agent.start_time)/Agent.total_number_of_episodes}',)
-        print(f'    accumulated_reward       :{self.logging.accumulated_reward      }',)
-        print(f'    accumulated_critic_loss  :{self.logging.accumulated_critic_loss }',)
-        print(f'    accumulated_actor_loss   :{self.logging.accumulated_actor_loss  }',)
+        print(f'episode_index = {episode_index}\n    total_number_of_timesteps:{Agent.total_number_of_timesteps}\n    accumulated_reward       :{self.logging.accumulated_reward      }\n    accumulated_critic_loss  :{self.logging.accumulated_critic_loss }\n    accumulated_actor_loss   :{self.logging.accumulated_actor_loss  }', )
     
     def when_mission_ends(self,):
         if self.logging.should_display:
@@ -208,7 +202,7 @@ class Agent():
     # Misc Helpers
     # 
     def make_decision(self, observation):
-        probs = self.actor.forward(torch.from_numpy(observation).float())
+        probs = self.actor.forward(to_tensor(observation))
         self.action_choice_distribution = torch.distributions.Categorical(probs=probs)
         self.action_with_gradient_tracking = self.action_choice_distribution.sample()
         return to_pure(self.action_with_gradient_tracking)
@@ -303,48 +297,68 @@ class Agent():
         # clear buffer
         # 
         self.buffer = LazyDict()
-        
+
+class FrameQue:
+    def __init__(self, *, que_size, frame_shape):
+        self.tensor = torch.zeros((que_size, *frame_shape))
+    
+    def add(self, latest_frame):
+        # shift all the frames down by one (starting at the end and working backwards)
+        for frame_index, each_frame in reversed(tuple(enumerate(self.tensor[:-1]))):
+            self.tensor[frame_index+1] = self.tensor[frame_index]
+        # push in the newest frame
+        self.tensor[0] = to_tensor(latest_frame)
+        return self.tensor
+    
+    @property
+    def shape(self,):
+        return self.tensor.shape
+    
+    # add to_tensor support
+    @siphon(  when=(lambda arg1, *args, **kwargs: isinstance(arg1, (FrameQue,))),  is_true_for=to_tensor   )
+    def to_tensor_extension(*args, **kwargs):
+        return args[0].tensor
+
+# refresh the local variable for the @siphon above
+to_tensor = pytorch_tools.to_tensor
 
 def default_mission(
         env_name="BreakoutNoFrameskip-v4",
         number_of_episodes=500,
         grayscale=True,
-        frame_skip=4, # open ai defaults to 4
+        frame_history=4, # open ai defaults to 4 (VecFrameStack)
+        frame_skip=4,    # open ai defaults to 4, see: https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
         screen_size=84,
         discount_factor=0.99,
         actor_learning_rate=0.001,
         critic_learning_rate=0.001,
     ):
-    # TODO: implementing the VecFrameStack made me loose customization control over the below commented-out code
-    # env = AtariPreprocessing(
-    #     gym.make(env_name),
-    #     grayscale_obs=grayscale,
-    #     frame_skip=frame_skip, #
-    #     noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
-    #     grayscale_newaxis=False, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
-    # )
-    env = VecFrameStack(
-        make_atari_env(
-            env_name,
-            n_envs=1, # = 16 from optimized stable baseline hyperparams https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml 
-                      # but seems to just be a runtime optimization
-                      # and would take a good number of changes for the agent to be capable of handling it
-            seed=0
-        ),
-        n_stack=4, # = 4 from optimized stable baseline hyperparams
+    
+    env = AtariPreprocessing(
+        gym.make(env_name),
+        grayscale_obs=grayscale,
+        frame_skip=frame_skip, #
+        noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
+        grayscale_newaxis=False, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
     )
+    
     mr_bond = Agent(
-        observation_space=env.observation_space,
+        # observation_space is little bit hacky
+        observation_space=LazyDict(shape=(frame_history, *env.observation_space.shape)),
         action_space=env.action_space,
         # live_updates=True,
         discount_factor=discount_factor,
         actor_learning_rate=actor_learning_rate,
         critic_learning_rate=critic_learning_rate,
     )
+    
     mr_bond.when_mission_starts()
     for episode_index in range(number_of_episodes):
         mr_bond.episode_is_over = False
-        mr_bond.observation = env.reset()
+        # observation is a que of frames
+        mr_bond.observation = FrameQue(que_size=frame_history, frame_shape=env.observation_space.shape) # fram que should probably be a wrapper around atari
+        # add the latest frame
+        mr_bond.observation.add(env.reset())
         mr_bond.when_episode_starts(episode_index)
         
         timestep_index = -1
@@ -352,7 +366,10 @@ def default_mission(
             timestep_index += 1
             
             mr_bond.when_timestep_starts(timestep_index)
-            (mr_bond.observation,), (mr_bond.reward,), (mr_bond.episode_is_over,), info = env.step(mr_bond.action)
+            latest_frame, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+            # push in the newest frame
+            mr_bond.observation.add(to_tensor(latest_frame))
+            
             mr_bond.when_timestep_ends(timestep_index)
                 
         mr_bond.when_episode_ends(episode_index)
