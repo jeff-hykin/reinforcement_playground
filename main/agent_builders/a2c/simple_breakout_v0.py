@@ -1,24 +1,25 @@
+from time import time
+import math
+from collections import defaultdict
+import functools
+
+import torch
 from torch import nn
 import gym
 import numpy as np
 import silver_spectacle as ss
-from slick_siphon import siphon
-import torch
 from super_map import LazyDict
-import math
-from collections import defaultdict
-import functools
 from gym.wrappers import AtariPreprocessing
-from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
 
-from time import time
+from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
+from agent_builders.a2c.frame_que import FrameQue
+
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
-import tools.pytorch_tools as pytorch_tools
 
 class ImageNetwork(nn.Module):
     @init.hardware
@@ -297,30 +298,6 @@ class Agent():
         # clear buffer
         # 
         self.buffer = LazyDict()
-
-class FrameQue:
-    def __init__(self, *, que_size, frame_shape):
-        self.tensor = torch.zeros((que_size, *frame_shape))
-    
-    def add(self, latest_frame):
-        # shift all the frames down by one (starting at the end and working backwards)
-        for frame_index, each_frame in reversed(tuple(enumerate(self.tensor[:-1]))):
-            self.tensor[frame_index+1] = self.tensor[frame_index]
-        # push in the newest frame
-        self.tensor[0] = to_tensor(latest_frame)
-        return self.tensor
-    
-    @property
-    def shape(self,):
-        return self.tensor.shape
-    
-    # add to_tensor support
-    @siphon(  when=(lambda arg1, *args, **kwargs: isinstance(arg1, (FrameQue,))),  is_true_for=to_tensor   )
-    def to_tensor_extension(*args, **kwargs):
-        return args[0].tensor
-
-# refresh the local variable for the @siphon above
-to_tensor = pytorch_tools.to_tensor
 
 def default_mission(
         env_name="BreakoutNoFrameskip-v4",
