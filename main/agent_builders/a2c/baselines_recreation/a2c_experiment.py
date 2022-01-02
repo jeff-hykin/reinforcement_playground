@@ -1,6 +1,6 @@
 from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
-from stable_baselines3 import A2C
+from main.agent_builders.a2c.baselines_recreation.a2c_experiment import A2C
 
 # There already exists an environment generator
 # that will make and wrap atari environments correctly.
