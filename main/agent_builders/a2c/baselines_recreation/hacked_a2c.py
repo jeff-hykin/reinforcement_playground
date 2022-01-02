@@ -9,6 +9,8 @@ from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance
 
+from tools.debug import debug, ic
+
 
 class A2C(OnPolicyAlgorithm):
     """
@@ -75,7 +77,7 @@ class A2C(OnPolicyAlgorithm):
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
     ):
-
+        debug.self = self # FIXME: Debugging 
         super(A2C, self).__init__(
             policy,
             env,
@@ -138,6 +140,11 @@ class A2C(OnPolicyAlgorithm):
             # entropy is the vec of entropy values from each of the action distributions
             values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
             values = values.flatten()
+            debug.rollout_data = rollout_data # FIXME: Debugging 
+            debug.actions      = actions # FIXME     : Debugging 
+            debug.values       = values # FIXME      : Debugging 
+            debug.log_prob     = log_prob # FIXME    : Debugging 
+            debug.entropy      = entropy # FIXME     : Debugging 
 
             # Normalize advantage (not present in the original implementation)
             advantages = rollout_data.advantages
