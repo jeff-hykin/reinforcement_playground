@@ -165,6 +165,7 @@ class Agent():
         # build up value for a large update step later
         self.buffer.observations.append(self.observation)
         self.buffer.rewards.append(reward)
+        self.buffer.action_choice_distributions.append(self.action_choice_distribution)
         self.buffer.action_log_probabilies.append(self.action_choice_distribution.log_prob(self.action_with_gradient_tracking))
         # logging
         self.logging.accumulated_reward += reward
@@ -207,6 +208,19 @@ class Agent():
     
     def approximate_value_of(self, observation):
         return self.critic(torch.from_numpy(observation).float()).item()
+    
+    def compute_entropy(self, action_log_probabilies):
+        # FIXME: just put relvent code here from stable baselines
+        stat_tools.average(tuple(each.entropy() for each in self.buffer.action_choice_distributions))
+        
+        # Entropy loss favor exploration
+        if entropy is None:
+            # Approximate entropy when no analytical form
+            entropy_loss = -torch.mean(-action_log_probabilies)
+        else:
+            entropy_loss = -torch.mean(entropy)
+            
+        loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
     
     # TD0-like
     def _observation_values_vectorized_method(self, value_approximations, rewards_tensor):
