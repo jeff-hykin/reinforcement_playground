@@ -28,14 +28,14 @@ class ImageNetwork(nn.Module):
         self.input_shape = (color_channels, input_shape[0], input_shape[1])
         
         self.layers = Sequential()
-        self.layers.add_module('conv1', nn.Conv2d(color_channels, 64, kernel_size=8, stride=4, padding=0))
-        self.layers.add_module('conv1_activation', nn.ReLU(inplace=False))
-        self.layers.add_module('conv2', nn.Conv2d(64, 64, kernel_size=4, stride=2, padding=0))
-        self.layers.add_module('conv2_activation', nn.ReLU(inplace=False))
+        self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
+        self.layers.add_module('conv1_activation', nn.ReLU())
+        self.layers.add_module('conv2', nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
+        self.layers.add_module('conv2_activation', nn.ReLU())
         self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
-        self.layers.add_module('conv3_activation', nn.ReLU(inplace=False))
-        self.layers.add_module('flatten', nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module('linear1', nn.Linear(self.size_of_last_layer, 64)) 
+        self.layers.add_module('conv3_activation', nn.ReLU())
+        self.layers.add_module('flatten', nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
+        self.layers.add_module('linear1', nn.Linear(in_features=self.size_of_last_layer, out_features=output_size, bias=True)) 
     
     @property
     def size_of_last_layer(self):
@@ -47,34 +47,6 @@ class ImageNetwork(nn.Module):
     def forward(self, X):
         return self.layers.forward(X)
 
-class Actor(nn.Module):
-    @init.hardware
-    def __init__(self, *, input_size, output_size, **config):
-        super().__init__()
-        self.layers = Sequential()
-        self.layers.add_module('linear1_activation', nn.Tanh()) 
-        self.layers.add_module('linear2', nn.Linear(input_size, 32)) 
-        self.layers.add_module('linear2_activation', nn.Tanh()) 
-        self.layers.add_module('linear3', nn.Linear(32, output_size)) 
-        self.layers.add_module('softmax', nn.Softmax(dim=0))
-        
-    @forward.to_device
-    def forward(self, X):
-        return self.layers(X)
-
-class Critic(nn.Module):
-    @init.hardware
-    def __init__(self, *, input_size, **config):
-        super().__init__()
-        self.layers = Sequential()
-        self.layers.add_module('linear1_activation', nn.ReLU()) 
-        self.layers.add_module('linear2', nn.Linear(input_size, 32)) 
-        self.layers.add_module('linear2_activation', nn.ReLU()) 
-        self.layers.add_module('linear3', nn.Linear(32, 1)) 
-    
-    @forward.to_device
-    def forward(self, X):
-        return self.layers(X)
 
 class Agent():
     @init.hardware
@@ -95,10 +67,10 @@ class Agent():
         self.critic_learning_rate = config.get("critic_learning_rate", 0.001)
         self.dropout_rate         = config.get("dropout_rate", 0.2)
         self.number_of_actions = action_space.n
-        self.connection_size = 64 # neurons
-        self.image_model = ImageNetwork(input_shape=observation_space.shape, output_size =self.connection_size, dropout_rate=self.dropout_rate)
-        self.actor       = Sequential(self.image_model, Actor(input_size=self.connection_size , output_size=self.number_of_actions, dropout_rate=self.dropout_rate))
-        self.critic      = Sequential(self.image_model, Critic(input_size=self.connection_size, dropout_rate=self.dropout_rate))
+        self.connection_size = 512 # neurons
+        self.image_model = ImageNetwork(input_shape=observation_space.shape, output_size=self.connection_size, dropout_rate=self.dropout_rate)
+        self.actor       = Sequential(self.image_model, nn.Linear(in_features=output_size, out_features=4, bias=True))
+        self.critic      = Sequential(self.image_model, nn.Linear(in_features=output_size, out_features=1, bias=True))
         self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
         self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
         self.rms_actor  = RMSpropTFLike(self.actor.parameters() , lr=self.actor_learning_rate, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
