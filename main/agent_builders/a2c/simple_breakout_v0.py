@@ -381,8 +381,8 @@ def tune_hyperparams(number_of_episodes_per_trial=100000, fitness_func=fitness_m
     objective_func = lambda trial: fitness_func(
         default_mission(
             number_of_episodes=number_of_episodes_per_trial,
-            discount_factor=trial.suggest_loguniform('discount_factor', 0.9, 1),
-            learning_rate=trial.suggest_loguniform('learning_rate', 0.001, 0.05),
+            discount_factor=trial.suggest_loguniform('discount_factor', 0.990, 0.991),
+            learning_rate=trial.suggest_loguniform('learning_rate', 0.010, 0.011),
         ).logging.episode_rewards
     )
     study = optuna.create_study(direction="maximize")
