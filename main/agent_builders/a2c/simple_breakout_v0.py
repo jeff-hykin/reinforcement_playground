@@ -155,8 +155,8 @@ class Agent():
     
     class Logger:
         # depends on:
-        #      self.agent.reward
-        #      self.agent.loss
+        #     self.agent.reward
+        #     self.agent.loss
         def __init__(self, agent, **config):
             self.agent = agent
             
@@ -208,9 +208,10 @@ class Agent():
                 self.episode_reward_card.send     ([episode_index, self.accumulated_reward      ])
                 self.episode_loss_card.send ([episode_index, self.accumulated_loss  ])
             print('episode_index = ', episode_index)
-            print(f'    average_episode_time :{(time()-self.static.start_time)/self.static.total_number_of_episodes}',)
-            print(f'    accumulated_reward   :{self.accumulated_reward      }',)
-            print(f'    accumulated_loss     :{self.accumulated_loss  }',)
+            print(f'    total_number_of_timesteps :{self.static.total_number_of_timesteps}',)
+            print(f'    average_episode_time      :{(time()-self.static.start_time)/self.static.total_number_of_episodes}',)
+            print(f'    accumulated_reward        :{self.accumulated_reward      }',)
+            print(f'    accumulated_loss          :{self.accumulated_loss  }',)
         
         def when_mission_ends(self,):
             if self.should_display:
