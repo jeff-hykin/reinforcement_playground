@@ -24,28 +24,35 @@ from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
-class Scheduler:
-    def __init__(self, func, total_timesteps):
-        self.current_timestep = 0
-        self.total_timesteps = total_timesteps
-        if not callable(func):
-            # function that returns a constant
-            self.func = lambda : float(func)
+class LearningRateScheduler:
+    def __init__(self, value_function, optimizers):
+        self.optimizers = optimizers
+        self.timestep_index = -1
+        self.episode_index = -1
+        # allow the "function" to be a constant
+        if not callable(value_function):
+            # value_functiontion that returns a constant
+            self.value_function = lambda : float(value_function)
         else:
-            self.func = func
+            self.value_function = value_function
     
-    def step(self):
-        self.current_timestep += 1
+    def when_episode_starts(self):
+        self.episode_index += 1
+
+    def when_timestep_starts(self):
+        self.timestep_index += 1
+    
+    def when_weight_update_starts(self):
+        learning_rate = self.current_value
+        for each_optimizer in self.optimizers:
+            for param_group in each_optimizer.param_groups:
+                param_group["lr"] = learning_rate
     
     @property
     def current_value(self):
-        self.current_progress_remaining = 1.0 - float(self.current_timestep) / float(self.total_timesteps)
-        return self.func(self.current_progress_remaining)
-    
-    def update_optimizer_learning_rate(self, optimizer: torch.optim.Optimizer):
-        learning_rate = self.current_value
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = learning_rate
+        # self.current_progress_remaining = 1.0 - float(self.current_timestep) / float(self.total_timesteps)
+        return self.value_function(self.timestep_index, self.episode_index)
+        
     
 class Network(nn.Module):
     @init.hardware
