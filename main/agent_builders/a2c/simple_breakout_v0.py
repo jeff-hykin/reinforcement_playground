@@ -27,22 +27,22 @@ from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_to
 class LearningRateScheduler:
     def __init__(self, *, value_function, optimizers):
         self.optimizers = optimizers
-        self.timestep_index = None
-        self.episode_index = None
+        self.timestep_index = -1
+        self.episode_index = -1
         # allow the "function" to be a constant
         if not callable(value_function):
             # value_functiontion that returns a constant
-            self.value_function = lambda : float(value_function)
+            self.value_function = lambda *args: float(value_function)
         else:
             self.value_function = value_function
         # initilize the weights
         self.when_weight_update_starts()
     
     def when_episode_starts(self, episode_index):
-        self.episode_index = episode_index
+        self.episode_index += 1
 
     def when_timestep_starts(self, timestep_index):
-        self.timestep_index = timestep_index
+        self.timestep_index += 1
     
     def when_weight_update_starts(self):
         learning_rate = self.current_value
@@ -227,7 +227,7 @@ class Agent():
             self.static.total_number_of_timesteps += 1
             
         def when_timestep_ends(self, timestep_index):
-            self.logging.accumulated_reward += self.agent.reward
+            self.accumulated_reward += self.agent.reward
         
         def when_episode_ends(self, episode_index):
             # logging
@@ -284,7 +284,7 @@ class Agent():
         self.action_with_gradient_tracking = self.action_choice_distribution.sample()
         
         # 
-        # choose an action (most important part)
+        # choose an action
         # 
         self.action = to_pure(self.action_with_gradient_tracking)
         
@@ -292,15 +292,15 @@ class Agent():
         # call hooks
         self.buffer.when_timestep_ends(timestep_index)
         self.logger.when_timestep_ends(timestep_index)
-        
-        # logging
-        self.logging.accumulated_reward += self.reward
     
     def when_episode_ends(self, episode_index):
         # call hooks
         self.buffer.when_episode_ends(episode_index)
         self.logger.when_episode_ends(episode_index)
         
+        # 
+        # update weights
+        # 
         self.update_weights()
     
     def when_mission_ends(self):
@@ -321,7 +321,6 @@ class Agent():
         observation_value_estimates = to_tensor(self.buffer.observation_value_estimates).to(self.hardware)
         each_action_entropy         = to_tensor(self.buffer.each_action_entropy        ).to(self.hardware)
         was_last_episode_reward     = to_tensor(self.buffer.was_last_episode_reward    ).to(self.hardware)
-        
         
         # 
         # Observation values (not vectorizable)
