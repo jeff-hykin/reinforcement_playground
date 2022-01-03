@@ -18,46 +18,16 @@ from stable_baselines3.common.env_util import make_atari_env
 
 from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 from agent_builders.a2c.frame_que import FrameQue
+from agent_builders.a2c.schedulers import LearningRateScheduler
 
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
-class LearningRateScheduler:
-    def __init__(self, *, value_function, optimizers):
-        self.optimizers = optimizers
-        self.timestep_index = -1
-        self.episode_index = -1
-        # allow the "function" to be a constant
-        if not callable(value_function):
-            # value_functiontion that returns a constant
-            self.value_function = lambda *args: float(value_function)
-        else:
-            self.value_function = value_function
-        # initilize the weights
-        self.when_weight_update_starts()
-    
-    def when_episode_starts(self, episode_index):
-        self.episode_index += 1
-
-    def when_timestep_starts(self, timestep_index):
-        self.timestep_index += 1
-    
-    def when_weight_update_starts(self):
-        learning_rate = self.current_value
-        for each_optimizer in self.optimizers:
-            for param_group in each_optimizer.param_groups:
-                param_group["lr"] = learning_rate
-    
-    @property
-    def current_value(self):
-        # self.current_progress_remaining = 1.0 - float(self.current_timestep) / float(self.total_timesteps)
-        return self.value_function(self.timestep_index, self.episode_index)
-
 class Network(nn.Module):
     @init.hardware
-    def __init__(self, *, input_shape, output_size, **config):
+    def __init__(self, *, input_shape, latent_size, **config):
         super().__init__()
         self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
         # convert from cv_image shape to torch tensor shape
@@ -70,14 +40,14 @@ class Network(nn.Module):
         self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
         self.layers.add_module('conv3_activation', nn.ReLU())
         self.layers.add_module('flatten', nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module('linear1', nn.Linear(in_features=self.size_of_last_layer, out_features=output_size, bias=True)) 
+        self.layers.add_module('linear1', nn.Linear(in_features=self.size_of_last_layer, out_features=latent_size, bias=True)) 
         
         self.actor  = Sequential(
-            nn.Linear(in_features=output_size, out_features=4, bias=True),
+            nn.Linear(in_features=latent_size, out_features=4, bias=True),
             nn.Softmax(dim=0), # not sure why but stable baselines doesn't have Softmax (removing it causes issues with probability distributions though)
         )
         self.critic = Sequential(
-            nn.Linear(in_features=output_size, out_features=1, bias=True),
+            nn.Linear(in_features=latent_size, out_features=1, bias=True),
             nn.ReLU(),
         )
     
@@ -110,7 +80,7 @@ class Agent():
         # regular/misc attributes
         # 
         self.discount_factor         = config.get("discount_factor", 0.99)
-        self.learning_rate           = config.get("learning_rate", 0.001)
+        self.learning_rate           = config.get("learning_rate", 0.0007)
         self.gradient_clip_threshold = config.get("gradient_clip_threshold", 0.5) # 0.5 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
         self.actor_weight            = config.get("actor_weight", 1) # 1 basically means "as-is"
         self.critic_weight           = config.get("critic_weight", 0.25) # 0.25 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
@@ -125,8 +95,8 @@ class Agent():
         # model definition
         # 
         self.connection_size = 512 # neurons
-        self.model = Network(input_shape=observation_space.shape, output_size=self.connection_size, dropout_rate=self.dropout_rate)
-        self.rms_optimizer = RMSpropTFLike(self.model.parameters() , lr=0, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
+        self.model = Network(input_shape=observation_space.shape, latent_size=self.connection_size, dropout_rate=self.dropout_rate)
+        self.rms_optimizer = RMSpropTFLike(self.model.parameters(), lr=0, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
         self.learning_rate_scheduler = LearningRateScheduler(
             value_function=self.learning_rate,
             optimizers=[ self.rms_optimizer ],
@@ -400,16 +370,16 @@ def default_mission(
         number_of_episodes=500,
         grayscale=True,
         frame_history=4, # open ai defaults to 4 (VecFrameStack)
-        frame_skip=4,    # open ai defaults to 4, see: https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
+        frame_sample_rate=4,    # open ai defaults to 4, see: https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
         screen_size=84,
         discount_factor=0.99,
-        learning_rate=0.001,
+        learning_rate=0.0007, # open ai defaults to 0.0007 for a2c
     ):
     
     env = AtariPreprocessing(
         gym.make(env_name),
         grayscale_obs=grayscale,
-        frame_skip=frame_skip, #
+        frame_skip=frame_sample_rate,
         noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
         grayscale_newaxis=False, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
     )
@@ -482,14 +452,14 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
     # all split levels given equal weight
     return stat_tools.average(improvements_at_each_bucket_level)
 
-def tune_hyperparams(number_of_episodes_per_trial=100000, fitness_func=fitness_measurement_trend_up):
+def tune_hyperparams(number_of_episodes_per_trial=100_000, fitness_func=fitness_measurement_trend_up):
     import optuna
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         default_mission(
             number_of_episodes=number_of_episodes_per_trial,
             discount_factor=trial.suggest_loguniform('discount_factor', 0.990, 0.991),
-            learning_rate=trial.suggest_loguniform('learning_rate', 0.0010, 0.0011),
+            learning_rate=trial.suggest_loguniform('learning_rate', 0.00070, 0.00071),
         ).logging.episode_rewards
     )
     study = optuna.create_study(direction="maximize")
@@ -501,4 +471,6 @@ def tune_hyperparams(number_of_episodes_per_trial=100000, fitness_func=fitness_m
 # 
 if __name__ == '__main__':
     # torch.autograd.set_detect_anomaly(True) # comment out unless debugging 
-    study = tune_hyperparams()
+    default_mission(
+        number_of_episodes=100_000,
+    )
