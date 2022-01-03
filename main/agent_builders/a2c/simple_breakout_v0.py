@@ -7,15 +7,13 @@ import torch
 from torch import nn
 import gym
 import numpy as np
-import silver_spectacle as ss
+# import silver_spectacle as ss
 from super_map import LazyDict
 import math
 from collections import defaultdict
 import functools
 from stable_baselines3.common.vec_env import VecFrameStack
-from agent_builders.a2c.atari_preprocessing import AtariPreprocessing
-from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
-
+from gym.wrappers import AtariPreprocessing
 from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 from agent_builders.a2c.frame_que import FrameQue
 
@@ -41,8 +39,14 @@ class Network(nn.Module):
         self.layers.add_module('flatten', nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
         self.layers.add_module('linear1', nn.Linear(in_features=self.size_of_last_layer, out_features=output_size, bias=True)) 
         
-        self.actor       = Sequential(self.layers, nn.Linear(in_features=output_size, out_features=4, bias=True))
-        self.critic      = Sequential(self.layers, nn.Linear(in_features=output_size, out_features=1, bias=True))
+        self.actor  = Sequential(
+            nn.Linear(in_features=output_size, out_features=4, bias=True),
+            nn.Softmax(dim=0), # not sure why but stable baselines doesn't have Softmax (removing it causes issues with probability distributions though)
+        )
+        self.critic = Sequential(
+            nn.Linear(in_features=output_size, out_features=1, bias=True),
+            nn.ReLU(),
+        )
     
     @property
     def size_of_last_layer(self):
@@ -50,11 +54,10 @@ class Network(nn.Module):
     
     @forward.to_device
     @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
-    @forward.from_opencv_image_to_torch_image
     def forward(self, images):
         vectors_of_features = self.layers.forward(images)
         critic_evaluations    = self.critic.forward(vectors_of_features)
-        vectors_of_action_probability_vectors = self.actor.forward(features)
+        vectors_of_action_probability_vectors = self.actor.forward(vectors_of_features)
         action_distributions  = torch.distributions.Categorical(probs=vectors_of_action_probability_vectors)
         return action_distributions, critic_evaluations
 
@@ -151,10 +154,10 @@ class Agent():
         action_choice_distributions, critic_evaluations = self.model.forward(
             to_tensor(self.observation)
         )
-        self.action_choice_distribution    = action_choice_distributions[0]
+        self.action_choice_distribution    = action_choice_distributions
         self.action_with_gradient_tracking = self.action_choice_distribution.sample()
         self.action_entropy                = self.action_choice_distribution.entropy() # just keeping track for buffer/loss calculation
-        self.observation_value_estimate    = critic_evaluations[0] # just keeping track for buffer/loss calculation
+        self.observation_value_estimate    = critic_evaluations # just keeping track for buffer/loss calculation
         
         # main point: need to pick an action
         self.action = to_pure(self.action_with_gradient_tracking)
