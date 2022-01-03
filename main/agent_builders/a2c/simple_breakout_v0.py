@@ -103,8 +103,8 @@ class Agent():
         # 
         self.observation = None     # external world will change this
         self.reward = None          # external world will change this
-        self.action = None          # extrenal world will read this
-        self.episode_is_over = None # extrenal world will change this
+        self.action = None          # external world will read this
+        self.episode_is_over = None # external world will change this
         
         # 
         # regular/misc attributes
@@ -121,12 +121,7 @@ class Agent():
         self.action_with_gradient_tracking = None
         self.observation_value_estimate    = None
         
-        self.buffer = LazyDict()
-        self.buffer.rewards                     = []
-        self.buffer.action_log_probabilies      = []
-        self.buffer.observation_value_estimates = []
-        self.buffer.each_action_entropy         = []
-        self.buffer.was_last_episode_reward     = []
+        self.buffer = Agent.Buffer(agent=self)
         
         # 
         # model definition
@@ -166,6 +161,51 @@ class Agent():
             Agent.start_time = time()
     
     # 
+    # buffer for batched updates instead of updating every timestep
+    # 
+    class Buffer():
+        def __init__(self, agent):
+            self.agent = agent
+            self.clear()
+        
+        def clear(self):
+            self.rewards                     = []
+            self.action_log_probabilies      = []
+            self.observation_value_estimates = []
+            self.each_action_entropy         = []
+            self.was_last_episode_reward     = []
+        
+        def when_episode_starts(self, episode_index):
+            self.clear()
+        
+        def when_timestep_starts(self, timestep_index):
+            pass
+            
+        def when_timestep_ends(self, timestep_index):
+            # depends on:
+                # self.agent.reward
+                # self.agent.action_choice_distribution
+                # self.agent.action_with_gradient_tracking
+                # self.agent.observation_value_estimate
+                # self.agent.action_entropy
+            self.rewards.append(self.agent.reward)
+            self.action_log_probabilies.append(self.agent.action_choice_distribution.log_prob(self.agent.action_with_gradient_tracking))
+            self.observation_value_estimates.append(self.agent.observation_value_estimate)
+            self.each_action_entropy.append(self.agent.action_entropy)
+            self.was_last_episode_reward.append(False)
+        
+        def when_episode_ends(self, episode_index):
+            # correct the buffer value since the episode ended
+            self.was_last_episode_reward[-1] = True
+        
+        def when_weight_update_starts(self):
+            pass
+        
+        def when_weight_update_ends(self):
+            self.clear()
+    
+    
+    # 
     # Hooks (Special Names)
     # 
     def when_mission_starts(self):
@@ -180,12 +220,7 @@ class Agent():
     def when_episode_starts(self, episode_index):
         # call hooks
         self.learning_rate_scheduler.when_episode_starts(episode_index)
-        
-        self.buffer.rewards                     = []
-        self.buffer.action_log_probabilies      = []
-        self.buffer.observation_value_estimates = []
-        self.buffer.each_action_entropy         = []
-        self.buffer.was_last_episode_reward     = []
+        self.buffer.when_episode_starts(episode_index)
         
         self.logging.accumulated_reward = 0
         self.logging.accumulated_loss   = 0
@@ -211,18 +246,16 @@ class Agent():
         self.action = to_pure(self.action_with_gradient_tracking)
         
     def when_timestep_ends(self, timestep_index):
-        reward = self.reward
-        # build up value for a large update step later
-        self.buffer.rewards.append(reward)
-        self.buffer.action_log_probabilies.append(self.action_choice_distribution.log_prob(self.action_with_gradient_tracking))
-        self.buffer.observation_value_estimates.append(self.observation_value_estimate)
-        self.buffer.each_action_entropy.append(self.action_entropy)
-        self.buffer.was_last_episode_reward.append(False)
+        # call hooks
+        self.buffer.when_timestep_ends(timestep_index)
+        
         # logging
-        self.logging.accumulated_reward += reward
+        self.logging.accumulated_reward += self.reward
     
     def when_episode_ends(self, episode_index):
-        self.buffer.was_last_episode_reward[-1] = True # correct the buffer value since the episode ended
+        # call hooks
+        self.buffer.when_episode_ends(episode_index)
+        
         self.update_weights_consume_buffer()
         # logging
         Agent.total_number_of_episodes += 1
@@ -248,6 +281,10 @@ class Agent():
     # Misc Helpers
     # 
     def update_weights_consume_buffer(self):
+        # call start hooks
+        self.learning_rate_scheduler.when_weight_update_starts()
+        self.buffer.when_weight_update_starts()
+        
         # convert to tensors
         rewards                     = to_tensor(self.buffer.rewards                    ).to(self.hardware)
         action_log_probabilies      = to_tensor(self.buffer.action_log_probabilies     ).to(self.hardware)
@@ -255,8 +292,6 @@ class Agent():
         each_action_entropy         = to_tensor(self.buffer.each_action_entropy        ).to(self.hardware)
         was_last_episode_reward     = to_tensor(self.buffer.was_last_episode_reward    ).to(self.hardware)
         
-        # call weight hooks
-        self.learning_rate_scheduler.when_weight_update_starts()
         
         # 
         # Observation values (not vectorizable)
@@ -292,10 +327,8 @@ class Agent():
         nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip_threshold)
         self.rms_optimizer.step()
         
-        # 
-        # clear buffer
-        # 
-        self.buffer = LazyDict()
+        # call end hooks
+        self.buffer.when_weight_update_ends()
     
     # TD0-like
     def _improved_observation_values_vectorized_method(self, observation_value_estimates, rewards_tensor):
