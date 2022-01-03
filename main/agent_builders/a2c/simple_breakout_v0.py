@@ -24,6 +24,29 @@ from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
+class Scheduler:
+    def __init__(self, func, total_timesteps):
+        self.current_timestep = 0
+        self.total_timesteps = total_timesteps
+        if not callable(func):
+            # function that returns a constant
+            self.func = lambda : float(func)
+        else:
+            self.func = func
+    
+    def step(self):
+        self.current_timestep += 1
+    
+    @property
+    def current_value(self):
+        self.current_progress_remaining = 1.0 - float(self.current_timestep) / float(self.total_timesteps)
+        return self.func(self.current_progress_remaining)
+    
+    def update_optimizer_learning_rate(self, optimizer: torch.optim.Optimizer):
+        learning_rate = self.current_value
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = learning_rate
+    
 class Network(nn.Module):
     @init.hardware
     def __init__(self, *, input_shape, output_size, **config):
@@ -365,10 +388,10 @@ def fitness_measurement_trend_up(episode_rewards, spike_suppression_magnitude=8,
             # and Nth-root is used because we don't care about big spikes
             # we want to measure general improvement, while still keeping the property that more=>better
             if absolute_improvement > 0:
-                improvement = math.pow(absolute_improvement, 1/spike_suppression_magnitude)
+                improvement = matorch.pow(absolute_improvement, 1/spike_suppression_magnitude)
             else:
                 # just mirror the negative values
-                improvement = -math.pow(-absolute_improvement, 1/spike_suppression_magnitude)
+                improvement = -matorch.pow(-absolute_improvement, 1/spike_suppression_magnitude)
             
             improvement_at_this_bucket_level += improvement
         average_improvement = improvement_at_this_bucket_level/(len(bucket_averages)-1) # minus one because its pairwise
