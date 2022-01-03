@@ -23,47 +23,7 @@ from agent_builders.a2c.schedulers import LearningRateScheduler
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten, to_pure
 from tools.debug import debug
-from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
-
-class Network(nn.Module):
-    @init.hardware
-    def __init__(self, *, input_shape, latent_size, **config):
-        super().__init__()
-        self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
-        # convert from cv_image shape to torch tensor shape
-        color_channels, *_ = self.input_shape = input_shape
-        self.layers = Sequential()
-        self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
-        self.layers.add_module('conv1_activation', nn.ReLU())
-        self.layers.add_module('conv2', nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
-        self.layers.add_module('conv2_activation', nn.ReLU())
-        self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
-        self.layers.add_module('conv3_activation', nn.ReLU())
-        self.layers.add_module('flatten', nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module('linear1', nn.Linear(in_features=self.size_of_last_layer, out_features=latent_size, bias=True)) 
-        
-        self.actor  = Sequential(
-            nn.Linear(in_features=latent_size, out_features=4, bias=True),
-            nn.Softmax(dim=0), # not sure why but stable baselines doesn't have Softmax (removing it causes issues with probability distributions though)
-        )
-        self.critic = Sequential(
-            nn.Linear(in_features=latent_size, out_features=1, bias=True),
-            nn.ReLU(),
-        )
-    
-    @property
-    def size_of_last_layer(self):
-        with torch.no_grad():
-            return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
-    
-    @forward.to_device
-    @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
-    def forward(self, images):
-        vectors_of_features = self.layers.forward(images)
-        critic_evaluations    = self.critic.forward(vectors_of_features)
-        vectors_of_action_probability_vectors = self.actor.forward(vectors_of_features)
-        action_distributions  = torch.distributions.Categorical(probs=vectors_of_action_probability_vectors)
-        return action_distributions, critic_evaluations
+from tools.pytorch_tools import layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
 class Agent():
     @init.hardware
@@ -95,7 +55,7 @@ class Agent():
         # model definition
         # 
         self.connection_size = 512 # neurons
-        self.model = Network(input_shape=observation_space.shape, latent_size=self.connection_size, dropout_rate=self.dropout_rate)
+        self.model = Agent.Network(input_shape=observation_space.shape, latent_size=self.connection_size, dropout_rate=self.dropout_rate)
         self.rms_optimizer = RMSpropTFLike(self.model.parameters(), lr=0, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
         self.learning_rate_scheduler = LearningRateScheduler(
             value_function=self.learning_rate,
@@ -109,8 +69,49 @@ class Agent():
         self.logger = Agent.Logger(agent=self)
     
     # 
-    # buffer for batched updates instead of updating every timestep
+    # sub-classes
     # 
+    
+    class Network(nn.Module):
+        @init.hardware
+        def __init__(self, *, input_shape, latent_size, **config):
+            super().__init__()
+            self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
+            # get color channels and set input shape
+            color_channels, *_ = self.input_shape = input_shape
+            self.layers = Sequential()
+            self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
+            self.layers.add_module('conv1_activation', nn.ReLU())
+            self.layers.add_module('conv2', nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
+            self.layers.add_module('conv2_activation', nn.ReLU())
+            self.layers.add_module('conv3', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
+            self.layers.add_module('conv3_activation', nn.ReLU())
+            self.layers.add_module('flatten', nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
+            self.layers.add_module('linear1', nn.Linear(in_features=self.size_of_last_layer, out_features=latent_size, bias=True)) 
+            
+            self.actor  = Sequential(
+                nn.Linear(in_features=latent_size, out_features=4, bias=True),
+                nn.Softmax(dim=0), # not sure why but stable baselines doesn't have Softmax (removing it causes issues with probability distributions though)
+            )
+            self.critic = Sequential(
+                nn.Linear(in_features=latent_size, out_features=1, bias=True),
+                nn.ReLU(),
+            )
+        
+        @property
+        def size_of_last_layer(self):
+            with torch.no_grad():
+                return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
+        
+        @forward.to_device
+        @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
+        def forward(self, images):
+            vectors_of_features = self.layers.forward(images)
+            critic_evaluations = self.critic.forward(vectors_of_features)
+            vectors_of_action_probability_vectors = self.actor.forward(vectors_of_features)
+            action_distributions  = torch.distributions.Categorical(probs=vectors_of_action_probability_vectors)
+            return action_distributions, critic_evaluations
+    
     class Buffer:
         # depends on:
         #     self.agent.reward
@@ -232,13 +233,11 @@ class Agent():
         self.logger.when_mission_starts()
         
     def when_episode_starts(self, episode_index):
-        # call hooks
         self.learning_rate_scheduler.when_episode_starts(episode_index)
         self.buffer.when_episode_starts(episode_index)
         self.logger.when_episode_starts(episode_index)
         
     def when_timestep_starts(self, timestep_index):
-        # call hooks
         self.learning_rate_scheduler.when_timestep_starts(timestep_index)
         self.logger.when_timestep_starts(timestep_index)
         
@@ -259,19 +258,19 @@ class Agent():
         self.action = to_pure(self.action_with_gradient_tracking)
         
     def when_timestep_ends(self, timestep_index):
-        # call hooks
         self.buffer.when_timestep_ends(timestep_index)
         self.logger.when_timestep_ends(timestep_index)
     
     def when_episode_ends(self, episode_index):
-        # call hooks
         self.buffer.when_episode_ends(episode_index)
-        self.logger.when_episode_ends(episode_index)
         
         # 
         # update weights
         # 
         self.update_weights()
+        
+        self.logger.when_episode_ends(episode_index)
+        
     
     def when_mission_ends(self):
         self.logger.when_mission_ends()
@@ -310,10 +309,10 @@ class Agent():
         # 
         actor_losses  = -action_log_probabilies * advantages.detach()
         critic_losses = advantages.pow(2) # baselines does F.mse_loss((self.advantages + self.values), self.values) instead for some reason
-        actor_episode_loss  = self.actor_weight   * actor_losses.mean()
-        critic_episode_loss = self.critic_weight  * critic_losses.mean()
-        entropy_loss        = self.entropy_weight * -torch.mean(each_action_entropy)
-        self.loss = actor_episode_loss + critic_episode_loss + entropy_loss
+        self.actor_episode_loss   = self.actor_weight   * actor_losses.mean()
+        self.critic_episode_loss  = self.critic_weight  * critic_losses.mean()
+        self.entropy_episode_loss = self.entropy_weight * -torch.mean(each_action_entropy)
+        self.loss = self.actor_episode_loss + self.critic_episode_loss + self.entropy_episode_loss
 
         # 
         # update weights accordingly
