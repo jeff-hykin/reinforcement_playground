@@ -52,7 +52,8 @@ class Network(nn.Module):
     
     @property
     def size_of_last_layer(self):
-        return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
+        with torch.no_grad():
+            return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
     
     @forward.to_device
     @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
