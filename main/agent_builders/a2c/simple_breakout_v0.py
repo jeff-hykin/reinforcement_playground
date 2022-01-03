@@ -121,8 +121,6 @@ class Agent():
         self.action_with_gradient_tracking = None
         self.observation_value_estimate    = None
         
-        self.buffer = Agent.Buffer(agent=self)
-        
         # 
         # model definition
         # 
@@ -135,35 +133,21 @@ class Agent():
         )
         
         # 
-        # logging
+        # tools with hooks (which never modify the agent)
         # 
-        self.logging = LazyDict()
-        self.logging.should_display = config.get("should_display", False)
-        self.logging.live_updates   = config.get("live_updates"  , False)
-        self.logging.episode_rewards = []
-        self.logging.episode_losses  = []
-        self.logging.episode_reward_card = None
-        self.logging.episode_loss_card = None
-        
-        # 
-        # class globals
-        # 
-        if not hasattr(Agent, "agent_number_count"):
-            Agent.agent_number_count = 0
-        Agent.agent_number_count += 1
-        self.agent_number = Agent.agent_number_count
-        
-        if not hasattr(Agent, "total_number_of_episodes"):
-            Agent.total_number_of_episodes = 0
-        if not hasattr(Agent, "total_number_of_timesteps"):
-            Agent.total_number_of_timesteps = 0
-        if not hasattr(Agent, "start_time"):
-            Agent.start_time = time()
+        self.buffer = Agent.Buffer(agent=self)
+        self.logger = Agent.Logger(agent=self)
     
     # 
     # buffer for batched updates instead of updating every timestep
     # 
-    class Buffer():
+    class Buffer:
+        # depends on:
+        #     self.agent.reward
+        #     self.agent.action_choice_distribution
+        #     self.agent.action_with_gradient_tracking
+        #     self.agent.observation_value_estimate
+        #     self.agent.action_entropy
         def __init__(self, agent):
             self.agent = agent
             self.clear()
@@ -182,12 +166,6 @@ class Agent():
             pass
             
         def when_timestep_ends(self, timestep_index):
-            # depends on:
-                # self.agent.reward
-                # self.agent.action_choice_distribution
-                # self.agent.action_with_gradient_tracking
-                # self.agent.observation_value_estimate
-                # self.agent.action_entropy
             self.rewards.append(self.agent.reward)
             self.action_log_probabilies.append(self.agent.action_choice_distribution.log_prob(self.agent.action_with_gradient_tracking))
             self.observation_value_estimates.append(self.agent.observation_value_estimate)
@@ -204,30 +182,95 @@ class Agent():
         def when_weight_update_ends(self):
             self.clear()
     
+    class Logger:
+        # depends on:
+        #      self.agent.reward
+        #      self.agent.loss
+        def __init__(self, agent, **config):
+            self.agent = agent
+            
+            self.should_display   = config.get("should_display"  , False)
+            self.live_updates     = config.get("live_updates"    , False)
+            self.smoothing_amount = config.get("smoothing_amount", 5    )
+            self.episode_rewards = []
+            self.episode_losses  = []
+            self.episode_reward_card = None
+            self.episode_loss_card = None
+            
+            # init class attributes if doesn't already have them
+            self.static = Agent.Logger.static = LazyDict(
+                agent_number_count=0,
+                total_number_of_episodes=0,
+                total_number_of_timesteps=0,
+                start_time=time(),
+            ) if not hasattr(Agent.Logger, "static") else Agent.Logger.static
+            
+            # agent number count
+            self.static.agent_number_count += 1
+            self.agent_number = self.static.agent_number_count
+            
+        def when_mission_starts(self):
+            self.episode_rewards.clear()
+            self.episode_losses.clear()
+            if self.live_updates:
+                self.episode_loss_card = ss.DisplayCard("quickLine",[])
+                ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Loss, ➡️ Per Episode")
+                self.episode_reward_card = ss.DisplayCard("quickLine",[])
+                ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
+            
+        def when_episode_starts(self, episode_index):
+            self.accumulated_reward = 0
+            self.accumulated_loss   = 0
+            self.static.total_number_of_episodes += 1
+        
+        def when_timestep_starts(self, timestep_index):
+            self.static.total_number_of_timesteps += 1
+            
+        def when_timestep_ends(self, timestep_index):
+            self.logging.accumulated_reward += self.agent.reward
+        
+        def when_episode_ends(self, episode_index):
+            # logging
+            self.episode_rewards.append(self.accumulated_reward)
+            self.episode_losses.append(self.accumulated_loss)
+            if self.live_updates:
+                self.episode_reward_card.send     ([episode_index, self.accumulated_reward      ])
+                self.episode_loss_card.send ([episode_index, self.accumulated_loss  ])
+            print('episode_index = ', episode_index)
+            print(f'    average_episode_time :{(time()-self.static.start_time)/self.static.total_number_of_episodes}',)
+            print(f'    accumulated_reward   :{self.accumulated_reward      }',)
+            print(f'    accumulated_loss     :{self.accumulated_loss  }',)
+        
+        def when_mission_ends(self,):
+            if self.should_display:
+                # graph reward results
+                ss.DisplayCard("quickLine", stat_tools.rolling_average(self.episode_losses, self.smoothing_amount))
+                ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Losses Per Episode")
+                ss.DisplayCard("quickLine", stat_tools.rolling_average(self.episode_rewards, self.smoothing_amount))
+                ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Rewards Per Episode")
+        
+        def when_weight_update_starts(self):
+            pass
+
+        def when_weight_update_ends(self):
+            self.accumulated_loss += self.agent.loss.item()
     
     # 
     # Hooks (Special Names)
     # 
     def when_mission_starts(self):
-        self.logging.episode_rewards.clear()
-        self.logging.episode_losses.clear()
-        if self.logging.live_updates:
-            self.logging.episode_loss_card = ss.DisplayCard("quickLine",[])
-            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Loss, ➡️ Per Episode")
-            self.logging.episode_reward_card = ss.DisplayCard("quickLine",[])
-            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
+        self.logger.when_mission_starts()
         
     def when_episode_starts(self, episode_index):
         # call hooks
         self.learning_rate_scheduler.when_episode_starts(episode_index)
         self.buffer.when_episode_starts(episode_index)
+        self.logger.when_episode_starts(episode_index)
         
-        self.logging.accumulated_reward = 0
-        self.logging.accumulated_loss   = 0
-    
     def when_timestep_starts(self, timestep_index):
         # call hooks
         self.learning_rate_scheduler.when_timestep_starts(timestep_index)
+        self.logger.when_timestep_starts(timestep_index)
         
         # 
         # run the model
@@ -248,6 +291,7 @@ class Agent():
     def when_timestep_ends(self, timestep_index):
         # call hooks
         self.buffer.when_timestep_ends(timestep_index)
+        self.logger.when_timestep_ends(timestep_index)
         
         # logging
         self.logging.accumulated_reward += self.reward
@@ -255,35 +299,21 @@ class Agent():
     def when_episode_ends(self, episode_index):
         # call hooks
         self.buffer.when_episode_ends(episode_index)
+        self.logger.when_episode_ends(episode_index)
         
-        self.update_weights_consume_buffer()
-        # logging
-        Agent.total_number_of_episodes += 1
-        self.logging.episode_rewards.append(self.logging.accumulated_reward)
-        self.logging.episode_losses.append(self.logging.accumulated_loss)
-        if self.logging.live_updates:
-            self.logging.episode_reward_card.send     ([episode_index, self.logging.accumulated_reward      ])
-            self.logging.episode_loss_card.send ([episode_index, self.logging.accumulated_loss  ])
-        print('episode_index = ', episode_index)
-        print(f'    average_episode_time :{(time()-Agent.start_time)/Agent.total_number_of_episodes}',)
-        print(f'    accumulated_reward   :{self.logging.accumulated_reward      }',)
-        print(f'    accumulated_loss     :{self.logging.accumulated_loss  }',)
+        self.update_weights()
     
-    def when_mission_ends(self,):
-        if self.logging.should_display:
-            # graph reward results
-            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_losses, 5))
-            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Losses Per Episode")
-            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_rewards, 5))
-            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Rewards Per Episode")
+    def when_mission_ends(self):
+        self.logger.when_mission_ends()
     
     # 
     # Misc Helpers
     # 
-    def update_weights_consume_buffer(self):
+    def update_weights(self):
         # call start hooks
         self.learning_rate_scheduler.when_weight_update_starts()
         self.buffer.when_weight_update_starts()
+        self.logger.when_weight_update_starts()
         
         # convert to tensors
         rewards                     = to_tensor(self.buffer.rewards                    ).to(self.hardware)
@@ -314,21 +344,19 @@ class Agent():
         actor_episode_loss  = self.actor_weight   * actor_losses.mean()
         critic_episode_loss = self.critic_weight  * critic_losses.mean()
         entropy_loss        = self.entropy_weight * -torch.mean(each_action_entropy)
-        total_loss = actor_episode_loss + critic_episode_loss + entropy_loss
-        
-        # logging
-        self.logging.accumulated_loss += total_loss.item()
+        self.loss = actor_episode_loss + critic_episode_loss + entropy_loss
 
         # 
         # update weights accordingly
         # 
         self.rms_optimizer.zero_grad()
-        total_loss.backward()
+        self.loss.backward()
         nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip_threshold)
         self.rms_optimizer.step()
         
         # call end hooks
         self.buffer.when_weight_update_ends()
+        self.logger.when_weight_update_ends()
     
     # TD0-like
     def _improved_observation_values_vectorized_method(self, observation_value_estimates, rewards_tensor):
