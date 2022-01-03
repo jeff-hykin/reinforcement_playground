@@ -382,7 +382,7 @@ def tune_hyperparams(number_of_episodes_per_trial=100000, fitness_func=fitness_m
         default_mission(
             number_of_episodes=number_of_episodes_per_trial,
             discount_factor=trial.suggest_loguniform('discount_factor', 0.990, 0.991),
-            learning_rate=trial.suggest_loguniform('learning_rate', 0.010, 0.011),
+            learning_rate=trial.suggest_loguniform('learning_rate', 0.0010, 0.0011),
         ).logging.episode_rewards
     )
     study = optuna.create_study(direction="maximize")
