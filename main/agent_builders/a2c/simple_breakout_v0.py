@@ -30,9 +30,7 @@ class Network(nn.Module):
         super().__init__()
         self.dropout_rate    = config.get("dropout_rate", 0.2) # note: not currently in use
         # convert from cv_image shape to torch tensor shape
-        color_channels = input_shape[2]
-        # convert from cv_image shape to torch tensor shape
-        self.input_shape = (color_channels, input_shape[0], input_shape[1])
+        color_channels, *_ = self.input_shape = input_shape
         self.layers = Sequential()
         self.layers.add_module('conv1', nn.Conv2d(color_channels, 32, kernel_size=8, stride=4, padding=0))
         self.layers.add_module('conv1_activation', nn.ReLU())
@@ -58,7 +56,6 @@ class Network(nn.Module):
     
     @forward.to_device
     @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
-    @forward.from_opencv_image_to_torch_image
     def forward(self, images):
         vectors_of_features = self.layers.forward(images)
         critic_evaluations    = self.critic.forward(vectors_of_features)
@@ -302,13 +299,17 @@ def default_mission(
         learning_rate=0.001,
     ):
     
-    env = make_atari_env('BreakoutNoFrameskip-v4', n_envs=16, seed=0)
-    env = VecFrameStack(env, n_stack=4)
-    print('env.observation_space = ', env.observation_space)
+    env = AtariPreprocessing(
+        gym.make(env_name),
+        grayscale_obs=grayscale,
+        frame_skip=frame_skip, #
+        noop_max=1, # no idea what this is, my best guess is; it is related to a do-dothing action and how many timesteps it does nothing for
+        grayscale_newaxis=False, # keeps number of dimensions in observation the same for both grayscale and color (both have 4, b/c of the batch dimension)
+    )
     
     mr_bond = Agent(
         # observation_space is little bit hacky
-        observation_space=LazyDict(shape=env.observation_space.shape),
+        observation_space=LazyDict(shape=(frame_history, *env.observation_space.shape)),
         action_space=env.action_space,
         # live_updates=True,
         discount_factor=discount_factor,
@@ -319,8 +320,9 @@ def default_mission(
     for episode_index in range(number_of_episodes):
         mr_bond.episode_is_over = False
         # observation is a que of frames
-        mr_bond.observation = env.reset()
+        mr_bond.observation = FrameQue(que_size=frame_history, frame_shape=env.observation_space.shape) # fram que should probably be a wrapper around atari
         # add the latest frame
+        mr_bond.observation.add(env.reset())
         mr_bond.when_episode_starts(episode_index)
         
         timestep_index = -1
@@ -328,7 +330,10 @@ def default_mission(
             timestep_index += 1
             
             mr_bond.when_timestep_starts(timestep_index)
-            mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+            latest_frame, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+            # push in the newest frame
+            mr_bond.observation.add(to_tensor(latest_frame))
+            
             mr_bond.when_timestep_ends(timestep_index)
                 
         mr_bond.when_episode_ends(episode_index)
