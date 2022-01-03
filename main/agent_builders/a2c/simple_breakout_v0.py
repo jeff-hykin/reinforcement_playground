@@ -25,22 +25,24 @@ from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
 class LearningRateScheduler:
-    def __init__(self, value_function, optimizers):
+    def __init__(self, *, value_function, optimizers):
         self.optimizers = optimizers
-        self.timestep_index = -1
-        self.episode_index = -1
+        self.timestep_index = None
+        self.episode_index = None
         # allow the "function" to be a constant
         if not callable(value_function):
             # value_functiontion that returns a constant
             self.value_function = lambda : float(value_function)
         else:
             self.value_function = value_function
+        # initilize the weights
+        self.when_weight_update_starts()
     
-    def when_episode_starts(self):
-        self.episode_index += 1
+    def when_episode_starts(self, episode_index):
+        self.episode_index = episode_index
 
-    def when_timestep_starts(self):
-        self.timestep_index += 1
+    def when_timestep_starts(self, timestep_index):
+        self.timestep_index = timestep_index
     
     def when_weight_update_starts(self):
         learning_rate = self.current_value
@@ -52,8 +54,7 @@ class LearningRateScheduler:
     def current_value(self):
         # self.current_progress_remaining = 1.0 - float(self.current_timestep) / float(self.total_timesteps)
         return self.value_function(self.timestep_index, self.episode_index)
-        
-    
+
 class Network(nn.Module):
     @init.hardware
     def __init__(self, *, input_shape, output_size, **config):
@@ -109,14 +110,13 @@ class Agent():
         # regular/misc attributes
         # 
         self.discount_factor         = config.get("discount_factor", 0.99)
-        self.learning_rate           = config.get("learning_rate", 0.01)
+        self.learning_rate           = config.get("learning_rate", 0.001)
         self.gradient_clip_threshold = config.get("gradient_clip_threshold", 0.5) # 0.5 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
         self.actor_weight            = config.get("actor_weight", 1) # 1 basically means "as-is"
         self.critic_weight           = config.get("critic_weight", 0.25) # 0.25 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
         self.entropy_weight          = config.get("entropy_weight", 0.01) # 0.01 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
         self.dropout_rate            = config.get("dropout_rate", 0.2)
         self.number_of_actions = action_space.n
-        self.prev_observation              = None
         self.action_choice_distribution    = None
         self.action_with_gradient_tracking = None
         self.observation_value_estimate    = None
@@ -133,7 +133,11 @@ class Agent():
         # 
         self.connection_size = 512 # neurons
         self.model = Network(input_shape=observation_space.shape, output_size=self.connection_size, dropout_rate=self.dropout_rate)
-        self.rms_optimizer = RMSpropTFLike(self.model.parameters() , lr=self.learning_rate, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
+        self.rms_optimizer = RMSpropTFLike(self.model.parameters() , lr=0, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
+        self.learning_rate_scheduler = LearningRateScheduler(
+            value_function=self.learning_rate,
+            optimizers=[ self.rms_optimizer ],
+        )
         
         # 
         # logging
@@ -174,6 +178,9 @@ class Agent():
             ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
         
     def when_episode_starts(self, episode_index):
+        # call hooks
+        self.learning_rate_scheduler.when_episode_starts(episode_index)
+        
         self.buffer.rewards                     = []
         self.buffer.action_log_probabilies      = []
         self.buffer.observation_value_estimates = []
@@ -184,18 +191,24 @@ class Agent():
         self.logging.accumulated_loss   = 0
     
     def when_timestep_starts(self, timestep_index):
+        # call hooks
+        self.learning_rate_scheduler.when_timestep_starts(timestep_index)
+        
+        # 
+        # run the model
+        # 
         action_choice_distributions, critic_evaluations = self.model.forward(
             to_tensor(self.observation)
         )
         self.action_choice_distribution    = action_choice_distributions
+        self.observation_value_estimate    = critic_evaluations # just keeping for buffer/loss calculation
+        self.action_entropy                = self.action_choice_distribution.entropy() # just keeping for buffer/loss calculation
         self.action_with_gradient_tracking = self.action_choice_distribution.sample()
-        self.action_entropy                = self.action_choice_distribution.entropy() # just keeping track for buffer/loss calculation
-        self.observation_value_estimate    = critic_evaluations # just keeping track for buffer/loss calculation
         
-        # main point: need to pick an action
+        # 
+        # choose an action (most important part)
+        # 
         self.action = to_pure(self.action_with_gradient_tracking)
-        # need to keep track of prev observation (self.observation will be updated by the time the timestep ends)
-        self.prev_observation = self.observation
         
     def when_timestep_ends(self, timestep_index):
         reward = self.reward
@@ -241,6 +254,9 @@ class Agent():
         observation_value_estimates = to_tensor(self.buffer.observation_value_estimates).to(self.hardware)
         each_action_entropy         = to_tensor(self.buffer.each_action_entropy        ).to(self.hardware)
         was_last_episode_reward     = to_tensor(self.buffer.was_last_episode_reward    ).to(self.hardware)
+        
+        # call weight hooks
+        self.learning_rate_scheduler.when_weight_update_starts()
         
         # 
         # Observation values (not vectorizable)
