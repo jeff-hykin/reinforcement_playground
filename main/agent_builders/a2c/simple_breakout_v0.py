@@ -167,6 +167,7 @@ class Agent():
             self.episode_losses  = []
             self.episode_reward_card = None
             self.episode_loss_card = None
+            self.number_of_updates = 0
             
             # init class attributes if doesn't already have them
             self.static = Agent.Logger.static = LazyDict(
@@ -209,6 +210,7 @@ class Agent():
                 self.episode_loss_card.send ([episode_index, self.accumulated_loss  ])
             print('episode_index = ', episode_index)
             print(f'    total_number_of_timesteps :{self.static.total_number_of_timesteps}',)
+            print(f'    number_of_updates         :{self.number_of_updates}',)
             print(f'    average_episode_time      :{(time()-self.static.start_time)/self.static.total_number_of_episodes}',)
             print(f'    accumulated_reward        :{self.accumulated_reward      }',)
             print(f'    accumulated_loss          :{self.accumulated_loss  }',)
@@ -222,7 +224,7 @@ class Agent():
                 ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Rewards Per Episode")
         
         def when_weight_update_starts(self):
-            pass
+            self.number_of_updates += 1
 
         def when_weight_update_ends(self):
             self.accumulated_loss += self.agent.loss.item()
