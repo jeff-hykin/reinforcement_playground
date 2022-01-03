@@ -7,9 +7,9 @@ from super_map import LazyDict
 import math
 from collections import defaultdict
 import functools
-from gym.wrappers import AtariPreprocessing
-from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 from stable_baselines3.common.vec_env import VecFrameStack
+from agent_builders.a2c.atari_preprocessing import AtariPreprocessing
+from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 
 from time import time
 import tools.stat_tools as stat_tools
@@ -17,7 +17,7 @@ from tools.basics import product, flatten
 from tools.debug import debug
 from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
-class ImageNetwork(nn.Module):
+class Network(nn.Module):
     @init.hardware
     def __init__(self, *, input_shape, output_size, **config):
         super().__init__()
@@ -36,17 +36,23 @@ class ImageNetwork(nn.Module):
         self.layers.add_module('conv3_activation', nn.ReLU())
         self.layers.add_module('flatten', nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
         self.layers.add_module('linear1', nn.Linear(in_features=self.size_of_last_layer, out_features=output_size, bias=True)) 
+        
+        self.actor       = Sequential(self.layers, nn.Linear(in_features=output_size, out_features=4, bias=True))
+        self.critic      = Sequential(self.layers, nn.Linear(in_features=output_size, out_features=1, bias=True))
     
     @property
     def size_of_last_layer(self):
         return product(self.input_shape if len(self.layers) == 0 else layer_output_shapes(self.layers, self.input_shape)[-1])
     
     @forward.to_device
-    @forward.to_batched_tensor(number_of_dimensions=4)
+    @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
     @forward.from_opencv_image_to_torch_image
-    def forward(self, X):
-        return self.layers.forward(X)
-
+    def forward(self, images):
+        vectors_of_features = self.layers.forward(images)
+        critic_evaluations    = self.critic.forward(vectors_of_features)
+        vectors_of_action_probability_vectors = self.actor.forward(features)
+        action_distributions  = torch.distributions.Categorical(probs=vectors_of_action_probability_vectors)
+        return action_distributions, critic_evaluations
 
 class Agent():
     @init.hardware
@@ -62,36 +68,43 @@ class Agent():
         # 
         # regular/misc attributes
         # 
-        self.discount_factor      = config.get("discount_factor", 0.99)
-        self.actor_learning_rate  = config.get("actor_learning_rate", 0.001)
-        self.critic_learning_rate = config.get("critic_learning_rate", 0.001)
-        self.dropout_rate         = config.get("dropout_rate", 0.2)
+        self.discount_factor         = config.get("discount_factor", 0.99)
+        self.learning_rate           = config.get("learning_rate", 0.01)
+        self.gradient_clip_threshold = config.get("gradient_clip_threshold", 0.5) # 0.5 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
+        self.actor_weight            = config.get("actor_weight", 1) # 1 basically means "as-is"
+        self.critic_weight           = config.get("critic_weight", 0.25) # 0.25 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
+        self.entropy_weight          = config.get("entropy_weight", 0.01) # 0.01 is for atari in https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/a2c.yml
+        self.dropout_rate            = config.get("dropout_rate", 0.2)
         self.number_of_actions = action_space.n
-        self.connection_size = 512 # neurons
-        self.image_model = ImageNetwork(input_shape=observation_space.shape, output_size=self.connection_size, dropout_rate=self.dropout_rate)
-        self.actor       = Sequential(self.image_model, nn.Linear(in_features=output_size, out_features=4, bias=True))
-        self.critic      = Sequential(self.image_model, nn.Linear(in_features=output_size, out_features=1, bias=True))
-        self.adam_actor  = torch.optim.Adam(self.actor.parameters() , lr=self.actor_learning_rate )
-        self.adam_critic = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
-        self.rms_actor  = RMSpropTFLike(self.actor.parameters() , lr=self.actor_learning_rate, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
-        self.rms_critic = RMSpropTFLike(self.critic.parameters(), lr=self.critic_learning_rate, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
-        self.action_choice_distribution = None
-        self.prev_observation = None
+        self.prev_observation              = None
+        self.action_choice_distribution    = None
         self.action_with_gradient_tracking = None
-        self.buffer = LazyDict()
-        self.buffer.observations = []
-        self.buffer.rewards = []
-        self.buffer.action_log_probabilies = []
+        self.observation_value_estimate    = None
         
+        self.buffer = LazyDict()
+        self.buffer.rewards                     = []
+        self.buffer.action_log_probabilies      = []
+        self.buffer.observation_value_estimates = []
+        self.buffer.each_action_entropy         = []
+        self.buffer.was_last_episode_reward     = []
+        
+        # 
+        # model definition
+        # 
+        self.connection_size = 512 # neurons
+        self.model = Network(input_shape=observation_space.shape, output_size=self.connection_size, dropout_rate=self.dropout_rate)
+        self.rms_optimizer = RMSpropTFLike(self.model.parameters() , lr=self.learning_rate, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
+        
+        # 
+        # logging
+        # 
         self.logging = LazyDict()
         self.logging.should_display = config.get("should_display", False)
         self.logging.live_updates   = config.get("live_updates"  , False)
         self.logging.episode_rewards = []
-        self.logging.episode_critic_losses = []
-        self.logging.episode_actor_losses  = []
+        self.logging.episode_losses  = []
         self.logging.episode_reward_card = None
-        self.logging.episode_critic_loss_card = None
-        self.logging.episode_actor_loss_card = None
+        self.logging.episode_loss_card = None
         
         if not hasattr(Agent, "agent_number_count"):
             Agent.agent_number_count = 0
@@ -108,116 +121,144 @@ class Agent():
     # 
     def when_mission_starts(self):
         self.logging.episode_rewards.clear()
-        self.logging.episode_critic_losses.clear()
-        self.logging.episode_actor_losses.clear()
+        self.logging.episode_losses.clear()
         if self.logging.live_updates:
-            self.logging.episode_actor_loss_card = ss.DisplayCard("quickLine",[])
-            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Actor Loss, ➡️ Per Episode")
-            self.logging.episode_critic_loss_card = ss.DisplayCard("quickLine",[])
-            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Critic Loss, ➡️ Per Episode")
+            self.logging.episode_loss_card = ss.DisplayCard("quickLine",[])
+            ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Loss, ➡️ Per Episode")
             self.logging.episode_reward_card = ss.DisplayCard("quickLine",[])
             ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
         
     def when_episode_starts(self, episode_index):
-        self.buffer.observations = []
-        self.buffer.rewards = []
-        self.buffer.action_log_probabilies = []
-        self.buffer.observations.append(self.observation) # first observation is ready/valid at the start (if mission is setup correctly)
+        self.buffer.rewards                     = []
+        self.buffer.action_log_probabilies      = []
+        self.buffer.observation_value_estimates = []
+        self.buffer.each_action_entropy         = []
+        self.buffer.was_last_episode_reward     = []
         
-        self.logging.accumulated_reward      = 0
-        self.logging.accumulated_critic_loss = 0
-        self.logging.accumulated_actor_loss  = 0
+        self.logging.accumulated_reward = 0
+        self.logging.accumulated_loss   = 0
     
     def when_timestep_starts(self, timestep_index):
-        self.action = self.make_decision(self.observation)
+        action_choice_distributions, critic_evaluations = self.model.forward(
+            to_tensor(self.observation)
+        )
+        self.action_choice_distribution    = action_choice_distributions[0]
+        self.action_with_gradient_tracking = self.action_choice_distribution.sample()
+        self.action_entropy                = self.action_choice_distribution.entropy() # just keeping track for buffer/loss calculation
+        self.observation_value_estimate    = critic_evaluations[0] # just keeping track for buffer/loss calculation
+        
+        # main point: need to pick an action
+        self.action = to_pure(self.action_with_gradient_tracking)
+        # need to keep track of prev observation (self.observation will be updated by the time the timestep ends)
         self.prev_observation = self.observation
         
     def when_timestep_ends(self, timestep_index):
         reward = self.reward
         # build up value for a large update step later
-        self.buffer.observations.append(self.observation)
         self.buffer.rewards.append(reward)
-        self.buffer.action_choice_distributions.append(self.action_choice_distribution)
         self.buffer.action_log_probabilies.append(self.action_choice_distribution.log_prob(self.action_with_gradient_tracking))
+        self.buffer.observation_value_estimates.append(self.observation_value_estimate)
+        self.buffer.each_action_entropy.append(self.action_entropy)
+        self.buffer.was_last_episode_reward.append(False)
         # logging
         self.logging.accumulated_reward += reward
     
     def when_episode_ends(self, episode_index):
+        self.buffer.was_last_episode_reward[-1] = True # correct the buffer value since the episode ended
         self.update_weights_consume_buffer()
         # logging
         Agent.total_number_of_episodes += 1
         self.logging.episode_rewards.append(self.logging.accumulated_reward)
-        self.logging.episode_critic_losses.append(self.logging.accumulated_critic_loss)
-        self.logging.episode_actor_losses.append(self.logging.accumulated_actor_loss)
+        self.logging.episode_losses.append(self.logging.accumulated_loss)
         if self.logging.live_updates:
             self.logging.episode_reward_card.send     ([episode_index, self.logging.accumulated_reward      ])
-            self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
-            self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
+            self.logging.episode_loss_card.send ([episode_index, self.logging.accumulated_loss  ])
         print('episode_index = ', episode_index)
-        print(f'    average_episode_time    :{(time()-Agent.start_time)/Agent.total_number_of_episodes}',)
-        print(f'    accumulated_reward      :{self.logging.accumulated_reward      }',)
-        print(f'    accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
-        print(f'    accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
+        print(f'    average_episode_time :{(time()-Agent.start_time)/Agent.total_number_of_episodes}',)
+        print(f'    accumulated_reward   :{self.logging.accumulated_reward      }',)
+        print(f'    accumulated_loss     :{self.logging.accumulated_loss  }',)
     
     def when_mission_ends(self,):
         if self.logging.should_display:
             # graph reward results
-            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_actor_losses, 5))
-            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Actor Losses Per Episode")
-            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_critic_losses, 5))
-            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Critic Losses Per Episode")
+            ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_losses, 5))
+            ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Losses Per Episode")
             ss.DisplayCard("quickLine", stat_tools.rolling_average(self.logging.episode_rewards, 5))
             ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Rewards Per Episode")
     
     # 
     # Misc Helpers
     # 
-    def make_decision(self, observation):
-        probs = self.actor.forward(torch.from_numpy(observation).float())
-        self.action_choice_distribution = torch.distributions.Categorical(probs=probs)
-        self.action_with_gradient_tracking = self.action_choice_distribution.sample()
-        return self.action_with_gradient_tracking.item()
-    
-    def approximate_value_of(self, observation):
-        return self.critic(torch.from_numpy(observation).float()).item()
-    
-    def compute_entropy(self, action_log_probabilies):
-        # FIXME: just put relvent code here from stable baselines
-        stat_tools.average(tuple(each.entropy() for each in self.buffer.action_choice_distributions))
+    def update_weights_consume_buffer(self):
+        # convert to tensors
+        rewards                     = to_tensor(self.buffer.rewards                    ).to(self.hardware)
+        action_log_probabilies      = to_tensor(self.buffer.action_log_probabilies     ).to(self.hardware)
+        observation_value_estimates = to_tensor(self.buffer.observation_value_estimates).to(self.hardware)
+        each_action_entropy         = to_tensor(self.buffer.each_action_entropy        ).to(self.hardware)
+        was_last_episode_reward     = to_tensor(self.buffer.was_last_episode_reward    ).to(self.hardware)
         
-        # Entropy loss favor exploration
-        if entropy is None:
-            # Approximate entropy when no analytical form
-            entropy_loss = -torch.mean(-action_log_probabilies)
-        else:
-            entropy_loss = -torch.mean(entropy)
-            
-        loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
+        # 
+        # Observation values (not vectorizable)
+        # 
+        improved_observation_values = self._improved_observation_values_backwards_chain_method(
+            rewards=rewards,
+            discount_factor=self.discount_factor,
+        ).to(self.hardware)
+        
+        # 
+        # compute advantages
+        # 
+        advantages = improved_observation_values - observation_value_estimates
+        
+        # 
+        # loss (needs: advantages, action_log_probabilies, each_action_entropy)
+        # 
+        actor_losses  = -action_log_probabilies * advantages.detach()
+        critic_losses = advantages.pow(2) # baselines does F.mse_loss((self.advantages + self.values), self.values) instead for some reason
+        actor_episode_loss  = self.actor_weight   * actor_losses.mean()
+        critic_episode_loss = self.critic_weight  * critic_losses.mean()
+        entropy_loss        = self.entropy_weight * -torch.mean(each_action_entropy)
+        total_loss = actor_episode_loss + critic_episode_loss + entropy_loss
+        
+        # logging
+        self.logging.accumulated_loss += total_loss.item()
+
+        # 
+        # update weights accordingly
+        # 
+        self.rms_optimizer.zero_grad()
+        total_loss.backward()
+        nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip_threshold)
+        self.rms_optimizer.step()
+        
+        # 
+        # clear buffer
+        # 
+        self.buffer = LazyDict()
     
     # TD0-like
-    def _observation_values_vectorized_method(self, value_approximations, rewards_tensor):
-        current_approximates = value_approximations[:-1]
-        next_approximates = value_approximations[1:]
+    def _improved_observation_values_vectorized_method(self, observation_value_estimates, rewards_tensor):
+        current_approximates = observation_value_estimates[:-1]
+        next_approximates = observation_value_estimates[1:]
         # vectorized: (vec + (scalar * vec))
         observation_values = (rewards_tensor + (self.discount_factor*next_approximates)) 
         return observation_values
     
     # TD1/MonteCarlo-like
-    def _observation_values_backwards_chain_method(self):
-        observation_values = torch.zeros(len(self.buffer.rewards))
+    def _improved_observation_values_backwards_chain_method(self, rewards, discount_factor):
+        observation_values = torch.zeros(len(rewards))
         # the last one is just equal to the reward
-        observation_values[-1] = self.buffer.rewards[-1]
+        observation_values[-1] = rewards[-1]
         iterable = zip(
             range(len(observation_values)-1),
-            self.buffer.rewards[:-1],
-            self.buffer.observations[:-1],
+            rewards[:-1],
         )
-        for reversed_index, each_reward, each_observation in reversed(tuple(iterable)):
+        for reversed_index, each_reward in reversed(tuple(iterable)):
             next_estimate = observation_values[reversed_index+1]
-            observation_values[reversed_index] = each_reward + self.discount_factor * next_estimate
+            observation_values[reversed_index] = each_reward + discount_factor * next_estimate
         return observation_values
     
-    def _observation_values_baselines(self):
+    def _improved_observation_values_baselines(self):
         # https://github.com/DLR-RM/stable-baselines3/blob/3b68dc731219f112ccc2a6745f216bca701080bb/stable_baselines3/ppo/ppo.py#L198
         # seems like this method is complicated
         # - they store the raw observation on the rollout buffer
@@ -232,55 +273,6 @@ class Agent():
         # - they also list the learning rate as "linear" which makes me think its a dynamic rate
         pass
         
-    
-    def update_weights_consume_buffer(self):
-        # send data to device
-        value_approximations   = self.critic(to_tensor(self.buffer.observations).to(self.hardware)).squeeze()
-        rewards                = to_tensor(self.buffer.rewards).to(self.hardware)
-        action_log_probabilies = to_tensor(self.buffer.action_log_probabilies).to(self.hardware)
-        
-        # 
-        # Observation values (not vectorizable)
-        # 
-        observation_values = self._observation_values_backwards_chain_method().to(self.hardware)
-        
-        # 
-        # compute advantages (self.rewards, self.discount_factor, self.observations)
-        # 
-        current_approximates = value_approximations[:-1]
-        # vectorized: (vec - vec)
-        advantages = observation_values - current_approximates
-        # last value doesn't have a "next" so manually calculate that
-        advantages[-1] = rewards[-1] - value_approximations[-1]
-        
-        # 
-        # loss functions (advantages, self.action_log_probabilies)
-        # 
-        actor_losses  = -action_log_probabilies * advantages.detach()
-        critic_losses = advantages.pow(2) # baselines does F.mse_loss((self.advantages + self.values), self.values) instead for some reason
-        actor_episode_loss = actor_losses.mean()
-        critic_episode_loss = critic_losses.mean()
-        
-        self.value_function_coefficient = 0.25 # from stable baselines atari hyperparams TODO: code this properly
-        combined_loss = actor_episode_loss + self.value_function_coefficient*critic_episode_loss
-
-        # 
-        # update weights accordingly
-        # 
-        self.rms_actor.zero_grad()
-        self.rms_critic.zero_grad()
-        combined_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5) # 0.5 is a default parameter from stable baselines
-        self.rms_actor.step()
-        self.rms_critic.step()
-        self.logging.accumulated_actor_loss += actor_episode_loss.item()
-        self.logging.accumulated_critic_loss += critic_episode_loss.item()
-        
-        # 
-        # clear buffer
-        # 
-        self.buffer = LazyDict()
-        
 
 def default_mission(
         env_name="BreakoutNoFrameskip-v4",
@@ -289,8 +281,7 @@ def default_mission(
         frame_skip=1, # open ai defaults to 4
         screen_size=84,
         discount_factor=0.99,
-        actor_learning_rate=0.001,
-        critic_learning_rate=0.001,
+        learning_rate=0.001,
     ):
     env = AtariPreprocessing(
         gym.make(env_name),
@@ -304,8 +295,7 @@ def default_mission(
         action_space=env.action_space,
         # live_updates=True,
         discount_factor=discount_factor,
-        actor_learning_rate=actor_learning_rate,
-        critic_learning_rate=critic_learning_rate,
+        learning_rate=learning_rate,
     )
     mr_bond.when_mission_starts()
     for episode_index in range(number_of_episodes):
@@ -367,8 +357,7 @@ def tune_hyperparams(number_of_episodes_per_trial=5000, fitness_func=fitness_mea
         default_mission(
             number_of_episodes=number_of_episodes_per_trial,
             discount_factor=trial.suggest_loguniform('discount_factor', 0.9, 1),
-            actor_learning_rate=trial.suggest_loguniform('actor_learning_rate', 0.001, 0.05),
-            critic_learning_rate=trial.suggest_loguniform('critic_learning_rate', 0.001, 0.05),    
+            learning_rate=trial.suggest_loguniform('learning_rate', 0.001, 0.05),
         ).logging.episode_rewards
     )
     study = optuna.create_study(direction="maximize")
