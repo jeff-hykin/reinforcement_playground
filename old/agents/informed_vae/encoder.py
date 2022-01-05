@@ -3,7 +3,6 @@ from tools.all_tools import *
 
 from torchvision import datasets, transforms
 from tools.basics import product
-from tools.pytorch_tools import Network
 #%%
 
 class ImageEncoder(nn.Module):
@@ -15,13 +14,12 @@ class ImageEncoder(nn.Module):
         Network.default_setup(self, config)
         self.input_shape     = config.get('input_shape'    , (1, 28, 28))
         self.output_shape    = config.get('output_shape'   , (10,))
-        self.batch_size      = config.get('batch_size'     , 64  )
         
         # 
         # layers
         # 
         # 1 input image, 10 output channels, 5x5 square convolution kernel
-        self.add_module('conv1', nn.Conv2d(1, 10, kernel_size=5))
+        self.add_module('conv1', nn.Conv2d(self.input_shape[0], 10, kernel_size=5))
         self.add_module('conv1_pool', nn.MaxPool2d(2))
         self.add_module('conv1_activation', nn.ReLU())
         self.add_module('conv2', nn.Conv2d(10, 10, kernel_size=5))

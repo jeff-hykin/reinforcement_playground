@@ -35,6 +35,7 @@ class ImageDecoder(nn.Module):
         self.add_module("conv2", nn.ConvTranspose2d(conv2_size, channel_count, kernel_size=5))
         self.add_module("conv2_activation", nn.Sigmoid())
         
+        print('shape_of_last_layer FINAL = ', self.shape_of_last_layer)
         # 
         # support (optimizer, loss)
         # 
@@ -45,6 +46,10 @@ class ImageDecoder(nn.Module):
     @property
     def size_of_last_layer(self):
         return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
+    
+    @property
+    def shape_of_last_layer(self):
+        return self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1]
         
     def forward(self, input_data):
         return Network.default_forward(self, input_data)

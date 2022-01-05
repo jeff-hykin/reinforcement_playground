@@ -335,7 +335,7 @@ def Network():
         for each_layer in self.children():
             # if its not a loss function
             if not isinstance(each_layer, torch.nn.modules.loss._Loss):
-                neuron_activations = each_layer(neuron_activations)
+                neuron_activations = each_layer.forward(neuron_activations)
         
         # force the output to be the correct shape
         return torch.reshape(neuron_activations, output_shape)

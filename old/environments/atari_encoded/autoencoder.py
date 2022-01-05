@@ -3,12 +3,12 @@ from tools.all_tools import *
 
 from torchvision import datasets, transforms
 from tools.basics import product
-from tools.pytorch_tools import Network
+from tools.pytorch_tools import Network, layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 
 # Encoder
-from agents.informed_vae.encoder import ImageEncoder
+from old.agents.informed_vae.encoder import ImageEncoder
 # Decoder
-from agents.informed_vae.decoder import ImageDecoder
+from old.agents.informed_vae.decoder import ImageDecoder
 # %%
 
 class ImageAutoEncoder(nn.Module):
@@ -45,7 +45,9 @@ class ImageAutoEncoder(nn.Module):
         return product(self.input_shape if len(self._modules) == 0 else layer_output_shapes(self._modules.values(), self.input_shape)[-1])
     
     def loss_function(self, model_output, ideal_output):
-        return F.mse_loss(model_output.to(self.hardware), ideal_output.to(self.hardware))
+        model_output = to_tensor(model_output).to(self.hardware)
+        ideal_output = opencv_image_to_torch_image(to_tensor(ideal_output).to(self.hardware))
+        return F.mse_loss(model_output, ideal_output)
     
     def encode(self, input_data):
         # convert if needed
@@ -56,6 +58,8 @@ class ImageAutoEncoder(nn.Module):
         latent_space = self.encoder.forward(input_data)
         return latent_space
         
+    @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
+    @forward.from_opencv_image_to_torch_image
     def forward(self, input_data):
         input_data.to(self.hardware)
         latent_space = self.encoder.forward(input_data)

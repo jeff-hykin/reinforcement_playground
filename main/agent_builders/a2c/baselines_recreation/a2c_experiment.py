@@ -2,8 +2,11 @@ from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
 from main.agent_builders.a2c.baselines_recreation.hacked_a2c import A2C
 from main.agent_builders.a2c.baselines_optimizer import RMSpropTFLike
+from old.environments.atari_encoded.autoencoder import ImageAutoEncoder
 
 from tools.debug import debug, ic
+from tools.all_tools import Countdown, to_tensor
+
 
 # There already exists an environment generator
 # that will make and wrap atari environments correctly.
@@ -20,7 +23,7 @@ env = VecFrameStack(
 )
 
 # 
-# train
+# load
 # 
 model = A2C(
     'CnnPolicy', # from atari optimized hyperparams
@@ -33,16 +36,31 @@ model = A2C(
         optimizer_kwargs=dict(eps=1e-5), # from atari optimized hyperparams
     ),
 )
-model.learn(
-    total_timesteps=10_000_000, # from atari optimized hyperparams
-) 
-model.save("baselines_10_000_000_model.ignore.zip")
-  
+model.load("baselines_10_000_000_model.ignore.zip")
+
+#   
+# setup encoder  
+#   
+batch_index = -1
+next_batch_triggered = Countdown(size=80)
+auto_encoder = ImageAutoEncoder(
+    input_shape=(4,84,84),
+    latent_shape=(512,),
+)
+
 # 
 # test
 # 
-obs = env.reset()
+observation = env.reset()
 while True:
-    action, _states = model.predict(obs)
-    obs, rewards, dones, info = env.step(action)
-    env.render()
+    batch_index += 1
+    auto_encoder.update_weights(
+        batch_of_inputs=observation,
+        batch_of_ideal_outputs=observation,
+        epoch_index=1,
+        batch_index=batch_index,
+    )
+    action, _states = model.predict(observation)
+    observation, rewards, dones, info = env.step(action)
+
+auto_encoder.save("autoencoder_1st.ignore.zip")
