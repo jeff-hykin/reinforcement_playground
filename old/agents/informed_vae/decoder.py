@@ -14,20 +14,25 @@ class ImageDecoder(nn.Module):
         # 
         Network.default_setup(self, config)
         self.input_shape     = config.get("input_shape"    , (10,))
-        self.output_shape    = config.get("output_shape"   , (1, 28, 28))
+        channel_count, *image_shape, = self.output_shape = config.get("output_shape"   , (1, 28, 28))
         
         # 
         # layers
         # 
         self.add_module("fn1", nn.Linear(self.size_of_last_layer, 400))
         self.add_module("fn1_activation", nn.ReLU(True))
-        self.add_module("fn2", nn.Linear(self.size_of_last_layer, 4000))
-        self.add_module("fn2_activation", nn.ReLU(True))
-        conv1_shape = [ 10, 20, 20 ] # needs to mupltiply together to be the size of the previous layer (currently 4000)
         conv2_size = 10
+        conv2_kernel_size = 5
+        conv1_kernel_size = 5
+        # element-wise subtraction because kernels add some size
+        conv1_image_shape = to_tensor(image_shape) - ((conv2_kernel_size-1) + (conv1_kernel_size-1))
+        conv1_image_shape_as_ints_cause_pytorch_is_really_picky = [ int(each) for each in conv1_image_shape ]
+        conv1_shape = [ conv2_size*channel_count, *conv1_image_shape_as_ints_cause_pytorch_is_really_picky ]
+        self.add_module("fn2", nn.Linear(self.size_of_last_layer, product(conv1_shape)))
+        self.add_module("fn2_activation", nn.ReLU(True))
         self.add_module("conv1_prep", nn.Unflatten(1, conv1_shape))
         self.add_module("conv1", nn.ConvTranspose2d(conv1_shape[0], conv2_size, kernel_size=5))
-        self.add_module("conv2", nn.ConvTranspose2d(conv2_size, 1, kernel_size=5))
+        self.add_module("conv2", nn.ConvTranspose2d(conv2_size, channel_count, kernel_size=5))
         self.add_module("conv2_activation", nn.Sigmoid())
         
         # 
