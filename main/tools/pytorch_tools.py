@@ -26,12 +26,13 @@ def layer_output_shapes(network, input_shape=None):
     # run a forward pass to figure it out
     neuron_activations = torch.ones((1, *input_shape))
     sizes = []
-    for layer in network:
-        # if its not a loss function
-        if not isinstance(layer, torch.nn.modules.loss._Loss):
-            neuron_activations = layer.forward(neuron_activations)
-            sizes.append(neuron_activations.size())
-    
+    with torch.no_grad():
+        for layer in network:
+            # if its not a loss function
+            if not isinstance(layer, torch.nn.modules.loss._Loss):
+                neuron_activations = layer.forward(neuron_activations)
+                sizes.append(neuron_activations.size())
+        
     return sizes
 
 def read_image(file_path):
@@ -211,8 +212,27 @@ def unnormalize(mean, std, image):
 
 import functools
 class Sequential(nn.Sequential):
+    def __init__(self, *args, **kwargs):
+        super(Sequential, self).__init__(*args)
+        self.input_shape = kwargs.get("input_shape", None)
+    
     def forward(self, neuron_activations):
         return functools.reduce((lambda x, each_layer: each_layer.forward(x)), self.children(), neuron_activations)
+    
+    @property
+    def layer_shapes(self):
+        return layer_output_shapes(self, self.input_shape)
+    
+    @property
+    def output_shape(self):
+        return self.input_shape if len(self) == 0 else self.layer_shapes[-1]
+    
+    @property
+    def output_size(self):
+        total = 1
+        for each in self.output_shape:
+            total *= each
+        return total
 
 # 
 # 
@@ -235,16 +255,23 @@ def init():
 
 @namespace
 def forward():
-    def to_device(function_being_wrapped):
-        def wrapper(self, input_data, *args, **kwargs):
-            # converts to torch if needed
-            if hasattr(self, "hardware"):
-                input_data = input_data.to(self.hardware)
-            elif hasattr(self, "device"):
-                input_data = input_data.to(self.device)
-            return function_being_wrapped(self, input_data, *args, **kwargs)
+    def all_args_to_device(function_being_wrapped):
+        def wrapper(self, *args, **kwargs):
+            new_args = []
+            for each in args:
+                # converts to torch if needed
+                if hasattr(self, "hardware"):
+                    new_args.append(each.to(self.hardware))
+                elif hasattr(self, "device"):
+                    new_args.append(each.to(self.device))
+            return function_being_wrapped(self, *new_args, **kwargs)
         return wrapper
-        
+    
+    def all_args_to_tensor():
+        def wrapper(self, *args, **kwargs):
+            return function_being_wrapped(self, *tuple(to_tensor(each) for each in args), **kwargs)
+        return wrapper
+    
     def to_batched_tensor(number_of_dimensions=4):
         """
         Arguments:
