@@ -4,6 +4,7 @@ from main.agent_builders.a2c.baselines_recreation.hacked_a2c import A2C
 from main.agent_builders.a2c.baselines_optimizer import RMSpropTFLike
 from old.environments.atari_encoded.autoencoder import ImageAutoEncoder
 
+import torch
 from tools.debug import debug, ic
 from tools.all_tools import Countdown, to_tensor
 
@@ -42,7 +43,7 @@ model.load("baselines_10_000_000_model.ignore.zip")
 # setup encoder  
 #   
 batch_index = -1
-next_batch_triggered = Countdown(size=80)
+next_batch_triggered = Countdown(size=500)
 auto_encoder = ImageAutoEncoder(
     input_shape=(4,84,84),
     latent_shape=(512,),
@@ -52,15 +53,19 @@ auto_encoder = ImageAutoEncoder(
 # test
 # 
 observation = env.reset()
-while True:
-    batch_index += 1
-    auto_encoder.update_weights(
-        batch_of_inputs=observation,
-        batch_of_ideal_outputs=observation,
-        epoch_index=1,
-        batch_index=batch_index,
-    )
-    action, _states = model.predict(observation)
-    observation, rewards, dones, info = env.step(action)
-
-auto_encoder.save("autoencoder_1st.ignore.zip")
+try:
+    while True:
+        batch_index += 1
+        auto_encoder.update_weights(
+            batch_of_inputs=observation,
+            batch_of_ideal_outputs=observation,
+            epoch_index=1,
+            batch_index=batch_index,
+        )
+        action, _states = model.predict(observation)
+        observation, rewards, dones, info = env.step(action)
+        if next_batch_triggered():
+            print('batch_index = ', batch_index)
+            torch.save(auto_encoder.state_dict(), "models.ignore/auto_encoder_2_billion.model")
+except Exception as error:
+    print("caught keyboard")
