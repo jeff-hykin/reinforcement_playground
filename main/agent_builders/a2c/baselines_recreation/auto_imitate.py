@@ -3,6 +3,10 @@ from tools.all_tools import *
 from tools.basics import product
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, Sequential, tensor_to_image
 
+
+all_args_to_tensor = forward.all_args_to_tensor
+all_args_to_device = forward.all_args_to_device
+
 class AutoImitator(nn.Module):
     @init.hardware
     def __init__(self, **config):
@@ -21,17 +25,19 @@ class AutoImitator(nn.Module):
         # layers
         # 
         self.layers = Sequential(input_shape=self.input_shape)
+        self.encoder = Sequential(input_shape=self.input_shape)
         # 1 input image, 10 output channels, 5x5 square convolution kernel
-        self.layers.add_module('conv1',            nn.Conv2d(self.input_shape[0], 10, kernel_size=5))
-        self.layers.add_module('conv1_pool',       nn.MaxPool2d(2))
-        self.layers.add_module('conv1_activation', nn.ReLU())
-        self.layers.add_module('conv2',            nn.Conv2d(10, 10, kernel_size=5))
-        self.layers.add_module('conv2_drop',       nn.Dropout2d())
-        self.layers.add_module('conv2_pool',       nn.MaxPool2d(2))
-        self.layers.add_module('conv2_activation', nn.ReLU())
-        self.layers.add_module('flatten',          nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module('fc1',              nn.Linear(self.layers.output_size, latent_size*2))
-        self.layers.add_module('fc1_activation',   nn.ReLU())
+        self.encoder.add_module('conv1',            nn.Conv2d(self.input_shape[0], 10, kernel_size=5))
+        self.encoder.add_module('conv1_pool',       nn.MaxPool2d(2))
+        self.encoder.add_module('conv1_activation', nn.ReLU())
+        self.encoder.add_module('conv2',            nn.Conv2d(10, 10, kernel_size=5))
+        self.encoder.add_module('conv2_drop',       nn.Dropout2d())
+        self.encoder.add_module('conv2_pool',       nn.MaxPool2d(2))
+        self.encoder.add_module('conv2_activation', nn.ReLU())
+        self.encoder.add_module('flatten',          nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
+        self.encoder.add_module('fc1',              nn.Linear(self.encoder.output_size, latent_size*2))
+        self.encoder.add_module('fc1_activation',   nn.ReLU())
+        self.layers.add_module('encoder',          self.encoder)
         self.layers.add_module('fc2',              nn.Linear(self.layers.output_size, latent_size))
         self.layers.add_module('fc2_activation',   nn.ReLU())
         self.layers.add_module('fc3',              nn.Linear(self.layers.output_size, int(latent_size/4)))
@@ -57,8 +63,8 @@ class AutoImitator(nn.Module):
         # 0 to 1 =>> -1 to 1
         return self.layers.forward(batch_of_inputs) * 2 - 1
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @all_args_to_tensor
+    @all_args_to_device
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.optimizer.zero_grad()
         batch_of_actual_outputs = self.forward(batch_of_inputs)
