@@ -1,7 +1,7 @@
 from tools.all_tools import *
 
 from tools.basics import product
-from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, Sequential
+from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, Sequential, tensor_to_image
 
 class Encoder(nn.Module):
     @init.hardware
@@ -37,7 +37,7 @@ class Encoder(nn.Module):
     @forward.all_args_to_tensor
     @forward.all_args_to_device
     def forward(self, batch_of_inputs):
-        return self.layers.forward(self, batch_of_inputs)
+        return self.layers.forward(batch_of_inputs)
     
 class Decoder(nn.Module):
     @init.hardware
@@ -84,7 +84,7 @@ class Decoder(nn.Module):
     @forward.all_args_to_tensor
     @forward.all_args_to_device
     def forward(self, batch_of_inputs):
-        return self.layers.forward(self, batch_of_inputs)
+        return self.layers.forward(batch_of_inputs)
     
 class ImageCoder(nn.Module):
     @init.hardware
@@ -134,3 +134,81 @@ class ImageCoder(nn.Module):
         loss.backward()
         self.optimizer.step()
         return loss
+
+
+import torchvision
+import torch
+import silver_spectacle as ss
+from tools.pytorch_tools import opencv_image_to_torch_image, read_image, torch_image_to_opencv_image, to_tensor, init, forward, Sequential, tensor_to_image
+randomize_image = Sequential(
+    torchvision.transforms.Pad(5, fill=0, padding_mode='constant'),
+    torchvision.transforms.RandomPerspective(distortion_scale=0.03, p=1, fill=0),
+    torchvision.transforms.ColorJitter(hue=.03, saturation=.03),
+    torchvision.transforms.RandomRotation(1),
+)
+img = read_image("img.ignore.png")[:3,:,:,] # remove the alpha channel 
+img_bumped = randomize_image(img)
+ss.DisplayCard("quickImage", torch_image_to_opencv_image(img))
+ss.DisplayCard("quickImage", torch_image_to_opencv_image(randomize_image(img)))
+
+from super_map import LazyDict
+class ImageQueBump(nn.Module):
+    @init.hardware
+    def __init__(self, **config):
+        super(ImageQueBump, self).__init__()
+    
+    def forward(self, several_images):
+        parameters = LazyDict(
+            padding_amount=0.03 * max(several_images.shape),
+            rotation=LazyDict(
+                max=5,
+                min=-5,
+                standard_deviation=3,
+            ),
+            translation=LazyDict(
+                max=12,
+                min=-12,
+                standard_deviation=5,
+            ),
+            perspective=LazyDict(
+                horizontal_shift=LazyDict(
+                    max=10, # percent
+                    min=-10,
+                ),
+                vertical_shift=LazyDict(
+                    max=10, # percent
+                    min=-10,
+                )
+            )
+        )
+        import torchvision.transforms.functional as F
+        for each_img in several_images:
+            F.rotate(
+                angle=5,
+                img=F.perspective(
+                    startpoints=[
+                        [x,y], # top-left
+                        [x,y], # top-right
+                        [x,y], # bottom-right
+                        [x,y], # bottom-left
+                    ],
+                    endpoints=[
+                        [x,y], # top-left
+                        [x,y], # top-right
+                        [x,y], # bottom-right
+                        [x,y], # bottom-left
+                    ],
+                    img=F.pad(
+                        padding=padding_amount,
+                        fill=0,
+                        padding_mode='constant',
+                        img=F.adjust_hue(
+                            hue_factor=0.05,
+                            img=each_img,
+                        ),
+                    ),
+                )
+            )
+            
+        return self.layers.forward(batch_of_inputs)
+    

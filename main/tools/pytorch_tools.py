@@ -48,16 +48,21 @@ def tensor_to_image(tensor):
 def opencv_image_to_torch_image(array):
     # 1, 210, 160, 3 => 1, 3, 210, 160
     tensor = to_tensor(array)
-    # single rgb image
-    if len(tensor.shape) == 3:
-        return tensor.permute(2, 0, 1)
-    # batched rgb image
-    elif len(tensor.shape) == 4:
-        return tensor.permute(0, 3, 1, 2)
-    else:
-        exception = Exception(f'opencv_image_to_torch_image expects an input with either 3 or 4 dimensions (4 = batched with the image as the last 3 dimensions)\nbut instead it got {len(array.shape)} dimensions a shape of {array.shape}')
-        exception.data = [array]
-        raise exception
+    dimension_count = len(tensor.shape)
+    new_shape = [ each for each in range(dimension_count) ]
+    height = new_shape[-3]
+    width = new_shape[-2]
+    channels = new_shape[-1]
+    new_shape[-3] = channels
+    new_shape[-2] = height
+    new_shape[-1] = width
+    return tensor.permute(*new_shape)
+
+def pil_image_to_opencv_image(image):
+    return numpy.array(image.convert('RGB') ) 
+
+def torch_image_to_opencv_image(tensor):
+    return pil_image_to_opencv_image(tensor_to_image(tensor))
 
 try:
     import numpy
@@ -267,7 +272,7 @@ def forward():
             return function_being_wrapped(self, *new_args, **kwargs)
         return wrapper
     
-    def all_args_to_tensor():
+    def all_args_to_tensor(function_being_wrapped):
         def wrapper(self, *args, **kwargs):
             return function_being_wrapped(self, *tuple(to_tensor(each) for each in args), **kwargs)
         return wrapper

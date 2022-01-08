@@ -2,11 +2,11 @@ from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
 from main.agent_builders.a2c.baselines_recreation.hacked_a2c import A2C
 from main.agent_builders.a2c.baselines_optimizer import RMSpropTFLike
-from old.environments.atari_encoded.autoencoder import ImageAutoEncoder
+from main.agent_builders.a2c.baselines_recreation.auto_imitate import AutoImitator
 
 import torch
 from tools.debug import debug, ic
-from tools.all_tools import Countdown, to_tensor
+from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image
 
 
 # There already exists an environment generator
@@ -40,32 +40,34 @@ model = A2C(
 model.load("baselines_10_000_000_model.ignore.zip")
 
 #   
-# setup encoder  
+# setup imitator  
 #   
 batch_index = -1
-next_batch_triggered = Countdown(size=500)
-auto_encoder = ImageAutoEncoder(
+next_batch_triggered = Countdown(size=1000)
+auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
+    output_shape=(1,),
 )
 
 # 
 # test
 # 
-observation = env.reset()
-try:
-    while True:
-        batch_index += 1
-        auto_encoder.update_weights(
-            batch_of_inputs=observation,
-            batch_of_ideal_outputs=observation,
-            epoch_index=1,
-            batch_index=batch_index,
-        )
-        action, _states = model.predict(observation)
-        observation, rewards, dones, info = env.step(action)
-        if next_batch_triggered():
-            print('batch_index = ', batch_index)
-            torch.save(auto_encoder.state_dict(), "models.ignore/auto_encoder_2_billion.model")
-except Exception as error:
-    print("caught keyboard")
+observations = env.reset()
+prev_actions = torch.ones((observations.shape[0],)) * 3
+while True:
+    batch_index += 1
+    actions, _states = model.predict(observations)
+    observations, rewards, dones, info = env.step(actions)
+    # -1, 0, 1
+    directions = torch.sign(to_tensor(prev_actions) - to_tensor(actions))
+    auto_imitator.update_weights(
+        batch_of_inputs=opencv_image_to_torch_image(observations),
+        batch_of_ideal_outputs=directions,
+        epoch_index=1,
+        batch_index=batch_index,
+    )
+    if next_batch_triggered():
+        print('batch_index = ', batch_index)
+        torch.save(auto_imitator.state_dict(), "models.ignore/auto_imitator.model")
+    prev_actions = actions
