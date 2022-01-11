@@ -7,6 +7,7 @@ from main.agent_builders.a2c.baselines_recreation.auto_imitate import AutoImitat
 import torch
 from tools.debug import debug, ic
 from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image
+import silver_spectacle as ss
 
 
 # There already exists an environment generator
@@ -43,12 +44,15 @@ model.load("baselines_10_000_000_model.ignore.zip")
 # setup imitator  
 #   
 batch_index = -1
-next_batch_triggered = Countdown(size=1000)
+next_group_triggered = Countdown(size=1000)
 auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
     output_shape=(1,),
+    path="models.ignore/auto_imitator.model",
 )
+single_group_performance = torch.zeros((next_group_triggered.size,))
+performance_log = []
 
 # 
 # test
@@ -58,16 +62,22 @@ prev_actions = torch.ones((observations.shape[0],)) * 3
 while True:
     batch_index += 1
     actions, _states = model.predict(observations)
+    direction_confidences = auto_imitator.forward(opencv_image_to_torch_image(observations))
     observations, rewards, dones, info = env.step(actions)
     # -1, 0, 1
     directions = torch.sign(to_tensor(prev_actions) - to_tensor(actions))
+    number_correct = (torch.sign(direction_confidences.detach().cpu()) == directions.detach().cpu()).sum()
+    single_group_performance[batch_index % next_group_triggered.size] = number_correct
     auto_imitator.update_weights(
         batch_of_inputs=opencv_image_to_torch_image(observations),
         batch_of_ideal_outputs=directions,
         epoch_index=1,
         batch_index=batch_index,
     )
-    if next_batch_triggered():
+    if next_group_triggered():
         print('batch_index = ', batch_index)
-        torch.save(auto_imitator.state_dict(), "models.ignore/auto_imitator.model")
+        performance_log.append(to_pure(single_group_performance.sum()))
+        auto_imitator.save()
     prev_actions = actions
+
+ss.DisplayCard("quickLine", )

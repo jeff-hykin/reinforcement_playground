@@ -17,6 +17,7 @@ class AutoImitator(nn.Module):
         self.input_shape     = config.get('input_shape'    , (1, 28, 28))
         self.latent_shape    = config.get('latent_shape'   , (512,))
         self.output_shape    = config.get('output_shape'   , (10,))
+        self.path            = config.get('path'           , None)
         self.learning_rate   = config.get('learning_rate'  , 0.001)
         self.momentum        = config.get('momentum'       , 0.5)
         
@@ -47,9 +48,16 @@ class AutoImitator(nn.Module):
         
         # optimizer
         self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        
+        # try to load from path if its given
+        if self.path:
+            try:
+                self.load()
+            except Exception as error:
+                pass
     
     
-    @forward.all_args_to_device
+    @forward.all_args_to_tensor
     @forward.all_args_to_device
     def loss_function(self, model_output, ideal_output):
         # convert to a 0 to 1 range
@@ -72,3 +80,9 @@ class AutoImitator(nn.Module):
         loss.backward()
         self.optimizer.step()
         return loss
+    
+    def save(self, path=None):
+        return torch.save(self.state_dict(), path or self.path)
+
+    def load(self, path=None):
+        return self.load_state_dict(torch.load(path or self.path))

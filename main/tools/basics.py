@@ -346,6 +346,7 @@ def Countdown(size):
             return True
         else:
             return False
+    countdown.size = size
     return countdown
 
 here = "os.path.dirname(__file__)"
