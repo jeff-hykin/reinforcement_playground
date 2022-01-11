@@ -6,7 +6,7 @@ from main.agent_builders.a2c.baselines_recreation.auto_imitate import AutoImitat
 
 import torch
 from tools.debug import debug, ic
-from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image
+from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image, to_pure
 import silver_spectacle as ss
 
 
@@ -52,6 +52,7 @@ auto_imitator = AutoImitator(
     path="models.ignore/auto_imitator.model",
 )
 single_group_performance = torch.zeros((next_group_triggered.size,))
+number_possible = 0
 performance_log = []
 
 # 
@@ -63,21 +64,26 @@ while True:
     batch_index += 1
     actions, _states = model.predict(observations)
     direction_confidences = auto_imitator.forward(opencv_image_to_torch_image(observations))
+    direction_confidences = torch.sign(direction_confidences.detach().cpu().squeeze())
     observations, rewards, dones, info = env.step(actions)
     # -1, 0, 1
-    directions = torch.sign(to_tensor(prev_actions) - to_tensor(actions))
-    number_correct = (torch.sign(direction_confidences.detach().cpu()) == directions.detach().cpu()).sum()
+    agent_directions = torch.sign(to_tensor(prev_actions) - to_tensor(actions))
+    agent_directions = agent_directions.detach().cpu()
+    equalities = (direction_confidences == agent_directions)
+    number_correct = equalities.sum()
     single_group_performance[batch_index % next_group_triggered.size] = number_correct
+    number_possible += len(direction_confidences)
     auto_imitator.update_weights(
         batch_of_inputs=opencv_image_to_torch_image(observations),
-        batch_of_ideal_outputs=directions,
+        batch_of_ideal_outputs=agent_directions,
         epoch_index=1,
         batch_index=batch_index,
     )
     if next_group_triggered():
         print('batch_index = ', batch_index)
-        performance_log.append(to_pure(single_group_performance.sum()))
-        auto_imitator.save()
+        performance_log.append(to_pure(single_group_performance.sum()/number_possible))
+        number_possible = 0
+        # auto_imitator.save()
     prev_actions = actions
 
 ss.DisplayCard("quickLine", performance_log)
