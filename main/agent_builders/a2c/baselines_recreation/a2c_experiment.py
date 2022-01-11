@@ -80,4 +80,4 @@ while True:
         auto_imitator.save()
     prev_actions = actions
 
-ss.DisplayCard("quickLine", )
+ss.DisplayCard("quickLine", performance_log)
