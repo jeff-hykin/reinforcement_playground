@@ -9,6 +9,7 @@ from tools.debug import debug, ic
 from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image, to_pure
 import tools.stat_tools as stat_tools
 import silver_spectacle as ss
+from statistics import mean as average
 
 
 # There already exists an environment generator
@@ -45,7 +46,7 @@ model.load("baselines_10_000_000_model.ignore.zip")
 # setup imitator  
 #   
 batch_index = -1
-next_group_triggered = Countdown(size=1000)
+next_group_triggered = Countdown(size=250)
 auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
@@ -54,8 +55,13 @@ auto_imitator = AutoImitator(
 )
 
 # 
-# test
+# train and record
 # 
+loss_card = ss.DisplayCard("quickLine", [0])
+ss.DisplayCard("quickMarkdown", "#### Losses")
+proportion_correct_card = ss.DisplayCard("quickLine", [0])
+ss.DisplayCard("quickMarkdown", "#### Proportion Correct")
+group_index = 0
 observations = env.reset()
 while True:
     batch_index += 1
@@ -71,7 +77,12 @@ while True:
         batch_index=batch_index,
     )
     if next_group_triggered():
-        print('batch_index = ', batch_index)
+        group_index += 1
+        average_correct = to_tensor(auto_imitator.logging.proportion_correct_at_index[-next_group_triggered.size:]).mean()
+        average_loss = to_tensor(auto_imitator.logging.loss_at_index[-next_group_triggered.size:]).mean()
+        print(f'batch_index: {batch_index}, average_correct: {average_correct}, average_loss: {average_loss}')
+        proportion_correct_card.send([group_index, average_correct])
+        loss_card.send([group_index, average_loss])
         auto_imitator.save()
 
-ss.DisplayCard("quickLine", stat_tools.rolling_average(AutoImitator.logging.proportion_correct_at_index, 100))
+ss.DisplayCard("quickLine", stat_tools.rolling_average(auto_imitator.logging.proportion_correct_at_index, 100))
