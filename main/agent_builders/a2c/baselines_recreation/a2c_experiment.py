@@ -2,7 +2,7 @@ from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
 from main.agent_builders.a2c.baselines_recreation.hacked_a2c import A2C
 from main.agent_builders.a2c.baselines_optimizer import RMSpropTFLike
-from main.agent_builders.a2c.baselines_recreation.auto_imitate import AutoImitator
+from main.networks.auto_imitator import AutoImitator
 
 import torch
 from tools.debug import debug, ic
