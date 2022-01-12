@@ -7,6 +7,7 @@ from main.agent_builders.a2c.baselines_recreation.auto_imitate import AutoImitat
 import torch
 from tools.debug import debug, ic
 from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image, to_pure
+import tools.stat_tools as stat_tools
 import silver_spectacle as ss
 
 
@@ -15,7 +16,7 @@ import silver_spectacle as ss
 # Here we are also multi-worker training (n_envs=16 => 16 environments)
 env = make_atari_env(
     'BreakoutNoFrameskip-v4',
-    n_envs=16, # from atari optimized hyperparams
+    n_envs=32, # from atari optimized hyperparams
     seed=0,
 )
 # Frame-stacking with 4 frames
@@ -48,42 +49,29 @@ next_group_triggered = Countdown(size=1000)
 auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
-    output_shape=(1,),
-    path="models.ignore/auto_imitator.model",
+    output_shape=(4,),
+    path="models.ignore/auto_imitator_2.model",
 )
-single_group_performance = torch.zeros((next_group_triggered.size,))
-number_possible = 0
-performance_log = []
 
 # 
 # test
 # 
 observations = env.reset()
-prev_actions = torch.ones((observations.shape[0],)) * 3
 while True:
     batch_index += 1
-    actions, _states = model.predict(observations)
-    direction_confidences = auto_imitator.forward(opencv_image_to_torch_image(observations))
-    direction_confidences = torch.sign(direction_confidences.detach().cpu().squeeze())
-    observations, rewards, dones, info = env.step(actions)
-    # -1, 0, 1
-    agent_directions = torch.sign(to_tensor(prev_actions) - to_tensor(actions))
-    agent_directions = agent_directions.detach().cpu()
-    equalities = (direction_confidences == agent_directions)
-    number_correct = equalities.sum()
-    single_group_performance[batch_index % next_group_triggered.size] = number_correct
-    number_possible += len(direction_confidences)
+    observations_in_torch_form = opencv_image_to_torch_image(observations)
+    
+    agent_actions, _states = model.predict(observations)
+    imitator_actions = auto_imitator.forward(observations_in_torch_form)
+    observations, rewards, dones, info = env.step(agent_actions)
     auto_imitator.update_weights(
-        batch_of_inputs=opencv_image_to_torch_image(observations),
-        batch_of_ideal_outputs=agent_directions,
+        batch_of_inputs=observations_in_torch_form,
+        batch_of_ideal_outputs=agent_actions,
         epoch_index=1,
         batch_index=batch_index,
     )
     if next_group_triggered():
         print('batch_index = ', batch_index)
-        performance_log.append(to_pure(single_group_performance.sum()/number_possible))
-        number_possible = 0
-        # auto_imitator.save()
-    prev_actions = actions
+        auto_imitator.save()
 
-ss.DisplayCard("quickLine", performance_log)
+ss.DisplayCard("quickLine", stat_tools.rolling_average(AutoImitator.logging.proportion_correct_at_index, 100))
