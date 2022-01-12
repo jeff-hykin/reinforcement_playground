@@ -13,17 +13,18 @@ import math
 from collections import defaultdict
 import functools
 from stable_baselines3.common.vec_env import VecFrameStack
-from gym.wrappers import AtariPreprocessing
 from stable_baselines3.common.env_util import make_atari_env
-
-from agent_builders.a2c.baselines_optimizer import RMSpropTFLike
-from agent_builders.a2c.frame_que import FrameQue
-from agent_builders.a2c.schedulers import LearningRateScheduler
+from gym.wrappers import AtariPreprocessing
 
 import tools.stat_tools as stat_tools
 from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
+
+from prefabs.baselines_optimizer import RMSpropTFLike
+from prefabs.frame_que import FrameQue
+from prefabs.schedulers import LearningRateScheduler
+from prefabs.fitness_trend_up import fitness_measurement_trend_up
 
 class Agent():
     @init.hardware

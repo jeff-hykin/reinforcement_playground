@@ -10,9 +10,10 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedul
 from stable_baselines3.common.utils import explained_variance
 
 from tools.debug import debug, ic
+from tools.agent_skeleton import Skeleton
 
 
-class Agent(OnPolicyAlgorithm):
+class Agent(OnPolicyAlgorithm, Skeleton):
     """
     Advantage Actor Critic (A2C)
 
@@ -78,7 +79,7 @@ class Agent(OnPolicyAlgorithm):
         _init_setup_model: bool = True,
     ):
         debug.self = self # FIXME: Debugging 
-        super(A2C, self).__init__(
+        super(Agent, self).__init__(
             policy,
             env,
             learning_rate=learning_rate,
@@ -210,6 +211,5 @@ class Agent(OnPolicyAlgorithm):
             reset_num_timesteps=reset_num_timesteps,
         )
     
-    def make_decision(self, observations):
-        agent_actions, _states = self.predict(observations)
-        return agent_actions
+    def when_timestep_starts(self, timestep_index):
+        self.action, _ = self.predict(self.observation)

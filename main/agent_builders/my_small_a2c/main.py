@@ -7,6 +7,7 @@ from super_map import LazyDict
 
 from tools.basics import product, flatten
 from tools.stat_tools import rolling_average
+from tools.agent_skeleton import Skeleton
 
 class Actor(nn.Module):
     def __init__(self, state_dim, n_actions):
@@ -38,7 +39,7 @@ class Critic(nn.Module):
         return self.model(X)
 
 
-class Agent():
+class Agent(Skeleton):
     def __init__(self, observation_space, action_space, **config):
         # 
         # special
