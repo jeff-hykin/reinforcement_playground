@@ -18,7 +18,6 @@ class AutoImitator(nn.Module):
         self.output_shape    = config.get('output_shape'   , (10,))
         self.path            = config.get('path'           , None)
         self.learning_rate   = config.get('learning_rate'  , 0.001)
-        self.momentum        = config.get('momentum'       , 0.5)
         
         latent_size = product(self.latent_shape)
         # 
@@ -31,22 +30,19 @@ class AutoImitator(nn.Module):
         self.encoder.add_module('conv1_pool',       nn.MaxPool2d(2))
         self.encoder.add_module('conv1_activation', nn.ReLU())
         self.encoder.add_module('conv2',            nn.Conv2d(10, 10, kernel_size=5))
-        self.encoder.add_module('conv2_drop',       nn.Dropout2d())
         self.encoder.add_module('conv2_pool',       nn.MaxPool2d(2))
         self.encoder.add_module('conv2_activation', nn.ReLU())
         self.encoder.add_module('flatten',          nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.encoder.add_module('fc1',              nn.Linear(self.encoder.output_size, latent_size*2))
+        self.encoder.add_module('fc1',              nn.Linear(self.encoder.output_size, latent_size))
         self.encoder.add_module('fc1_activation',   nn.ReLU())
         self.layers.add_module('encoder',          self.encoder)
-        self.layers.add_module('fc2',              nn.Linear(self.layers.output_size, latent_size))
-        self.layers.add_module('fc2_activation',   nn.ReLU())
         self.layers.add_module('fc3',              nn.Linear(self.layers.output_size, int(latent_size/4)))
         self.layers.add_module('fc3_activation',   nn.ReLU())
         self.layers.add_module('fc4',              nn.Linear(self.layers.output_size, product(self.output_shape)))
         self.layers.add_module('fc4_activation',   nn.Softmax(dim=0)) # TODO: this dim=0 has me worried about what it does during batching
         
         # optimizer
-        self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         
         # try to load from path if its given
         if self.path:
