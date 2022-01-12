@@ -209,3 +209,7 @@ class Agent(OnPolicyAlgorithm):
             eval_log_path=eval_log_path,
             reset_num_timesteps=reset_num_timesteps,
         )
+    
+    def make_decision(self, observations):
+        agent_actions, _states = self.predict(observations)
+        return agent_actions
