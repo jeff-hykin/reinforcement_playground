@@ -12,7 +12,7 @@ from stable_baselines3.common.utils import explained_variance
 from tools.debug import debug, ic
 
 
-class A2C(OnPolicyAlgorithm):
+class Agent(OnPolicyAlgorithm):
     """
     Advantage Actor Critic (A2C)
 
