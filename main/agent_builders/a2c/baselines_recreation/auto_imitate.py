@@ -54,10 +54,10 @@ class AutoImitator(nn.Module):
     @forward.all_args_to_tensor
     @forward.all_args_to_device
     def loss_function(self, model_output, ideal_output):
-        which_model_actions = model_output.detach().argmax(dim=-1)
-        which_ideal_actions = ideal_output
+        which_ideal_actions = ideal_output.long()
         # ideal output is vector of indicies, model_output is vector of one-hot vectors
-        loss = torch.nn.functional.cross_entropy(input=model_output, target=which_ideal_actions.long())
+        loss = torch.nn.functional.cross_entropy(input=model_output, target=which_ideal_actions)
+        which_model_actions = model_output.detach().argmax(dim=-1)
         self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions) )
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
