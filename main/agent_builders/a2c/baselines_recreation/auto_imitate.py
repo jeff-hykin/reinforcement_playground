@@ -13,9 +13,9 @@ class AutoImitator(nn.Module):
         # 
         # options
         # 
-        self.input_shape     = config.get('input_shape'    , (1, 28, 28))
+        self.input_shape     = config.get('input_shape'    , (4, 84, 84))
         self.latent_shape    = config.get('latent_shape'   , (512,))
-        self.output_shape    = config.get('output_shape'   , (10,))
+        self.output_shape    = config.get('output_shape'   , (4,))
         self.path            = config.get('path'           , None)
         self.learning_rate   = config.get('learning_rate'  , 0.001)
         
@@ -25,21 +25,19 @@ class AutoImitator(nn.Module):
         # 
         self.layers = Sequential(input_shape=self.input_shape)
         self.encoder = Sequential(input_shape=self.input_shape)
-        # 1 input image, 10 output channels, 5x5 square convolution kernel
-        self.encoder.add_module('conv1',            nn.Conv2d(self.input_shape[0], 10, kernel_size=5))
-        self.encoder.add_module('conv1_pool',       nn.MaxPool2d(2))
+        
+        self.encoder.add_module('conv1'           , nn.Conv2d(self.input_shape[0], 32, kernel_size=8, stride=4, padding=0))
         self.encoder.add_module('conv1_activation', nn.ReLU())
-        self.encoder.add_module('conv2',            nn.Conv2d(10, 10, kernel_size=5))
-        self.encoder.add_module('conv2_pool',       nn.MaxPool2d(2))
+        self.encoder.add_module('conv2'           , nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
         self.encoder.add_module('conv2_activation', nn.ReLU())
-        self.encoder.add_module('flatten',          nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.encoder.add_module('fc1',              nn.Linear(self.encoder.output_size, latent_size))
-        self.encoder.add_module('fc1_activation',   nn.ReLU())
-        self.layers.add_module('encoder',          self.encoder)
-        self.layers.add_module('fc3',              nn.Linear(self.layers.output_size, int(latent_size/4)))
-        self.layers.add_module('fc3_activation',   nn.ReLU())
-        self.layers.add_module('fc4',              nn.Linear(self.layers.output_size, product(self.output_shape)))
-        self.layers.add_module('fc4_activation',   nn.Softmax(dim=0)) # TODO: this dim=0 has me worried about what it does during batching
+        self.encoder.add_module('conv3'           , nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
+        self.encoder.add_module('conv3_activation', nn.ReLU())
+        self.encoder.add_module('flatten'         , nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
+        self.encoder.add_module('linear1'         , nn.Linear(in_features=self.encoder.output_size, out_features=latent_size, bias=True)) 
+        
+        self.layers.add_module('encoder', self.encoder)
+        self.layers.add_module('linear2'           , nn.Linear(in_features=latent_size, out_features=product(self.output_shape), bias=True),)
+        self.layers.add_module('linear2_activation', nn.Softmax(dim=0))
         
         # optimizer
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
