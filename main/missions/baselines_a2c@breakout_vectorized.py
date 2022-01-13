@@ -7,6 +7,7 @@ from stable_baselines3.common.vec_env import VecFrameStack
 from tools.debug import debug, ic
 from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image, to_pure
 import tools.stat_tools as stat_tools
+from tools.agent_recorder import AgentRecorder
 
 from world_builders.atari.baselines_vectorized import Environment
 from agent_builders.baselines_a2c.main import Agent
