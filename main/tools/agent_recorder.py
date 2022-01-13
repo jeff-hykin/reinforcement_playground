@@ -4,7 +4,6 @@ import os
 import math
 import json
 import random
-# resources/datasets.ignore/atari
 
 class AgentRecorder():
     def __init__(self, save_to):
@@ -19,12 +18,11 @@ class AgentRecorder():
         self.data_file_extension = ".data.pickle"
         self.metadata_file_extension = ".metadata.json"
     
-    def save(self, observations, actions):
-        for each_observation, each_action in zip(observations, actions):
-            self.previous_index += 1
-            large_pickle_save((each_observation, each_action), self.save_to+f"/{self.previous_index}{self.data_file_extension}")
-            with open(self.save_to+f"/{self.previous_index}{self.metadata_file_extension}", 'w') as outfile:
-                json.dump(to_pure(each_action), outfile)
+    def save(self, observation, action):
+        self.previous_index += 1
+        large_pickle_save((observation, action), self.save_to+f"/{self.previous_index}{self.data_file_extension}")
+        with open(self.save_to+f"/{self.previous_index}{self.metadata_file_extension}", 'w') as outfile:
+            json.dump(to_pure(action), outfile)
     
     def load_data(self):
         for each_name in self.names():
