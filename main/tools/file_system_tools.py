@@ -15,7 +15,7 @@ class FileSystem():
     @classmethod
     def write(self, data, to=None):
         # make sure the path exists
-        FileSystem.makedirs(os.path.dirname(to))
+        FileSystem.touch_folder(os.path.dirname(to))
         with open(to, 'w') as the_file:
             the_file.write(str(data))
     
@@ -41,7 +41,7 @@ class FileSystem():
     @classmethod
     def makedirs(self, path):
         try:
-            os.makedirs(path)
+            os.makedirs(path, exist_ok=True)
         except:
             pass
         
@@ -58,7 +58,7 @@ class FileSystem():
         if force and FileSystem.exists(to):
             FileSystem.delete(to)
         # make sure the containing folder exists
-        FileSystem.makedirs(os.path.dirname(to))
+        FileSystem.touch_folder(os.path.dirname(to))
         if os.path.isdir(from_):
             shutil.copytree(from_, to)
         else:
@@ -74,7 +74,7 @@ class FileSystem():
         # get the full path
         to = os.path.join(to, new_name)
         # make sure the containing folder exists
-        FileSystem.makedirs(os.path.dirname(to))
+        FileSystem.touch_folder(os.path.dirname(to))
         shutil.move(from_, to)
     
     @classmethod
@@ -118,13 +118,28 @@ class FileSystem():
 
     @classmethod
     def touch(self, path):
-        FileSystem.makedirs(FileSystem.dirname(path))
-        if not FileSystem.exists(path):
+        FileSystem.touch_folder(FileSystem.dirname(path))
+        if not FileSystem.is_file(path):
+            FileSystem.delete(path)
             FileSystem.write("", to=path)
     
     @classmethod
-    def touch_dir(self, path):
-        FileSystem.makedirs(path)
+    def touch_folder(self, path):
+        if not FileSystem.is_folder(path):
+            FileSystem.delete(path)
+        os.makedirs(path, exist_ok=True)
+
+    @classmethod
+    def touch_dir(self, *args):
+        FileSystem.touch_folder(*args)
+    
+    @classmethod
+    def ensure_is_file(self, *args):
+        FileSystem.touch_file(*args)
+    
+    @classmethod
+    def ensure_is_folder(self, *args):
+        FileSystem.touch_folder(*args)
     
     @classmethod
     def dirname(self, path):
