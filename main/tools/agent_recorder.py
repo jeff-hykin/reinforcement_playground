@@ -41,6 +41,7 @@ class AgentRecorder():
         # FIXME uniformly random sample from action space
         
         remaining_indicies = set(self.indicies())
+        total = math.floor(len(remaining_indicies) / batch_size)
         batch_index = -1
         while len(remaining_indicies) > batch_size:
             batch_index += 1
@@ -56,7 +57,7 @@ class AgentRecorder():
             # do any compression/decompression/augmentation stuff
             batch = preprocessing(batch)
             # save it
-            print(f'saving batch {batch_index}')
+            print(f'saving batch {batch_index}/{total}')
             large_pickle_save(batch, f"{batch_path}/{batch_index}")
     
     def load_batch_data(self, batch_name):
@@ -67,16 +68,14 @@ class AgentRecorder():
             yield large_pickle_load(each)
     
     def names(self,):
-        file_pieces = tuple( FileSystem.path_pieces(each) for each in FileSystem.list_files(self.save_to) )
-        names = tuple( file_name for *folders, file_name, file_extension in file_pieces )
-        return names
+        return ( each.split(".")[0] for each in FileSystem.list_files(self.save_to) )
     
     def indicies(self, ):
         # negative 1 is encase the folder is empty
-        return tuple( int(each) for each in self.names() )
+        return ( int(each) for each in self.names() )
     
     def largest_index(self, ):
-        indicies = self.indicies()
+        indicies = tuple(self.indicies())
         if len(indicies) > 0:
             return max(indicies)
         else:
