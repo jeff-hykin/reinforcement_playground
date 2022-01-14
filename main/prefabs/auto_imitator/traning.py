@@ -7,19 +7,14 @@ from prefabs.auto_imitator import AutoImitator
 
 database = AgentRecorder(save_to="resources/datasets.ignore/atari/baselines_pretrained@vectorized_breakout")
 def learning_rate(timestep_index):
-    if timestep_index < 8000:
-        return 0.000097
-    # elif timestep_index < 16000:
-    #     return 0.000001
-    else:
-        return 0.00003
-        # return 0.0000005
+    return 0.000197 - (timestep_index * 0.0001 * 0.00004)
+
 auto_imitator = AutoImitator(
     learning_rate=learning_rate,
     input_shape=(4,84,84),
     latent_shape=(512,),
     output_shape=(4,),
-    path="models.ignore/auto_imitator_offline_8.model",
+    path="models.ignore/auto_imitator_offline_9.model",
 )
 
 logging = LazyDict(
