@@ -14,7 +14,9 @@ database = AgentRecorder(save_to="resources/datasets.ignore/atari/baselines_pret
 # 
 training_number = 0
 def train(base_learning_rate):
+    global training_number
     training_number += 1
+    
     def learning_rate(timestep_index):
         return base_learning_rate - (timestep_index * 0.0001 * 0.00004)
 
@@ -37,7 +39,7 @@ def train(base_learning_rate):
     )
 
     for index, (observations, actions) in enumerate(database.load_batch_data("64")):
-        if logging.should_print(): print(f'batch {index+1}/{database.batch_size}')
+        if logging.should_print(): print(f'trial: {training_number}, base_learning_rate: {base_learning_rate}, batch {index+1}/{database.batch_size}')
         auto_imitator.update_weights(
             batch_of_inputs=opencv_image_to_torch_image(observations),
             batch_of_ideal_outputs=actions,
@@ -50,6 +52,8 @@ def train(base_learning_rate):
             logging.update_loss(auto_imitator.logging.loss_at_index)
             auto_imitator.save()
     
+    smoothed_correctness = tuple(average(to_pure(each)) for each in bundle(auto_imitator.logging.proportion_correct_at_index, bundle_size=logging.smoothing_size))
+    print(f'training_number = {training_number}, max stable correctness: {max(smoothed_correctness)}')
     return auto_imitator
 
 
@@ -58,16 +62,16 @@ def train(base_learning_rate):
 # tuner
 # 
 #
-def tune_hyperparams(number_of_episodes_per_trial=100_000, fitness_func=trend_up):
+def tune_hyperparams(number_of_trials, fitness_func):
     import optuna
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         train(
-            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.0005, 0.00001),
+            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00001, 0.0005),
         ).logging.proportion_correct_at_index
     )
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective_func, n_trials=100)
+    study.optimize(objective_func, n_trials=number_of_trials)
     return study
 
 # 
@@ -75,4 +79,4 @@ def tune_hyperparams(number_of_episodes_per_trial=100_000, fitness_func=trend_up
 # run
 # 
 # 
-study = tune_hyperparams
+study = tune_hyperparams(number_of_trials=100, fitness_func=trend_up)
