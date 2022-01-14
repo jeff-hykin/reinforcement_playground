@@ -8,6 +8,7 @@ from prefabs.auto_imitator import AutoImitator
 from prefabs.helpful_fitness_measures import trend_up
 
 database = AgentRecorder(save_to="resources/datasets.ignore/atari/baselines_pretrained@vectorized_breakout")
+# best so far, starts with learning_rate of 0.00022752556564934162, gets 0.559375
 
 # 
 # training
@@ -18,9 +19,10 @@ def train(base_learning_rate):
     training_number += 1
     
     def learning_rate(timestep_index):
-        # reduce by 1.5 orders of magnitude over time
-        min_rate = base_learning_rate/(10 * 1.5)
-        return min_rate + ((database.size-timestep_index)/database.size * base_learning_rate)
+        # reduce by orders of magnitude over time
+        min_rate = base_learning_rate/(10 * 1)
+        flexible_part = base_learning_rate - min_rate
+        return min_rate + ((database.size-timestep_index)/database.size * flexible_part)
     
     auto_imitator = AutoImitator(
         learning_rate=learning_rate,
