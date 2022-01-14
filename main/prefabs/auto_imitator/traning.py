@@ -18,8 +18,10 @@ def train(base_learning_rate):
     training_number += 1
     
     def learning_rate(timestep_index):
-        return base_learning_rate - (timestep_index * 0.0001 * 0.00004)
-
+        # reduce by 1.5 orders of magnitude over time
+        min_rate = base_learning_rate/(10 * 1.5)
+        return min_rate + ((database.size-timestep_index)/database.size * base_learning_rate)
+    
     auto_imitator = AutoImitator(
         learning_rate=learning_rate,
         input_shape=(4,84,84),
@@ -39,7 +41,7 @@ def train(base_learning_rate):
     )
 
     for index, (observations, actions) in enumerate(database.load_batch_data("64")):
-        if logging.should_print(): print(f'trial: {training_number}, base_learning_rate: {base_learning_rate}, batch {index+1}/{database.batch_size}')
+        if logging.should_print(): print(f'trial: {training_number}, learning_rate: {learning_rate(index)}, batch {index+1}/{database.batch_size}')
         auto_imitator.update_weights(
             batch_of_inputs=opencv_image_to_torch_image(observations),
             batch_of_ideal_outputs=actions,
@@ -54,7 +56,7 @@ def train(base_learning_rate):
     
     smoothed_correctness = tuple(average(to_pure(each)) for each in bundle(auto_imitator.logging.proportion_correct_at_index, bundle_size=logging.smoothing_size))
     print(f'training_number = {training_number}, max stable correctness: {max(smoothed_correctness)}')
-    return auto_imitator
+    return smoothed_correctness
 
 
 # 
@@ -67,8 +69,8 @@ def tune_hyperparams(number_of_trials, fitness_func):
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         train(
-            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00001, 0.0005),
-        ).logging.proportion_correct_at_index
+            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00001, 0.0003),
+        )
     )
     study = optuna.create_study(direction="maximize")
     study.optimize(objective_func, n_trials=number_of_trials)
