@@ -21,7 +21,7 @@ from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 from tools.frame_que import FrameQue
-from tools.schedulers import LearningRateScheduler
+from tools.schedulers import AgentLearningRateScheduler
 
 from prefabs.baselines_optimizer import RMSpropTFLike
 from prefabs.helpful_fitness_measures import trend_up

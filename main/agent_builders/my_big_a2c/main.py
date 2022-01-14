@@ -21,7 +21,7 @@ from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 from tools.pytorch_tools import layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 from tools.frame_que import FrameQue
-from tools.schedulers import LearningRateScheduler
+from tools.schedulers import AgentLearningRateScheduler
 
 from prefabs.baselines_optimizer import RMSpropTFLike
 from prefabs.fitness_trend_up import fitness_measurement_trend_up
@@ -58,7 +58,7 @@ class Agent():
         self.connection_size = 512 # neurons
         self.model = Agent.Network(input_shape=observation_space.shape, latent_size=self.connection_size, dropout_rate=self.dropout_rate)
         self.rms_optimizer = RMSpropTFLike(self.model.parameters(), lr=0, alpha=0.99, eps=1e-5, weight_decay=0, momentum=0, centered=False,) # 1e-5 was a tuned parameter from stable baselines for a2c on atari
-        self.learning_rate_scheduler = LearningRateScheduler(
+        self.learning_rate_scheduler = AgentLearningRateScheduler(
             value_function=self.learning_rate,
             optimizers=[ self.rms_optimizer ],
         )

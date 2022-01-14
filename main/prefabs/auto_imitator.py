@@ -4,6 +4,7 @@ from tools.all_tools import *
 
 from tools.basics import product
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, Sequential, tensor_to_image
+from tools.schedulers import BasicLearningRateScheduler
 
 class AutoImitator(nn.Module):
     @init.hardware
@@ -40,7 +41,13 @@ class AutoImitator(nn.Module):
         self.layers.add_module('linear2_activation', nn.Softmax(dim=0))
         
         # optimizer
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=1)
+        
+        # learning rate scheduler
+        self.learning_rate_scheduler = BasicLearningRateScheduler(
+            value_function=self.learning_rate,
+            optimizers=[ self.optimizer ],
+        )
         
         # try to load from path if its given
         if self.path:
@@ -63,6 +70,7 @@ class AutoImitator(nn.Module):
     @forward.all_args_to_tensor
     @forward.all_args_to_device
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+        self.learning_rate_scheduler.when_weight_update_starts()
         self.optimizer.zero_grad()
         batch_of_actual_outputs = self.forward(batch_of_inputs)
         loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
