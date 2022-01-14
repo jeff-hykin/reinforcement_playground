@@ -10,27 +10,33 @@ class AgentRecorder():
         self.save_to = FileSystem.absolute_path(save_to)
         # create if doesnt exist
         FileSystem.ensure_is_folder(save_to)
-        # find where we left off
-        self.previous_index = self.largest_index()
-        if self.previous_index is None:
-            self.previous_index = -1
-        
-        self.data_file_extension = ".data.pickle"
-        self.metadata_file_extension = ".metadata.json"
+        self._size = None
+        self._data_file_extension = ".data.pickle"
+        self._metadata_file_extension = ".metadata.json"
+    
+    @property
+    def size(self):
+        if self._size == None:
+            self._size = self.largest_index()
+            if self._size is None:
+                self._size = 0
+            else:
+                self._size += 1
+        return self._size
     
     def save(self, observation, action):
-        self.previous_index += 1
-        large_pickle_save((observation, action), self.save_to+f"/{self.previous_index}{self.data_file_extension}")
-        with open(self.save_to+f"/{self.previous_index}{self.metadata_file_extension}", 'w') as outfile:
+        large_pickle_save((observation, action), self.save_to+f"/{self.size}{self._data_file_extension}")
+        with open(self.save_to+f"/{self.size}{self._metadata_file_extension}", 'w') as outfile:
             json.dump(to_pure(action), outfile)
+        self._size += 1
     
     def load_data(self):
         for each_name in self.names():
-            yield large_pickle_load(self.save_to+f"/{each_name}{self.data_file_extension}")
+            yield large_pickle_load(self.save_to+f"/{each_name}{self._data_file_extension}")
 
     def load_metadata(self):
         for each_name in self.names():
-            with open(self.save_to+f"/{each_name}{self.metadata_file_extension}", 'r') as in_file:
+            with open(self.save_to+f"/{each_name}{self._metadata_file_extension}", 'r') as in_file:
                 yield json.load(in_file)
     
     def create_batch_data(self, batch_name, batch_size, preprocessing=lambda each:each):
@@ -52,7 +58,7 @@ class AgentRecorder():
             # load all the ones in the batch
             for each_index in entries:
                 batch.append(
-                    large_pickle_load(self.save_to+f"/{each_index}{self.data_file_extension}")
+                    large_pickle_load(self.save_to+f"/{each_index}{self._data_file_extension}")
                 )
             # do any compression/decompression/augmentation stuff
             batch = preprocessing(batch)
@@ -61,11 +67,11 @@ class AgentRecorder():
             large_pickle_save(batch, f"{batch_path}/{batch_index}")
     
     def load_batch_data(self, batch_name):
-        # create folder for batch
         batch_path = f"{self.save_to}/{batch_name}"
-        batch_names = FS.list_files(batch_path)
+        batch_names = FileSystem.list_files(batch_path)
+        self.batch_size = len(batch_names)
         for each in batch_names:
-            yield large_pickle_load(each)
+            yield large_pickle_load(f'{batch_path}/{each}')
     
     def names(self,):
         return ( each.split(".")[0] for each in FileSystem.list_files(self.save_to) )
