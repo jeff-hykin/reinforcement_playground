@@ -78,11 +78,7 @@ class FileSystem():
         shutil.move(from_, to)
     
     @classmethod
-    def exists(self, *args):
-        return FileSystem.does_exist(*args)
-    
-    @classmethod
-    def does_exist(self, path):
+    def exists(self, path):
         return os.path.exists(path)
     
     @classmethod

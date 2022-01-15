@@ -5,11 +5,25 @@ from tools.all_tools import *
 from tools.agent_recorder import AgentRecorder
 from prefabs.auto_imitator import AutoImitator
 
-from prefabs.helpful_fitness_measures import trend_up
+from prefabs.helpful_fitness_measures import trend_up, average
 
 database = AgentRecorder(save_to="resources/datasets.ignore/atari/baselines_pretrained@vectorized_breakout")
 # best so far, starts with learning_rate of 0.00022752556564934162, gets 0.559375
+# 0.00009873062729, 0.5520833333333334
+# 0.000275410365795725, 0.5477294921875
 
+logging = LazyDict(
+    smoothing_size=128,
+    should_log=Countdown(size=1000),
+    should_print=Countdown(size=100),
+    correctness_card=ss.DisplayCard("quickLine", []),
+    loss_card=ss.DisplayCard("quickLine", []),
+    name_card=ss.DisplayCard("quickMarkdown", f""),
+    update_name_card=lambda info: name_card.send(info), 
+    update_correctness=lambda data: logging.correctness_card.send("clear").send(tuple(((index+1)*logging.smoothing_size, each) for index, each in enumerate(tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size))))),
+    update_loss=lambda        data: logging.loss_card.send(       "clear").send(tuple(((index+1)*logging.smoothing_size, each) for index, each in enumerate(tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size))))),
+)
+    
 # 
 # training
 # 
@@ -29,17 +43,7 @@ def train(base_learning_rate):
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
-        path=f"models.ignore/auto_imitator_hypertuning_{training_number}.model",
-    )
-
-    logging = LazyDict(
-        smoothing_size=128,
-        should_log=Countdown(size=1000),
-        should_print=Countdown(size=100),
-        correctness_card=ss.DisplayCard("quickLine", []),
-        loss_card=ss.DisplayCard("quickLine", []),
-        update_correctness=lambda data: logging.correctness_card.send("clear").send(tuple(((index+1)*logging.smoothing_size, each) for index, each in enumerate(tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size))))),
-        update_loss=lambda        data: logging.loss_card.send(       "clear").send(tuple(((index+1)*logging.smoothing_size, each) for index, each in enumerate(tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size))))),
+        path=f"models.ignore/auto_imitator_hypertuning_2_{base_learning_rate}.model",
     )
 
     for index, (observations, actions) in enumerate(database.load_batch_data("64")):
@@ -71,7 +75,7 @@ def tune_hyperparams(number_of_trials, fitness_func):
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         train(
-            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00001, 0.0003),
+            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00009, 0.0003),
         )
     )
     study = optuna.create_study(direction="maximize")
@@ -83,4 +87,4 @@ def tune_hyperparams(number_of_trials, fitness_func):
 # run
 # 
 # 
-study = tune_hyperparams(number_of_trials=100, fitness_func=trend_up)
+study = tune_hyperparams(number_of_trials=100, fitness_func=max)
