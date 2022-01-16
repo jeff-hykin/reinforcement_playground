@@ -103,6 +103,19 @@ class PixelNormalization(gym.ObservationWrapper):
     def observation(self, obs):
         return np.array(obs).astype(np.float32) / 255.0
 
+class TensorWrap(gym.ObservationWrapper):
+    """
+        Wrap/Unwrap tensors
+    """
+    def step(self, action):
+        next_state, reward, episode_is_over, info = self.env.step(int(action[0]))
+        next_state = torch.Tensor([next_state])
+        reward = torch.tensor([reward]).unsqueeze(0)
+        episode_is_over = torch.tensor([int(episode_is_over)]).unsqueeze(0)
+        return next_state, reward, episode_is_over, info
+    
+    def observation(self, obs):
+        return torch.Tensor([obs])
 
 def create_env(env):
     env = MaxAndSkipEnv(env)
@@ -110,5 +123,6 @@ def create_env(env):
     env = ImageToPyTorch(env)
     env = BufferWrapper(env, 4)
     env = PixelNormalization(env)
+    env = TensorWrap(env)
     return env
     

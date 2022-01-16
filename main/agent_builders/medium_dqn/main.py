@@ -9,6 +9,8 @@ import collections
 import cv2
 import time
 
+from tools.agent_skeleton import Skeleton
+
 class Network(nn.Module):
     """
     Convolutional Neural Net with 3 conv layers and two linear layers
@@ -39,8 +41,10 @@ class Network(nn.Module):
         conv_out = self.conv(x).view(x.size()[0], -1)
         return self.fc(conv_out)
 
-class Agent:
-    def __init__(self, state_space, action_space, max_memory_size, batch_size, gamma, lr, dropout, exploration_max, exploration_min, exploration_decay, pretrained, path):
+class Agent(Skeleton):
+    def __init__(self, state_space, action_space, max_memory_size, batch_size, gamma, lr, dropout, exploration_max, exploration_min, exploration_decay, pretrained, path, training_mode):
+        self.training_mode = training_mode
+        self.path = path
 
         # Define DQN Layers
         self.state_space = state_space
@@ -52,20 +56,20 @@ class Agent:
         self.dqn = Network(state_space, action_space).to(self.device)
 
         if self.pretrained:
-            self.dqn.load_state_dict(torch.load(path+"DQN.pt", map_location=torch.device(self.device)))
+            self.dqn.load_state_dict(torch.load(self.path+"DQN.pt", map_location=torch.device(self.device)))
         self.optimizer = torch.optim.Adam(self.dqn.parameters(), lr=lr)
 
         # Create memory
         self.max_memory_size = max_memory_size
         if self.pretrained:
-            self.STATE_MEM = torch.load(path+"STATE_MEM.pt")
-            self.ACTION_MEM = torch.load(path+"ACTION_MEM.pt")
-            self.REWARD_MEM = torch.load(path+"REWARD_MEM.pt")
-            self.STATE2_MEM = torch.load(path+"STATE2_MEM.pt")
-            self.DONE_MEM = torch.load(path+"DONE_MEM.pt")
-            with open(path+"ending_position.pkl", 'rb') as f:
+            self.STATE_MEM = torch.load(self.path+"STATE_MEM.pt")
+            self.ACTION_MEM = torch.load(self.path+"ACTION_MEM.pt")
+            self.REWARD_MEM = torch.load(self.path+"REWARD_MEM.pt")
+            self.STATE2_MEM = torch.load(self.path+"STATE2_MEM.pt")
+            self.DONE_MEM = torch.load(self.path+"DONE_MEM.pt")
+            with open(self.path+"ending_position.pkl", 'rb') as f:
                 self.ending_position = pickle.load(f)
-            with open(path+"num_in_queue.pkl", 'rb') as f:
+            with open(self.path+"num_in_queue.pkl", 'rb') as f:
                 self.num_in_queue = pickle.load(f)
         else:
             self.STATE_MEM = torch.zeros(max_memory_size, *self.state_space)
@@ -85,6 +89,12 @@ class Agent:
         self.exploration_rate = exploration_max
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
+        
+        # logging
+        self.total_rewards = []
+        if self.training_mode and self.pretrained:
+            with open(path+"total_rewards.pkl", 'rb') as f:
+                self.total_rewards = pickle.load(f)
 
     def remember(self, state, action, reward, state2, done):
         """Store the experiences in a buffer to use later"""
@@ -139,4 +149,53 @@ class Agent:
         # Makes sure that exploration rate is always at least 'exploration min'
         self.exploration_rate = max(self.exploration_rate, self.exploration_min)
 
+    def save(self):
+        if self.training_mode:
+            with open(self.path+"ending_position.pkl", "wb") as f:
+                pickle.dump(self.ending_position, f)
+            with open(self.path+"num_in_queue.pkl", "wb") as f:
+                pickle.dump(self.num_in_queue, f)
+            with open(self.path+"total_rewards.pkl", "wb") as f:
+                pickle.dump(self.total_rewards, f)
 
+            torch.save(self.dqn.state_dict(), self.path+"DQN.pt")  
+            torch.save(self.STATE_MEM,  self.path+"STATE_MEM.pt")
+            torch.save(self.ACTION_MEM, self.path+"ACTION_MEM.pt")
+            torch.save(self.REWARD_MEM, self.path+"REWARD_MEM.pt")
+            torch.save(self.STATE2_MEM, self.path+"STATE2_MEM.pt")
+            torch.save(self.DONE_MEM,   self.path+"DONE_MEM.pt")
+    
+    
+    # 
+    # hooks (special names)
+    # 
+    def when_mission_starts(self, mission_index=0):
+        pass
+    
+    def when_episode_starts(self, episode_index):
+        self.total_reward = 0
+    
+    def when_timestep_starts(self, timestep_index):
+        self.action = self.act(self.observation)
+        self.prev_observation = self.observation
+    
+    def when_timestep_ends(self, timestep_index):
+        if self.training_mode:
+            self.remember(self.prev_observation, self.action, self.reward, self.observation, self.episode_is_over)
+            self.experience_replay()
+        
+        self.total_reward += self.reward
+    
+    def when_episode_ends(self, episode_index):
+        self.total_rewards.append(self.total_reward)
+        
+        if episode_index != 0 and episode_index % 100 == 0:
+            print("Episode {} score = {}, average score = {}".format(episode_index + 1, self.total_rewards[-1], np.mean(self.total_rewards)))
+    
+    def when_mission_ends(self, mission_index=0):
+        pass
+    
+    def update_weights(self):
+        pass
+        
+    
