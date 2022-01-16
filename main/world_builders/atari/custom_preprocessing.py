@@ -109,7 +109,6 @@ def preprocess(env, frame_buffer_size, frame_sample_rate):
             return self.observation(self.env.reset())
 
         def observation(self, observation):
-            print('self.buffer.shape = ', self.buffer.shape)
             self.buffer[:-1] = self.buffer[1:]
             self.buffer[-1] = observation
             return self.buffer
