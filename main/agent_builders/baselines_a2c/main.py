@@ -9,51 +9,53 @@ from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance
 
+from time import time
+from super_map import LazyDict
+
 from tools.debug import debug, ic
 from tools.agent_skeleton import Skeleton
 
 
 class Agent(OnPolicyAlgorithm, Skeleton):
     """
-    Advantage Actor Critic (A2C)
+        Advantage Actor Critic (A2C)
 
-    Paper: https://arxiv.org/abs/1602.01783
-    Code: This implementation borrows code from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail and
-    and Stable Baselines (https://github.com/hill-a/stable-baselines)
+        Paper: https://arxiv.org/abs/1602.01783
+        Code: This implementation borrows code from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail and
+        and Stable Baselines (https://github.com/hill-a/stable-baselines)
 
-    Introduction to A2C: https://hackernoon.com/intuitive-rl-intro-to-advantage-actor-critic-a2c-4ff545978752
+        Introduction to A2C: https://hackernoon.com/intuitive-rl-intro-to-advantage-actor-critic-a2c-4ff545978752
 
-    :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
-    :param env: The environment to learn from (if registered in Gym, can be str)
-    :param learning_rate: The learning rate, it can be a function
-        of the current progress remaining (from 1 to 0)
-    :param n_steps: The number of steps to run for each environment per update
-        (i.e. batch size is n_steps * n_env where n_env is number of environment copies running in parallel)
-    :param gamma: Discount factor
-    :param gae_lambda: Factor for trade-off of bias vs variance for Generalized Advantage Estimator
-        Equivalent to classic advantage when set to 1.
-    :param ent_coef: Entropy coefficient for the loss calculation
-    :param vf_coef: Value function coefficient for the loss calculation
-    :param max_grad_norm: The maximum value for the gradient clipping
-    :param rms_prop_eps: RMSProp epsilon. It stabilizes square root computation in denominator
-        of RMSProp update
-    :param use_rms_prop: Whether to use RMSprop (default) or Adam as optimizer
-    :param use_sde: Whether to use generalized State Dependent Exploration (gSDE)
-        instead of action noise exploration (default: False)
-    :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
-        Default: -1 (only sample at the beginning of the rollout)
-    :param normalize_advantage: Whether to normalize or not the advantage
-    :param tensorboard_log: the log location for tensorboard (if None, no logging)
-    :param create_eval_env: Whether to create a second environment that will be
-        used for evaluating the agent periodically. (Only available when passing string for the environment)
-    :param policy_kwargs: additional arguments to be passed to the policy on creation
-    :param verbose: the verbosity level: 0 no output, 1 info, 2 debug
-    :param seed: Seed for the pseudo random generators
-    :param device: Device (cpu, cuda, ...) on which the code should be run.
-        Setting it to auto, the code will be run on the GPU if possible.
-    :param _init_setup_model: Whether or not to build the network at the creation of the instance
+        :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
+        :param env: The environment to learn from (if registered in Gym, can be str)
+        :param learning_rate: The learning rate, it can be a function
+            of the current progress remaining (from 1 to 0)
+        :param n_steps: The number of steps to run for each environment per update
+            (i.e. batch size is n_steps * n_env where n_env is number of environment copies running in parallel)
+        :param gamma: Discount factor
+        :param gae_lambda: Factor for trade-off of bias vs variance for Generalized Advantage Estimator
+            Equivalent to classic advantage when set to 1.
+        :param ent_coef: Entropy coefficient for the loss calculation
+        :param vf_coef: Value function coefficient for the loss calculation
+        :param max_grad_norm: The maximum value for the gradient clipping
+        :param rms_prop_eps: RMSProp epsilon. It stabilizes square root computation in denominator
+            of RMSProp update
+        :param use_rms_prop: Whether to use RMSprop (default) or Adam as optimizer
+        :param use_sde: Whether to use generalized State Dependent Exploration (gSDE)
+            instead of action noise exploration (default: False)
+        :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
+            Default: -1 (only sample at the beginning of the rollout)
+        :param normalize_advantage: Whether to normalize or not the advantage
+        :param tensorboard_log: the log location for tensorboard (if None, no logging)
+        :param create_eval_env: Whether to create a second environment that will be
+            used for evaluating the agent periodically. (Only available when passing string for the environment)
+        :param policy_kwargs: additional arguments to be passed to the policy on creation
+        :param verbose: the verbosity level: 0 no output, 1 info, 2 debug
+        :param seed: Seed for the pseudo random generators
+        :param device: Device (cpu, cuda, ...) on which the code should be run.
+            Setting it to auto, the code will be run on the GPU if possible.
+        :param _init_setup_model: Whether or not to build the network at the creation of the instance
     """
-
     def __init__(
         self,
         policy: Union[str, Type[ActorCriticPolicy]],
@@ -78,7 +80,6 @@ class Agent(OnPolicyAlgorithm, Skeleton):
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
     ):
-        debug.self = self # FIXME: Debugging 
         super(Agent, self).__init__(
             policy,
             env,
@@ -116,6 +117,8 @@ class Agent(OnPolicyAlgorithm, Skeleton):
 
         if _init_setup_model:
             self._setup_model()
+        
+        self.log = Agent.Logger(agent=self)
 
     def train(self) -> None:
         """
@@ -211,5 +214,106 @@ class Agent(OnPolicyAlgorithm, Skeleton):
             reset_num_timesteps=reset_num_timesteps,
         )
     
+    
+    # 
+    # Hooks (Special Names)
+    # 
+    def when_mission_starts(self):
+        self.log.when_mission_starts()
+        
+    def when_episode_starts(self, episode_index):
+        self.log.when_episode_starts(episode_index)
+        
     def when_timestep_starts(self, timestep_index):
+        self.log.when_timestep_starts(timestep_index)
         self.action, _ = self.predict(self.observation)
+    
+    def when_timestep_ends(self, timestep_index):
+        self.log.when_timestep_ends(timestep_index)
+    
+    def when_episode_ends(self, episode_index):
+        self.log.when_episode_ends(episode_index)
+    
+    def when_mission_ends(self):
+        self.log.when_mission_ends()
+    
+    # 
+    # tools
+    # 
+    class Logger:
+        # depends on:
+        #     self.agent.reward
+        #     self.agent.loss
+        def __init__(self, agent, **config):
+            self.agent = agent
+            
+            self.should_display   = config.get("should_display"  , False)
+            self.live_updates     = config.get("live_updates"    , False)
+            self.smoothing_amount = config.get("smoothing_amount", 5    )
+            self.episode_rewards = []
+            self.episode_losses  = []
+            self.episode_reward_card = None
+            self.episode_loss_card = None
+            self.number_of_updates = 0
+            
+            # init class attributes if doesn't already have them
+            self.static = Agent.Logger.static = LazyDict(
+                agent_number_count=0,
+                total_number_of_episodes=0,
+                total_number_of_timesteps=0,
+                start_time=time(),
+            ) if not hasattr(Agent.Logger, "static") else Agent.Logger.static
+            
+            # agent number count
+            self.static.agent_number_count += 1
+            self.agent_number = self.static.agent_number_count
+            
+        def when_mission_starts(self):
+            self.episode_rewards.clear()
+            self.episode_losses.clear()
+            if self.live_updates:
+                self.episode_loss_card = ss.DisplayCard("quickLine",[])
+                ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Loss, ➡️ Per Episode")
+                self.episode_reward_card = ss.DisplayCard("quickLine",[])
+                ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
+            
+        def when_episode_starts(self, episode_index):
+            self.accumulated_reward = 0
+            self.accumulated_loss   = 0
+            self.static.total_number_of_episodes += 1
+        
+        def when_timestep_starts(self, timestep_index):
+            self.static.total_number_of_timesteps += 1
+            
+        def when_timestep_ends(self, timestep_index):
+            self.accumulated_reward += self.agent.reward
+        
+        def when_episode_ends(self, episode_index):
+            # logging
+            self.episode_rewards.append(self.accumulated_reward)
+            self.episode_losses.append(self.accumulated_loss)
+            if self.live_updates:
+                self.episode_reward_card.send     ([episode_index, self.accumulated_reward      ])
+                self.episode_loss_card.send ([episode_index, self.accumulated_loss  ])
+                print('episode_index = ', episode_index)
+                print(f'    total_number_of_timesteps :{self.static.total_number_of_timesteps}',)
+                print(f'    number_of_updates         :{self.number_of_updates}',)
+                print(f'    average_episode_time      :{(time()-self.static.start_time)/self.static.total_number_of_episodes}',)
+                print(f'    accumulated_reward        :{self.accumulated_reward      }',)
+                print(f'    accumulated_loss          :{self.accumulated_loss  }',)
+        
+        def when_mission_ends(self,):
+            if self.should_display:
+                # graph reward results
+                ss.DisplayCard("quickLine", stat_tools.rolling_average(self.episode_losses, self.smoothing_amount))
+                ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Losses Per Episode")
+                ss.DisplayCard("quickLine", stat_tools.rolling_average(self.episode_rewards, self.smoothing_amount))
+                ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Rewards Per Episode")
+        
+        def when_weight_update_starts(self):
+            self.number_of_updates += 1
+
+        def when_weight_update_ends(self):
+            self.accumulated_loss += self.agent.loss.item()
+    
+    
