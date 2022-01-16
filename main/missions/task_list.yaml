@@ -16,6 +16,9 @@ auto imitator bootstrapping:
         - might need dynamic image augmentation to prevent/reduce overfitting
         - might need more data (dynamic training, collect a number of episodes then randomly sample from them)
     - attempt to use auto imitator as an alternative preprocessor:
-        - HARD: somehow hack the baselines a2c to ignore the normal input and use the preprocessed input instead
         - train chao's dqn based on the auto imitated latent space instead of the preprocessed env
+        - HARD alternative: somehow hack the baselines a2c to ignore the normal input and use the preprocessed input instead
         - maybe attempt to train my own agent again
+    - attempt transfering the preprocessor to a new domain, such as enduro:
+        - will definitely need the imitator to have the auto-decoding loss
+        - might need a variational auto encoder to provide more generalized learning
