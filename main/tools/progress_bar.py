@@ -2,123 +2,168 @@
 from datetime import datetime, timedelta
 import time
 import sys
-
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
+import numpy as np
+import math
 
 class ProgressBar:
-    def __init__(self, v_max, verbose=3, inline=True, show_bar=True, disable=False, title=None):
-        if isinstance(v_max, int):
-            self._v_max = v_max
-            self._it = 0
+    def __init__(self, iterations, inline=True, show_bar=True, disable=False, title=None, progress_bar_size=20):
+        if isinstance(iterations, int):
+            self.total_iterations = iterations
+            self.iteration = 0
         else:
-            self._v_max = len(v_max)
-            self._it = -1
-            self._tomanage = iter(v_max)
-        self._perc = -1
+            self.total_iterations = len(iterations)
+            self.iteration = -1
+            self._iterator = iter(iterations)
+        self.prev_percent = -1
         self._times = [time.time()]
-        self._verbose = verbose
         self._inline = inline
-        self._show_bar = show_bar
-        self._progsz = 20
-        self._passedits = list()
+        self.should_show_bar = show_bar
+        self.progress_bar_size = progress_bar_size
+        self._past_iterations = list()
         self._disable = disable
-        self._title = title
-        self._starttime = datetime.now()
+        self.title = title
+        self.start_time = datetime.now()
 
     def __new__(cls, *args, **kwargs):
         return super(ProgressBar, cls).__new__(cls)
 
-    def tomins(self, secs):
+    def to_time_string(self, secs):
         secs = int(round(secs))
         mins = secs // 60
         secs = secs % 60
-        strhours = ''
+        str_hours = ''
         if mins >= 60:
             hours = mins // 60
             mins = mins % 60
             mins = "{:02d}".format(mins)
-            strhours = str(hours) + ':'
+            str_hours = str(hours) + ':'
 
         if secs < 10:
-            return strhours + '{}:0{}'.format(mins, secs)
-        return strhours + '{}:{}'.format(mins, secs)
-
+            return str_hours + '{}:0{}'.format(mins, secs)
+        return str_hours + '{}:{}'.format(mins, secs)
+    
     def next(self, it=None):
         if self._disable:
             return
         if it is not None:
-            self._it = it
-        self._it += 1
-        current_perc = self._it * 100 // self._v_max
-        if current_perc != self._perc:
+            self.iteration = it
+        
+        self.iteration += 1
+        self.current_percent = self.iteration * 100 // self.total_iterations
+        if self.current_percent != self.prev_percent:
+            # compute data
+            self._times.append(time.time())
+            self._past_iterations.append(self.iteration)
+            self.total_eslaped_time = 0
+            self.eslaped_time       = 0
+            self.secs_remaining     = math.inf
+            if len(self._times) > 2:
+                self.total_eslaped_time = self._times[-1] - self._times[ 0]
+                self.eslaped_time       = self._times[-1] - self._times[-2]
+                p = np.poly1d(
+                    np.polyfit(
+                        self._past_iterations,
+                        self._times[1:],
+                        w=np.arange(1, len(self._times)),
+                        deg=1
+                    )
+                )
+                self.secs_remaining = p(self.total_iterations) - p(self.iteration)
+            
             if self._inline:
                 print('\r', end='')
-            if self._title is not None:
-                print(self._title, end=' ')
-            if self._show_bar:
-                prog = int((self._it / self._v_max) * self._progsz)
-                print('[' + '=' * prog, end='')
-                if prog != self._progsz:
-                    print('>' + '.' * (self._progsz - prog - 1), end='')
-                print('] ', end='')
-            print('{}%'.format(current_perc), end='')
-            if self._verbose > 0:
-                self._times.append(time.time())
-                self._passedits.append(self._it)
-                if len(self._times) > 2:
-                    step = self._times[-1] - self._times[-2]
-                    itspersec = (self._passedits[-1] - self._passedits[-2]) / step
-                    print(' | %i/%i %smin/perc %.2fit/s' % (self._it, self._v_max, self.tomins(step), itspersec), end='')
-                    if self._verbose > 1:
-                        elps = self._times[-1] - self._times[0]
-                        print(' | %s' % (self.tomins(elps)), end='')
-                        if self._verbose > 2 and current_perc != 100 and np:
-                            p = np.poly1d(
-                                np.polyfit(self._passedits, self._times[1:], w=np.arange(1, len(self._times)), deg=1))
-                            secs_remaining = p(self._v_max) - p(self._it)
-                            print('<%s => %s' % (self.tomins(secs_remaining), self.tomins(secs_remaining + elps)),
-                                  end='')
-                            if self._verbose > 3:
-                                endtime = self._starttime + timedelta(seconds=elps + secs_remaining)
-                                print(' | Started: %s - Ends at: %s' % (
-                                    self._starttime.strftime("%H:%M:%S"), endtime.strftime("%H:%M:%S")), end='')
-                                if self._verbose > 4:
-                                    nxt = p(int(round((current_perc + 1) * self._v_max / 100 - 0.5) + 1)) - p(self._it)
-                                    print(' | Next in %.1f/%s' % (nxt, self.tomins(nxt)), end='')
-                if not self._inline:
-                    print()
-            if self._it == self._v_max:
-                self._printdone()
-            self._perc = current_perc
+            
+            if self.title is not None:
+                print(self.title, end=' ')
+            
+            self.show_remaining_time()
+            self.show_spacer()
+            self.show_percent()
+            self.show_spacer()
+            self.show_bar()
+            self.show_fraction()
+            self.show_spacer()
+            self.show_start_time()
+            
+            # padding
+            if not self._inline:
+                print()
+            else:
+                self.show_spacer()
+            
+            if self.iteration == self.total_iterations:
+                self.show_done()
+            
+            self.prev_percent = self.current_percent
 
-    def _printdone(self):
+    def show_spacer(self):
+        print(" | ", end='')
+        
+    def show_bar(self):
+        if self.should_show_bar:
+            prog = int((self.iteration / self.total_iterations) * self.progress_bar_size)
+            print('[' + '=' * prog, end='')
+            if prog != self.progress_bar_size:
+                print('>' + '.' * (self.progress_bar_size - prog - 1), end='')
+            print('] ', end='')
+    
+    def show_remaining_time(self):
+        if self.secs_remaining == math.inf:
+            print(f'remaining: ________', end='')
+        elif self.current_percent != 100:
+            print(f'remaining: {self.to_time_string(self.secs_remaining)}sec', end='')
+        
+    def show_percent(self):
+        print('{}%'.format(self.current_percent), end='')
+    
+    def show_duration(self):
+        print('%s' % (self.to_time_string(self.total_eslaped_time)), end='')
+    
+    def show_fraction(self):
+        print(f'{self.iteration}/{self.total_iterations}', end='')
+        
+    def show_iteration_time(self):
+        iterations_per_sec = (self._past_iterations[-1] - self._past_iterations[-2]) / self.eslaped_time
+        print(f'{self.to_time_string(self.eslaped_time)}sec per iter', end='')
+    
+    def show_start_and_end_time(self):
+        if self.current_percent != 100:
+            endtime = self.start_time + timedelta(seconds=self.total_eslaped_time + self.secs_remaining)
+            print(
+                'Started: %s - Ends at: %s' % (
+                    self.start_time.strftime("%H:%M:%S"), endtime.strftime("%H:%M:%S")
+                ),
+                end=''
+            )
+    
+    def show_start_time(self):
+        if self.current_percent != 100:
+            print(f'started: {self.start_time.strftime("%H:%M:%S")}',  end='')
+    
+    def show_done(self):
         if self._inline:
             print('\r', end='')
             sys.stdout.write('\033[2K\033[1G')
-        print('Done in %s at %s' % (self.tomins(time.time() - self._times[0]), datetime.now().strftime("%H:%M:%S")))
+        print('Done in %s at %s' % (self.to_time_string(time.time() - self._times[0]), datetime.now().strftime("%H:%M:%S")))
 
     def done(self):
-        if self._it != self._v_max and not self._disable:
-            self._printdone()
+        if self.iteration != self.total_iterations and not self._disable:
+            self.show_done()
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        if self._it < self._v_max:
+        if self.iteration < self.total_iterations:
             try:
                 self.next()
             except ZeroDivisionError:
                 pass
-            return next(self._tomanage)
+            return next(self._iterator)
         else:
             raise StopIteration
 
 
 if __name__ == "__main__":
-    for i in ProgressBar(range(100), verbose=1):
+    for i in ProgressBar(range(100)):
         time.sleep(0.1)
