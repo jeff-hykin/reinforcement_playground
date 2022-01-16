@@ -1,13 +1,9 @@
 import torch
 import torch.nn as nn
-import random
-from tqdm import tqdm
-import pickle 
 import gym
 import numpy as np
 import collections 
 import cv2
-import time
 
 class MaxAndSkipEnv(gym.Wrapper):
     """

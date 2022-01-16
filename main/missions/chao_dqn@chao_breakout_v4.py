@@ -18,7 +18,7 @@ from tools.progress_bar import ProgressBar
 
 def run(training_mode, pretrained, path="./models.ignore/dqn_chao", number_of_episodes=1000, exploration_max=1):
     env = create_env(
-        gym.make('Breakout-v0')
+        gym.make('Breakout-v4')
     )
     
     mr_bond = Agent(
