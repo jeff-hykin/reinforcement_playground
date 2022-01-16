@@ -10,6 +10,7 @@ import cv2
 import time
 
 from tools.agent_skeleton import Skeleton
+from tools.file_system_tools import FileSystem
 
 class Network(nn.Module):
     """
@@ -45,6 +46,7 @@ class Agent(Skeleton):
     def __init__(self, state_space, action_space, max_memory_size, batch_size, gamma, lr, dropout, exploration_max, exploration_min, exploration_decay, pretrained, path, training_mode):
         self.training_mode = training_mode
         self.path = path
+        FileSystem.ensure_is_folder(FileSystem.dirname(self.path))
 
         # Define DQN Layers
         self.state_space = state_space

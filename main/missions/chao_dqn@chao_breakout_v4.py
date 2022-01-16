@@ -11,12 +11,12 @@ import time
 
 # 22 min: Episode 1000 score = 9.0, average score = 5.572
 
-from world_builders.atari.medium_preprocessor import create_env
-from agent_builders.medium_dqn.main import Agent
+from world_builders.atari.preprocessor_chao import create_env
+from agent_builders.dqn_chao.main import Agent
 
 from tools.progress_bar import ProgressBar
 
-def run(training_mode, pretrained, path="./models.ignore/medium_dqn", number_of_episodes=1000, exploration_max=1):
+def run(training_mode, pretrained, path="./models.ignore/dqn_chao", number_of_episodes=1000, exploration_max=1):
     env = create_env(
         gym.make('Breakout-v0')
     )
