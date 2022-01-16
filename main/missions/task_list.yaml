@@ -1,0 +1,17 @@
+auto imitator bootstrapping:
+    - DONE find a baselinethat performs well on a custom environment
+    - record data: 
+        - use the custom preprocessed breakout
+        - save the unpreprocessed frames
+        - using baselines a2c
+    - batch the newly recorded data
+    - train the auto imitator on the compressed env
+    - transfer the improvement:
+        - hack the a2c network by transfering much of the network, but randomizing everything past the latent space
+        - keep track of the rewards/training time curve
+    - train the auto imitator on the uncompressed env:
+        - create a custom frame que
+        - map the from the custom frame que to an action
+        - might need to have additional loss based on auto-decoding the input to improve learning speed
+        - might need dynamic image augmentation to prevent/reduce overfitting
+        - might need more data (dynamic training, collect a number of episodes then randomly sample from them)
