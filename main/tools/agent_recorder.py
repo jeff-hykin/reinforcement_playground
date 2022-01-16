@@ -51,6 +51,11 @@ class AgentRecorder():
             "_metadata_file_extension" : self._metadata_file_extension,
         })
     
+    def load_index(self, index):
+        data = large_pickle_load(self.save_to+f"/{index}{self._data_file_extension}")
+        metadata = read_json(path=self.save_to+f"/{index}{self._metadata_file_extension}")
+        return metadata, data
+    
     def load_data(self):
         for each_name in self.names():
             yield large_pickle_load(self.save_to+f"/{each_name}{self._data_file_extension}")
@@ -59,7 +64,7 @@ class AgentRecorder():
         for each_name in self.names():
             yield read_json(path=self.save_to+f"/{each_name}{self._metadata_file_extension}")
     
-    def create_batch_data(self, batch_name, batch_size, preprocessing=lambda each:each):
+    def create_batch_data(self, batch_name, batch_size, preprocessing=lambda batch:batch):
         # create folder for batch
         batch_path = f"{self.save_to}/{batch_name}"
         FileSystem.ensure_is_folder(batch_path)
@@ -78,7 +83,7 @@ class AgentRecorder():
             # load all the ones in the batch
             for each_index in entries:
                 batch.append(
-                    large_pickle_load(self.save_to+f"/{each_index}{self._data_file_extension}")
+                    (each_index, *large_pickle_load(self.save_to+f"/{each_index}{self._data_file_extension}"))
                 )
             # do any compression/decompression/augmentation stuff
             batch = preprocessing(batch)
