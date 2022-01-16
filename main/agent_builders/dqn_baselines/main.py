@@ -13,52 +13,57 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedul
 from stable_baselines3.common.utils import get_linear_fn, is_vectorized_observation, polyak_update
 from stable_baselines3.dqn.policies import DQNPolicy
 
+from time import time
+from super_map import LazyDict
 
-class DQN(OffPolicyAlgorithm):
+from tools.debug import debug, ic
+from tools.agent_skeleton import Skeleton
+
+
+class Agent(OffPolicyAlgorithm):
     """
-    Deep Q-Network (DQN)
+        Deep Q-Network (DQN)
 
-    Paper: https://arxiv.org/abs/1312.5602, https://www.nature.com/articles/nature14236
-    Default hyperparameters are taken from the nature paper,
-    except for the optimizer and learning rate that were taken from Stable Baselines defaults.
+        Paper: https://arxiv.org/abs/1312.5602, https://www.nature.com/articles/nature14236
+        Default hyperparameters are taken from the nature paper,
+        except for the optimizer and learning rate that were taken from Stable Baselines defaults.
 
-    :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
-    :param env: The environment to learn from (if registered in Gym, can be str)
-    :param learning_rate: The learning rate, it can be a function
-        of the current progress remaining (from 1 to 0)
-    :param buffer_size: size of the replay buffer
-    :param learning_starts: how many steps of the model to collect transitions for before learning starts
-    :param batch_size: Minibatch size for each gradient update
-    :param tau: the soft update coefficient ("Polyak update", between 0 and 1) default 1 for hard update
-    :param gamma: the discount factor
-    :param train_freq: Update the model every ``train_freq`` steps. Alternatively pass a tuple of frequency and unit
-        like ``(5, "step")`` or ``(2, "episode")``.
-    :param gradient_steps: How many gradient steps to do after each rollout (see ``train_freq``)
-        Set to ``-1`` means to do as many gradient steps as steps done in the environment
-        during the rollout.
-    :param replay_buffer_class: Replay buffer class to use (for instance ``HerReplayBuffer``).
-        If ``None``, it will be automatically selected.
-    :param replay_buffer_kwargs: Keyword arguments to pass to the replay buffer on creation.
-    :param optimize_memory_usage: Enable a memory efficient variant of the replay buffer
-        at a cost of more complexity.
-        See https://github.com/DLR-RM/stable-baselines3/issues/37#issuecomment-637501195
-    :param target_update_interval: update the target network every ``target_update_interval``
-        environment steps.
-    :param exploration_fraction: fraction of entire training period over which the exploration rate is reduced
-    :param exploration_initial_eps: initial value of random action probability
-    :param exploration_final_eps: final value of random action probability
-    :param max_grad_norm: The maximum value for the gradient clipping
-    :param tensorboard_log: the log location for tensorboard (if None, no logging)
-    :param create_eval_env: Whether to create a second environment that will be
-        used for evaluating the agent periodically. (Only available when passing string for the environment)
-    :param policy_kwargs: additional arguments to be passed to the policy on creation
-    :param verbose: the verbosity level: 0 no output, 1 info, 2 debug
-    :param seed: Seed for the pseudo random generators
-    :param device: Device (cpu, cuda, ...) on which the code should be run.
-        Setting it to auto, the code will be run on the GPU if possible.
-    :param _init_setup_model: Whether or not to build the network at the creation of the instance
+        :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
+        :param env: The environment to learn from (if registered in Gym, can be str)
+        :param learning_rate: The learning rate, it can be a function
+            of the current progress remaining (from 1 to 0)
+        :param buffer_size: size of the replay buffer
+        :param learning_starts: how many steps of the model to collect transitions for before learning starts
+        :param batch_size: Minibatch size for each gradient update
+        :param tau: the soft update coefficient ("Polyak update", between 0 and 1) default 1 for hard update
+        :param gamma: the discount factor
+        :param train_freq: Update the model every ``train_freq`` steps. Alternatively pass a tuple of frequency and unit
+            like ``(5, "step")`` or ``(2, "episode")``.
+        :param gradient_steps: How many gradient steps to do after each rollout (see ``train_freq``)
+            Set to ``-1`` means to do as many gradient steps as steps done in the environment
+            during the rollout.
+        :param replay_buffer_class: Replay buffer class to use (for instance ``HerReplayBuffer``).
+            If ``None``, it will be automatically selected.
+        :param replay_buffer_kwargs: Keyword arguments to pass to the replay buffer on creation.
+        :param optimize_memory_usage: Enable a memory efficient variant of the replay buffer
+            at a cost of more complexity.
+            See https://github.com/DLR-RM/stable-baselines3/issues/37#issuecomment-637501195
+        :param target_update_interval: update the target network every ``target_update_interval``
+            environment steps.
+        :param exploration_fraction: fraction of entire training period over which the exploration rate is reduced
+        :param exploration_initial_eps: initial value of random action probability
+        :param exploration_final_eps: final value of random action probability
+        :param max_grad_norm: The maximum value for the gradient clipping
+        :param tensorboard_log: the log location for tensorboard (if None, no logging)
+        :param create_eval_env: Whether to create a second environment that will be
+            used for evaluating the agent periodically. (Only available when passing string for the environment)
+        :param policy_kwargs: additional arguments to be passed to the policy on creation
+        :param verbose: the verbosity level: 0 no output, 1 info, 2 debug
+        :param seed: Seed for the pseudo random generators
+        :param device: Device (cpu, cuda, ...) on which the code should be run.
+            Setting it to auto, the code will be run on the GPU if possible.
+        :param _init_setup_model: Whether or not to build the network at the creation of the instance
     """
-
     def __init__(
         self,
         policy: Union[str, Type[DQNPolicy]],
@@ -88,7 +93,7 @@ class DQN(OffPolicyAlgorithm):
         _init_setup_model: bool = True,
     ):
 
-        super(DQN, self).__init__(
+        super(Agent, self).__init__(
             policy,
             env,
             DQNPolicy,
@@ -130,9 +135,11 @@ class DQN(OffPolicyAlgorithm):
 
         if _init_setup_model:
             self._setup_model()
+        
+        self.log = Agent.Logger(agent=self)
 
     def _setup_model(self) -> None:
-        super(DQN, self)._setup_model()
+        super(Agent, self)._setup_model()
         self._create_aliases()
         self.exploration_schedule = get_linear_fn(
             self.exploration_initial_eps,
@@ -205,7 +212,7 @@ class DQN(OffPolicyAlgorithm):
             # Clip gradient norm
             th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
             self.policy.optimizer.step()
-
+        
         # Increase update counter
         self._n_updates += gradient_steps
 
@@ -255,7 +262,7 @@ class DQN(OffPolicyAlgorithm):
         reset_num_timesteps: bool = True,
     ) -> OffPolicyAlgorithm:
 
-        return super(DQN, self).learn(
+        return super(Agent, self).learn(
             total_timesteps=total_timesteps,
             callback=callback,
             log_interval=log_interval,
@@ -268,9 +275,112 @@ class DQN(OffPolicyAlgorithm):
         )
 
     def _excluded_save_params(self) -> List[str]:
-        return super(DQN, self)._excluded_save_params() + ["q_net", "q_net_target"]
+        return super(Agent, self)._excluded_save_params() + ["q_net", "q_net_target"]
 
     def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
         state_dicts = ["policy", "policy.optimizer"]
 
         return state_dicts, []
+    
+    # 
+    # Hooks (Special Names)
+    # 
+    def when_mission_starts(self):
+        self.log.when_mission_starts()
+        
+    def when_episode_starts(self, episode_index):
+        self.log.when_episode_starts(episode_index)
+        
+    def when_timestep_starts(self, timestep_index):
+        self.log.when_timestep_starts(timestep_index)
+        self.action, _ = self.predict(self.observation)
+    
+    def when_timestep_ends(self, timestep_index):
+        self.log.when_timestep_ends(timestep_index)
+    
+    def when_episode_ends(self, episode_index):
+        self.log.when_episode_ends(episode_index)
+    
+    def when_mission_ends(self):
+        self.log.when_mission_ends()
+    
+    # 
+    # tools
+    # 
+    class Logger:
+        # depends on:
+        #     self.agent.reward
+        #     self.agent.loss
+        def __init__(self, agent, **config):
+            self.agent = agent
+            
+            self.should_display   = config.get("should_display"  , False)
+            self.live_updates     = config.get("live_updates"    , False)
+            self.smoothing_amount = config.get("smoothing_amount", 5    )
+            self.episode_rewards = []
+            self.episode_losses  = []
+            self.episode_reward_card = None
+            self.episode_loss_card = None
+            self.number_of_updates = 0
+            
+            # init class attributes if doesn't already have them
+            self.static = Agent.Logger.static = LazyDict(
+                agent_number_count=0,
+                total_number_of_episodes=0,
+                total_number_of_timesteps=0,
+                start_time=time(),
+            ) if not hasattr(Agent.Logger, "static") else Agent.Logger.static
+            
+            # agent number count
+            self.static.agent_number_count += 1
+            self.agent_number = self.static.agent_number_count
+            
+        def when_mission_starts(self):
+            self.episode_rewards.clear()
+            self.episode_losses.clear()
+            if self.live_updates:
+                self.episode_loss_card = ss.DisplayCard("quickLine",[])
+                ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Loss, ➡️ Per Episode")
+                self.episode_reward_card = ss.DisplayCard("quickLine",[])
+                ss.DisplayCard("quickMarkdown", f"#### Live {self.agent_number}: ⬆️ Rewards, ➡️ Per Episode")
+            
+        def when_episode_starts(self, episode_index):
+            self.accumulated_reward = 0
+            self.accumulated_loss   = 0
+            self.static.total_number_of_episodes += 1
+        
+        def when_timestep_starts(self, timestep_index):
+            self.static.total_number_of_timesteps += 1
+            
+        def when_timestep_ends(self, timestep_index):
+            self.accumulated_reward += self.agent.reward
+        
+        def when_episode_ends(self, episode_index):
+            # logging
+            self.episode_rewards.append(self.accumulated_reward)
+            self.episode_losses.append(self.accumulated_loss)
+            if self.live_updates:
+                self.episode_reward_card.send     ([episode_index, self.accumulated_reward      ])
+                self.episode_loss_card.send ([episode_index, self.accumulated_loss  ])
+                print('episode_index = ', episode_index)
+                print(f'    total_number_of_timesteps :{self.static.total_number_of_timesteps}',)
+                print(f'    number_of_updates         :{self.number_of_updates}',)
+                print(f'    average_episode_time      :{(time()-self.static.start_time)/self.static.total_number_of_episodes}',)
+                print(f'    accumulated_reward        :{self.accumulated_reward      }',)
+                print(f'    accumulated_loss          :{self.accumulated_loss  }',)
+        
+        def when_mission_ends(self,):
+            if self.should_display:
+                # graph reward results
+                ss.DisplayCard("quickLine", stat_tools.rolling_average(self.episode_losses, self.smoothing_amount))
+                ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Losses Per Episode")
+                ss.DisplayCard("quickLine", stat_tools.rolling_average(self.episode_rewards, self.smoothing_amount))
+                ss.DisplayCard("quickMarkdown", f"#### {self.agent_number}: Rewards Per Episode")
+        
+        def when_weight_update_starts(self):
+            self.number_of_updates += 1
+
+        def when_weight_update_ends(self):
+            self.accumulated_loss += self.agent.loss.item()
+    
+    
