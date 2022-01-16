@@ -11,7 +11,7 @@ import time
 
 from tools.frame_que import FrameQue
 
-def preprocess(env, frame_buffer_size=4):
+def preprocess(env, frame_buffer_size, frame_sample_rate):
     
     env.prev_unpreprocessed_frame = None
 
@@ -116,7 +116,7 @@ def preprocess(env, frame_buffer_size=4):
             return np.array(obs).astype(np.float32) / 255.0
     
     
-    env = MaxAndSkipEnv(env)
+    env = MaxAndSkipEnv(env, skip=frame_sample_rate)
     env = Rescale84x84(env)
     env = ImageToPyTorch(env)
     env = BufferWrapper(env, frame_buffer_size)
