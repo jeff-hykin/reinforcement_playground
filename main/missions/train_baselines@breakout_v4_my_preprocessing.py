@@ -26,7 +26,7 @@ from tools.schedulers import AgentLearningRateScheduler
 from prefabs.baselines_optimizer import RMSpropTFLike
 from prefabs.helpful_fitness_measures import trend_up
 
-from agent_builders.my_big_a2c.main import Agent
+from agent_builders.baselines_a2c.main import Agent
 from world_builders.atari.custom_preprocessing import preprocess
 
 
@@ -72,6 +72,7 @@ def default_mission(
             
             mr_bond.when_timestep_starts(timestep_index)
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
+            print('env.prev_unpreprocessed_frame = ', env.prev_unpreprocessed_frame.shape)
             mr_bond.when_timestep_ends(timestep_index)
                 
         mr_bond.when_episode_ends(episode_index)

@@ -9,7 +9,9 @@ import collections
 import cv2
 import time
 
+from tools.basics import product
 from tools.frame_que import FrameQue
+from tools.debug import debug
 
 def preprocess(env, frame_buffer_size, frame_sample_rate):
     
@@ -49,39 +51,39 @@ def preprocess(env, frame_buffer_size, frame_sample_rate):
             return obs
 
 
-    class Rescale84x84(gym.ObservationWrapper):
+    class RescaleAndGrayscale(gym.ObservationWrapper):
         """
         Downsamples/Rescales each frame to size 84x84 with greyscale
         """
-        def __init__(self, env=None):
-            super(Rescale84x84, self).__init__(env)
-            self.observation_space = gym.spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
+        def __init__(self, env=None, *, height, width):
+            super(RescaleAndGrayscale, self).__init__(env)
+            self.height = height
+            self.width = width
+            self.observation_space = gym.spaces.Box(low=0, high=255, shape=(self.height, self.width), dtype=np.uint8)
 
         def observation(self, obs):
-            return Rescale84x84.process(obs)
-
-        @staticmethod
-        def process(frame):
-            if frame.size == 240 * 256 * 3:
-                img = np.reshape(frame, [240, 256, 3]).astype(np.float32)
-            else:
-                assert False, "Unknown resolution." 
-            # image normalization on RBG
-            img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
-            resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
-            x_t = resized_screen[18:102, :]
-            x_t = np.reshape(x_t, [84, 84, 1])
-            return x_t.astype(np.uint8)
-
+            return cv2.cvtColor(
+                cv2.resize(
+                    obs,
+                    (self.height, self.width),
+                    interpolation=cv2.INTER_AREA
+                ),
+                cv2.COLOR_BGR2GRAY
+            )
 
     class ImageToPyTorch(gym.ObservationWrapper):
         """
         Each frame is converted to PyTorch tensors
         """
-        def __init__(self, env):
+        def __init__(self, env, low=0, high=255, dtype=np.uint8):
             super(ImageToPyTorch, self).__init__(env)
             old_shape = self.observation_space.shape
-            self.observation_space = gym.spaces.Box(low=0.0, high=1.0, shape=(old_shape[-1], old_shape[0], old_shape[1]), dtype=np.float32)
+            self.observation_space = gym.spaces.Box(
+                low=low,
+                high=high,
+                shape=(old_shape[-1], old_shape[0], old_shape[1]),
+                dtype=dtype,
+            )
 
         def observation(self, observation):
             return np.moveaxis(observation, 2, 0)
@@ -91,18 +93,23 @@ def preprocess(env, frame_buffer_size, frame_sample_rate):
         """
         Only every k-th frame is collected by the buffer
         """
-        def __init__(self, env, n_steps, dtype=np.float32):
+        def __init__(self, env, n_steps, dtype=np.uint8):
             super(BufferWrapper, self).__init__(env)
             self.dtype = dtype
             old_space = env.observation_space
-            self.observation_space = gym.spaces.Box(old_space.low.repeat(n_steps, axis=0),
-                                                    old_space.high.repeat(n_steps, axis=0), dtype=dtype)
+            debug.old_space = old_space
+            self.observation_space = gym.spaces.Box(
+                old_space.low.reshape((1, *old_space.low.shape)).repeat(n_steps, axis=0),
+                old_space.high.reshape((1, *old_space.high.shape)).repeat(n_steps, axis=0),
+                dtype=dtype,
+            )
 
         def reset(self):
             self.buffer = np.zeros_like(self.observation_space.low, dtype=self.dtype)
             return self.observation(self.env.reset())
 
         def observation(self, observation):
+            print('self.buffer.shape = ', self.buffer.shape)
             self.buffer[:-1] = self.buffer[1:]
             self.buffer[-1] = observation
             return self.buffer
@@ -117,9 +124,9 @@ def preprocess(env, frame_buffer_size, frame_sample_rate):
     
     
     env = MaxAndSkipEnv(env, skip=frame_sample_rate)
-    env = Rescale84x84(env)
-    env = ImageToPyTorch(env)
-    env = BufferWrapper(env, frame_buffer_size)
-    env = PixelNormalization(env)
+    env = RescaleAndGrayscale(env, height=84, width=84)
+    # env = ImageToPyTorch(env)
+    env = BufferWrapper(env, frame_buffer_size, dtype=np.uint8)
+    # env = PixelNormalization(env) # this breaks the baselines agent
     
     return env

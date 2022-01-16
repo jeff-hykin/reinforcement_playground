@@ -24,7 +24,6 @@ from tools.frame_que import FrameQue
 from tools.schedulers import AgentLearningRateScheduler
 
 from prefabs.baselines_optimizer import RMSpropTFLike
-from prefabs.fitness_trend_up import fitness_measurement_trend_up
 
 class Agent():
     @init.hardware
