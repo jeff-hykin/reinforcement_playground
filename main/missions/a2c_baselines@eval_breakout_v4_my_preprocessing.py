@@ -26,7 +26,7 @@ from tools.schedulers import AgentLearningRateScheduler
 from prefabs.baselines_optimizer import RMSpropTFLike
 from prefabs.helpful_fitness_measures import trend_up, average
 
-from agent_builders.baselines_a2c.main import Agent
+from agent_builders.a2c_baselines.main import Agent
 from world_builders.atari.custom_preprocessing import preprocess
 
 
@@ -45,18 +45,7 @@ def default_mission(
         frame_sample_rate=frame_sample_rate,
     )
     
-    mr_bond = Agent(
-        'CnnPolicy', # from atari optimized hyperparams
-        env,
-        verbose=1,
-        ent_coef=0.01, # from atari optimized hyperparams
-        vf_coef=0.25, # from atari optimized hyperparams
-        policy_kwargs=dict(
-            optimizer_class=RMSpropTFLike, # from atari optimized hyperparams
-            optimizer_kwargs=dict(eps=1e-5), # from atari optimized hyperparams
-        ),
-    )
-    mr_bond.load("models.ignore/BreakoutNoFrameskip-v4.zip")
+    mr_bond = Agent.load("models.ignore/BreakoutNoFrameskip-v4.zip")
     
     mr_bond.when_mission_starts()
     for episode_index in range(number_of_episodes):

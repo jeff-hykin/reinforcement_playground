@@ -9,7 +9,7 @@ from tools.all_tools import Countdown, to_tensor, opencv_image_to_torch_image, t
 import tools.stat_tools as stat_tools
 
 from world_builders.atari.baselines_vectorized import Environment
-from agent_builders.baselines_a2c.main import Agent
+from agent_builders.a2c_baselines.main import Agent
 from prefabs.baselines_optimizer import RMSpropTFLike
 from prefabs.helpful_fitness_measures import average
 
