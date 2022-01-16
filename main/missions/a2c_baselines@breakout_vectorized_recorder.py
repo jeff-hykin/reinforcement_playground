@@ -22,18 +22,7 @@ env = Environment(
 # 
 # load
 # 
-mr_bond = Agent(
-    'CnnPolicy', # from atari optimized hyperparams
-    env,
-    verbose=1,
-    ent_coef=0.01, # from atari optimized hyperparams
-    vf_coef=0.25, # from atari optimized hyperparams
-    policy_kwargs=dict(
-        optimizer_class=RMSpropTFLike, # from atari optimized hyperparams
-        optimizer_kwargs=dict(eps=1e-5), # from atari optimized hyperparams
-    ),
-)
-mr_bond.load("models.ignore/BreakoutNoFrameskip-v4.zip")
+mr_bond = Agent.load("models.ignore/BreakoutNoFrameskip-v4.zip")
 
 #   
 # setup database
