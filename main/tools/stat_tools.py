@@ -1,6 +1,8 @@
-from super_map import LazyDict
-from statistics import mean as average
 import math
+import scipy.stats as stats
+from statistics import mean as average
+from statistics import stdev as standard_deviation
+from super_map import LazyDict
 
 def create_linear_interpolater(from_min, from_max, to_min, to_max):
     from_range = from_max - from_min
@@ -144,6 +146,46 @@ def recursive_splits(a_list, branching_factor=2, min_size=2, max_proportion=0.65
         splits.append(tuple(bundle(a_list, bundle_size=bundle_size)))
     return tuple(reversed(splits))
 
+def increasingly_lenient_confidence(
+        sample_size,
+        max_leniency=0.3, # this means when the sample is big, there will be a 30% confidence interval requirement
+        leniency_rate=1,  # bigger=get to the max_leniency faster. at leniency_rate=1, sample_size=30, confidence will be around 95%
+    ):
+    # starts at maximum = 1
+    # as x gets bigger 
+    # approches max_leniency
+    slowness = 0.006 * leniency_rate # the 0.006 was solved-for to make confidence ~95% for sample size of 30
+    offsetter = 2 # anything smaller than this will have a 100% confindence interval (e.g. any/all results are within the interval)
+    if sample_size <= offsetter:
+        return 1
+    else:
+        shifted_to_the_right         = sample_size - offsetter
+        streched_out_curve           = shifted_to_the_right * slowness 
+        scaled_from_one_half_to_zero = 2/( 1 + math.exp(streched_out_curve) )
+        # range is 1^
+        new_range = 1 - max_leniency
+        rescaled_curve = scaled_from_one_half_to_zero * new_range
+        shifted_up     = rescaled_curve + max_leniency
+        return shifted_up
+
+def confirmed_outstandingly_low(item, existing_items, max_leniency=0.3, leniency_rate=1):
+    purified_existing_items = tuple(to_pure(each) for each in existing_items)
+    
+    confidence_needed = increasingly_smaller_confidence(
+        sample_size=len(purified_existing_items),
+        max_leniency=max_leniency,
+        leniency_rate=leniency_rate,
+    )
+    the_mean = average(purified_existing_items)
+    standard_deviation_amount = standard_deviation(purified_existing_items)
+    number_of_standard_deviations_needed = stats.norm.ppf(confidence_needed)
+    cutoff_point = the_mean - (number_of_standard_deviations_needed * standard_deviation_amount)
+    if to_pure(item) < cutoff_point:
+        return True
+    else:
+        return False
+
+
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
 #     import math
@@ -177,4 +219,3 @@ def recursive_splits(a_list, branching_factor=2, min_size=2, max_proportion=0.65
 #                 ]) / normalizer
 #             )
 #         elif 
-    

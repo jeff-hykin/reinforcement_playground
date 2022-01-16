@@ -23,7 +23,7 @@ logging = LazyDict(
     update_correctness=lambda data: logging.correctness_card.send("clear").send(tuple(((index+1)*logging.smoothing_size, each) for index, each in enumerate(tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size))))),
     update_loss=lambda        data: logging.loss_card.send(       "clear").send(tuple(((index+1)*logging.smoothing_size, each) for index, each in enumerate(tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size))))),
 )
-    
+
 # 
 # training
 # 
@@ -43,7 +43,7 @@ def train(base_learning_rate):
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
-        path=f"models.ignore/auto_imitator_hypertuning_2_{base_learning_rate}.model",
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_{base_learning_rate}.model",
     )
 
     for index, (observations, actions) in enumerate(database.load_batch_data("64")):
@@ -75,7 +75,7 @@ def tune_hyperparams(number_of_trials, fitness_func):
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         train(
-            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00009, 0.0003),
+            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00009, 0.005),
         )
     )
     study = optuna.create_study(direction="maximize")

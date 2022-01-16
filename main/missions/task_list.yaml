@@ -1,10 +1,10 @@
 auto imitator bootstrapping:
     - DONE find a baselinethat performs well on a custom environment
-    - record data: 
+    - DONE record data: 
         - use the custom preprocessed breakout
         - save the unpreprocessed frames
         - using baselines a2c
-    - batch the newly recorded data
+    - DONE batch the newly recorded data
     - train the auto imitator on the compressed env
     - transfer the improvement:
         - hack the a2c network by transfering much of the network, but randomizing everything past the latent space
