@@ -10,10 +10,13 @@ import functools
 
 from time import time
 import tools.stat_tools as stat_tools
-from tools.basics import product, flatten
+from tools.basics import product, flatten, to_pure
 from tools.debug import debug
 
-from statistics import mean as average
+from statistics import mean
+
+def average(iterable):
+    return mean(tuple(flatten(to_pure(each) for each in iterable)))
 
 def trend_up(episode_rewards, spike_suppression_magnitude=8, granuality_branching_factor=3, min_bucket_size=5, max_bucket_proportion=0.65):
     # measure: should trend up, more improvement is better, but trend is most important
