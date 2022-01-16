@@ -1,8 +1,9 @@
 class Skeleton:
     def __init__(self, observation_space, action_space, **config):
         self.observation = None     # external world will change this
-        self.episode_is_over = None # external world will change this
-        self.action = None          # external world will read this
+        self.reward = None          # external world will change this
+        self.action = None          # extrenal world will read this
+        self.episode_is_over = None # extrenal world will change this
 
     def when_mission_starts(self, mission_index=0):
         pass

@@ -330,22 +330,23 @@ def attempt(a_lambda, default=None, expected_errors=(Exception,)):
     except expected_errors:
         return default
 
-def Countdown(size):
+def Countdown(size, offset=0, delay=0,):
     """
         Returns a function
         That function will returns False until it has been called `size` times
         Then it auto resets
     """
+    
     remaining = size
     def countdown():
-        nonlocal remaining
-        remaining -= 1
-        if remaining <= 0:
+        countdown.remaining -= 1
+        if countdown.remaining + offset <= 0:
             # restart
-            remaining = size
+            countdown.remaining = size - offset
             return True
         else:
             return False
+    countdown.remaining = size + delay
     countdown.size = size
     return countdown
 
