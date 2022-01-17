@@ -4,6 +4,12 @@ from statistics import mean as average
 from statistics import stdev as standard_deviation
 from super_map import LazyDict
 
+def probabilitity_of_at_least_one(*probabilities):
+    chance_of_none = 1
+    for each in probabilities:
+        chance_of_none *= 1 - each
+    return 1 - chance_of_none
+
 def create_linear_interpolater(from_min, from_max, to_min, to_max):
     from_range = from_max - from_min
     to_range = to_max - to_min
@@ -146,15 +152,15 @@ def recursive_splits(a_list, branching_factor=2, min_size=2, max_proportion=0.65
         splits.append(tuple(bundle(a_list, bundle_size=bundle_size)))
     return tuple(reversed(splits))
 
-def increasingly_lenient_confidence(
+def increasingly_strict_confidence(
         sample_size,
-        max_leniency=0.3, # this means when the sample is big, there will be a 30% confidence interval requirement
-        leniency_rate=1,  # bigger=get to the max_leniency faster. at leniency_rate=1, sample_size=30, confidence will be around 95%
+        shortest_interval=0.3, # this means when the sample is big, there will be a 30% confidence interval requirement
+        strictness_rate=1,  # bigger=get to the shortest_interval faster. at strictness_rate=1, sample_size=30, confidence will be around 95%
     ):
     # starts at maximum = 1
     # as x gets bigger 
-    # approches max_leniency
-    slowness = 0.006 * leniency_rate # the 0.006 was solved-for to make confidence ~95% for sample size of 30
+    # approches shortest_interval
+    slowness = 0.006 * strictness_rate # the 0.006 was solved-for to make confidence ~95% for sample size of 30
     offsetter = 2 # anything smaller than this will have a 100% confindence interval (e.g. any/all results are within the interval)
     if sample_size <= offsetter:
         return 1
@@ -163,18 +169,18 @@ def increasingly_lenient_confidence(
         streched_out_curve           = shifted_to_the_right * slowness 
         scaled_from_one_half_to_zero = 2/( 1 + math.exp(streched_out_curve) )
         # range is 1^
-        new_range = 1 - max_leniency
+        new_range = 1 - shortest_interval
         rescaled_curve = scaled_from_one_half_to_zero * new_range
-        shifted_up     = rescaled_curve + max_leniency
+        shifted_up     = rescaled_curve + shortest_interval
         return shifted_up
 
-def confirmed_outstandingly_low(item, existing_items, max_leniency=0.3, leniency_rate=1):
+def confirmed_outstandingly_low(item, existing_items, shortest_interval=0.3, strictness_rate=1):
     purified_existing_items = tuple(to_pure(each) for each in existing_items)
     
-    confidence_needed = increasingly_smaller_confidence(
+    confidence_needed = increasingly_strict_confidence(
         sample_size=len(purified_existing_items),
-        max_leniency=max_leniency,
-        leniency_rate=leniency_rate,
+        shortest_interval=shortest_interval,
+        strictness_rate=strictness_rate,
     )
     the_mean = average(purified_existing_items)
     standard_deviation_amount = standard_deviation(purified_existing_items)
@@ -185,6 +191,12 @@ def confirmed_outstandingly_low(item, existing_items, max_leniency=0.3, leniency
     else:
         return False
 
+def probability_of_belonging_if_bellcurve(item, existing_items, above=False, below=False):
+    the_mean = average(existing_items)
+    standard_deviation_amount = standard_deviation(existing_items)
+    how_many_deviations_away = math.abs(item-the_mean) / standard_deviation_amount
+    return stats.norm.cdf(how_many_deviations_away)
+    
 
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
