@@ -6,7 +6,12 @@ import numpy as np
 import math
 
 class ProgressBar:
-    def __init__(self, iterations, inline=True, show_bar=True, disable=False, title=None, progress_bar_size=20):
+    """
+    for each in ProgressBar(range(100)):
+        pass
+    """
+    layout = [ 'remaining_time', 'spacer', 'bar', 'percent', 'spacer', 'fraction', 'spacer', 'start_time' ]
+    def __init__(self, iterations, inline=True, show_bar=True, disable=False, title=None, progress_bar_size=20, update_frequency=10, layout=None):
         if isinstance(iterations, int):
             self.total_iterations = iterations
             self.iteration = 0
@@ -23,6 +28,9 @@ class ProgressBar:
         self._disable = disable
         self.title = title
         self.start_time = datetime.now()
+        self.update_frequency = update_frequency
+        self.prev_time = -math.inf
+        self.layout = layout
 
     def __new__(cls, *args, **kwargs):
         return super(ProgressBar, cls).__new__(cls)
@@ -49,14 +57,17 @@ class ProgressBar:
             self.iteration = it
         
         self.iteration += 1
-        self.current_percent = self.iteration * 100 // self.total_iterations
-        if self.current_percent != self.prev_percent:
+        self.current_percent = (self.iteration * 10000 // self.total_iterations) / 100
+        now = time.time()
+        if now - self.prev_time > self.update_frequency:
+            self.prev_time = now
             # compute data
             self._times.append(time.time())
             self._past_iterations.append(self.iteration)
             self.total_eslaped_time = 0
             self.eslaped_time       = 0
             self.secs_remaining     = math.inf
+            # compute changes (need at least two times to do that)
             if len(self._times) > 2:
                 self.total_eslaped_time = self._times[-1] - self._times[ 0]
                 self.eslaped_time       = self._times[-1] - self._times[-2]
@@ -76,14 +87,9 @@ class ProgressBar:
             if self.title is not None:
                 print(self.title, end=' ')
             
-            self.show_remaining_time()
-            self.show_spacer()
-            self.show_percent()
-            self.show_spacer()
-            self.show_bar()
-            self.show_fraction()
-            self.show_spacer()
-            self.show_start_time()
+            # display each thing according to the layout
+            for each in (self.layout or ProgressBar.layout):
+                getattr(self, f"show_{each}", lambda : None)()
             
             # padding
             if not self._inline:
@@ -126,19 +132,14 @@ class ProgressBar:
         iterations_per_sec = (self._past_iterations[-1] - self._past_iterations[-2]) / self.eslaped_time
         print(f'{self.to_time_string(self.eslaped_time)}sec per iter', end='')
     
-    def show_start_and_end_time(self):
-        if self.current_percent != 100:
-            endtime = self.start_time + timedelta(seconds=self.total_eslaped_time + self.secs_remaining)
-            print(
-                'Started: %s - Ends at: %s' % (
-                    self.start_time.strftime("%H:%M:%S"), endtime.strftime("%H:%M:%S")
-                ),
-                end=''
-            )
-    
     def show_start_time(self):
         if self.current_percent != 100:
             print(f'started: {self.start_time.strftime("%H:%M:%S")}',  end='')
+    
+    def show_end_time(self):
+        endtime = self.start_time + timedelta(seconds=self.total_eslaped_time + self.secs_remaining)
+        if self.current_percent != 100:
+            print(f'eta: {endtime.strftime("%H:%M:%S")}',  end='')
     
     def show_done(self):
         if self._inline:
