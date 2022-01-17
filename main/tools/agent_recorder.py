@@ -1,5 +1,6 @@
 from tools.basics import large_pickle_load, large_pickle_save, to_pure
 from tools.file_system_tools import FileSystem
+from tools.progress_bar import ProgressBar
 import os
 import math
 import json
@@ -96,7 +97,7 @@ class AgentRecorder():
         remaining_indicies = set(self.indicies())
         total = math.floor(len(remaining_indicies) / batch_size)
         batch_index = -1
-        while len(remaining_indicies) > batch_size:
+        for each in ProgressBar(range(total)):
             batch_index += 1
             entries = random.sample(remaining_indicies, k=batch_size)
             # remove the ones we just sampled
@@ -110,13 +111,12 @@ class AgentRecorder():
             # do any compression/decompression/augmentation stuff
             batch = preprocessing(batch)
             # save it
-            print(f'saving batch {batch_index}/{total}')
             large_pickle_save(batch, f"{batch_path}/{batch_index}")
     
     def load_batch_data(self, batch_name):
         batch_path = f"{self.save_to}/{batch_name}"
         batch_names = FileSystem.list_files(batch_path)
-        self.batch_size = len(batch_names)
+        self.number_of_batches = len(batch_names)
         for each in batch_names:
             yield large_pickle_load(f'{batch_path}/{each}')
     
