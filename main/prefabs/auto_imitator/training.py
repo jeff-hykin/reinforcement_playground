@@ -81,6 +81,7 @@ def train(base_learning_rate):
             auto_imitator.save()
     
     smoothed_correctness = logging.smoother(auto_imitator.logging.proportion_correct_at_index)
+    print('smoothed_correctness = ', smoothed_correctness)
     other_curves.append(smoothed_correctness)
     print(f'training_number = {len(other_curves)+1}, max stable correctness: {max(smoothed_correctness)}')
     return smoothed_correctness
