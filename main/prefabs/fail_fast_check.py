@@ -1,7 +1,11 @@
-from tools.stat_tools import confirmed_outstandingly_low, increasingly_lenient_confidence, probability_of_belonging_if_bellcurve, average, standard_deviation, probabilitity_of_at_least_one
-
+from tools.stat_tools import confirmed_outstandingly_low, increasingly_strict_confidence, probability_of_belonging_if_bellcurve, average, standard_deviation, probabilitity_of_at_least_one
+import scipy.stats as stats
 
 def is_significantly_below_other_curves(current_curve, curves):
+    # can't get a standard_deviation without 2 items
+    if len(curves) <= 2 or len(current_curve) <= 2:
+        return False
+    
     existing_items = tuple(sum(each[0:len(current_curve)]) for each in curves)
     item = sum(current_curve)
     
@@ -14,7 +18,7 @@ def is_significantly_below_other_curves(current_curve, curves):
     
     confidence = probabilitity_of_at_least_one(
         confidence_from_rewards_so_far,
-        confidence_from_average_rewards_of_other_runs,
+        confidence_from_existing_items,
     )
     
     number_of_standard_deviations_needed = stats.norm.ppf(confidence)

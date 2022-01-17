@@ -12,7 +12,7 @@ from tools.agent_recorder import AgentRecorder
 from world_builders.atari.baselines_vectorized import Environment
 from agent_builders.a2c_baselines.main import Agent
 from prefabs.baselines_optimizer import RMSpropTFLike
-from prefabs.auto_imitator import AutoImitator
+from prefabs.auto_imitator.main import AutoImitator
 
 env = Environment(
     name='BreakoutNoFrameskip-v4',

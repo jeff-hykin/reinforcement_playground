@@ -9,7 +9,7 @@ def compress_observations(batch):
     for index, (raw_image, observation_stack), action in batch:
         observation_stacks.append(observation_stack)
         actions.append(action)
-    return opencv_image_to_torch_image(to_tensor(observation_stacks)), to_tensor(actions)
+    return to_tensor(observation_stacks), to_tensor(actions)
 
 frame_stacking_size = 4
 def compress_raw_images(batch):

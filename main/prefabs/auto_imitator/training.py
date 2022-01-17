@@ -3,13 +3,14 @@ from super_map import LazyDict
 
 from tools.all_tools import *
 from tools.agent_recorder import AgentRecorder
-from tools.stat_tools import confirmed_outstandingly_low, increasingly_smaller_confidence
 
 from prefabs.fail_fast_check import is_significantly_below_other_curves
-from prefabs.auto_imitator import AutoImitator
+from prefabs.auto_imitator.main import AutoImitator
 from prefabs.helpful_fitness_measures import trend_up, average
+from prefabs.auto_imitator.preprocess_dataset import compress_observations, compress_raw_images
 
-database = AgentRecorder(save_to="resources/datasets.ignore/atari/baselines_pretrained@vectorized_breakout")
+
+database = AgentRecorder(save_to="resources/datasets.ignore/atari/baselines_pretrained@breakout_custom")
 # best so far, starts with learning_rate of 0.00022752556564934162, gets 0.559375
 # 0.00009873062729, 0.5520833333333334
 # 0.000275410365795725, 0.5477294921875
@@ -59,10 +60,11 @@ def train(base_learning_rate):
         path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_{base_learning_rate}.model",
     )
     
-    for index, (observations, actions) in enumerate(database.load_batch_data("64")):
-        if logging.should_print(): print(f'trial: {len(average_batch_trending_for_each_trial)+1}, learning_rate: {learning_rate(index)}, batch {index+1}/{database.batch_size}')
+    sampler = database.batch_sampler(batch_size=64, preprocessing=compress_observations)
+    for index, (observations, actions) in enumerate(sampler()):
+        if logging.should_print(): print(f'trial: {len(other_curves)+1}, learning_rate: {learning_rate(index)}, batch {index+1}/{sampler.number_of_batches}')
         auto_imitator.update_weights(
-            batch_of_inputs=opencv_image_to_torch_image(observations),
+            batch_of_inputs=observations,
             batch_of_ideal_outputs=actions,
             epoch_index=1,
             batch_index=index
@@ -80,7 +82,7 @@ def train(base_learning_rate):
     
     smoothed_correctness = logging.smoother(auto_imitator.logging.proportion_correct_at_index)
     other_curves.append(smoothed_correctness)
-    print(f'training_number = {len(average_batch_trending_for_each_trial)+1}, max stable correctness: {max(smoothed_correctness)}')
+    print(f'training_number = {len(other_curves)+1}, max stable correctness: {max(smoothed_correctness)}')
     return smoothed_correctness
 
 

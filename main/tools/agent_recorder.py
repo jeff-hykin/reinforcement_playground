@@ -51,6 +51,28 @@ class AgentRecorder():
             "_metadata_file_extension" : self._metadata_file_extension,
         })
     
+    def batch_sampler(self, batch_size, preprocessing):
+        def sampler():
+            remaining_indicies = set(self.indicies())
+            total = math.floor(len(remaining_indicies) / batch_size)
+            batch_index = -1
+            while len(remaining_indicies) > batch_size:
+                batch_index += 1
+                entries = random.sample(remaining_indicies, k=batch_size)
+                # remove the ones we just sampled
+                remaining_indicies = remaining_indicies - set(entries)
+                batch = []
+                # load all the ones in the batch
+                for each_index in entries:
+                    batch.append(
+                        (each_index, *large_pickle_load(self.save_to+f"/{each_index}{self._data_file_extension}"))
+                    )
+                # do any compression/decompression/augmentation stuff
+                yield preprocessing(batch)
+        sampler.batch_size = batch_size
+        sampler.number_of_batches = math.floor( self.size / batch_size)
+        return sampler
+    
     def load_index(self, index):
         data = large_pickle_load(self.save_to+f"/{index}{self._data_file_extension}")
         metadata = read_json(path=self.save_to+f"/{index}{self._metadata_file_extension}")
