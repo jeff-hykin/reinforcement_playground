@@ -8,6 +8,7 @@ import numpy as np
 import collections 
 import cv2
 import time
+import math
 
 from tools.basics import product
 from tools.frame_que import FrameQue
@@ -98,22 +99,22 @@ class AutoLatentSpaceWrap(gym.ObservationWrapper):
         path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_0.00021598702086765554.model",
     )
     def __init__(self, env):
-        super(AutoLatentSpace, self).__init__(env)
+        super(AutoLatentSpaceWrap, self).__init__(env)
         old_space = self.observation_space
         self.observation_space = gym.spaces.Box(
             low=-math.inf,
             high=math.inf,
-            shape=AutoLatentSpace.auto_imitator.encoder.output_shape,
+            shape=AutoLatentSpaceWrap.auto_imitator.encoder.output_shape,
             dtype=np.float,
         )
         
     def step(self, action):
         observation, reward, episode_is_over, info = self.env.step(action)
-        observation = AutoLatentSpace.auto_imitator.encoder.forward(to_tensor(observation).to(AutoLatentSpace.auto_imitator.hardware))
+        observation = self.observation(observation)
         return observation, reward, episode_is_over, info
     
     def observation(self, observation):
-        return AutoLatentSpace.auto_imitator.encoder.forward(to_tensor(observation).to(AutoLatentSpace.auto_imitator.hardware))
+        return AutoLatentSpaceWrap.auto_imitator.encoder.forward(to_tensor([observation]).to(AutoLatentSpaceWrap.auto_imitator.hardware)).detach()
 
 class TensorWrap(gym.ObservationWrapper):
     """
@@ -121,13 +122,13 @@ class TensorWrap(gym.ObservationWrapper):
     """
     def step(self, action):
         observation, reward, episode_is_over, info = self.env.step(int(action[0]))
-        observation = torch.Tensor([observation])
-        reward = torch.tensor([reward]).unsqueeze(0)
-        episode_is_over = torch.tensor([int(episode_is_over)]).unsqueeze(0)
+        observation = to_tensor([observation])
+        reward = to_tensor([reward]).unsqueeze(0)
+        episode_is_over = to_tensor([int(episode_is_over)]).unsqueeze(0)
         return observation, reward, episode_is_over, info
     
     def observation(self, obs):
-        return torch.Tensor([obs])
+        return to_tensor([obs])
 
 
 def preprocess(env, frame_buffer_size, frame_sample_rate):

@@ -16,15 +16,14 @@ from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, fo
 from tools.schedulers import BasicLearningRateScheduler
 
 class Network(nn.Module):
-    """
-    Shallow Neural Net
-    """
     @init.hardware
-    def __init__(self, input_shape, n_actions):
+    def __init__(self, input_shape, n_actions, encoder):
         super(Network, self).__init__()
         self.input_shape = input_shape
-        self.fc = Sequential(
-            nn.Linear(product(self.input_shape), 512),
+        self.conv = encoder
+
+        self.fc = nn.Sequential(
+            nn.Linear(encoder.output_size, 512),
             nn.ReLU(),
             nn.Linear(512, n_actions)
         )
@@ -32,11 +31,13 @@ class Network(nn.Module):
     @forward.to_tensor
     @forward.to_device
     def forward(self, x):
-        return self.fc.forward(x).view(x.size()[0], -1)
+        conv_out = self.conv(x).view(x.size()[0], -1)
+        return self.fc(conv_out)
+
 
 class Agent(Skeleton):
     @init.hardware
-    def __init__(self, observation_space, action_space, max_memory_size, batch_size, gamma, lr, dropout, exploration_max, exploration_min, exploration_decay, pretrained, path, training_mode):
+    def __init__(self, observation_space, action_space, max_memory_size, batch_size, gamma, lr, dropout, exploration_max, exploration_min, exploration_decay, pretrained, path, training_mode, encoder):
         self.training_mode = training_mode
         self.path = path
         FileSystem.ensure_is_folder(FileSystem.dirname(self.path))
@@ -48,7 +49,7 @@ class Agent(Skeleton):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         # DQN network  
-        self.dqn = Network(self.state_space, self.action_space).to(self.device)
+        self.dqn = Network(self.state_space, self.action_space, encoder=encoder).to(self.device)
 
         if self.pretrained:
             self.dqn.load_state_dict(torch.load(self.path+"DQN.pt", map_location=torch.device(self.device)))

@@ -27,11 +27,19 @@ def layer_output_shapes(network, input_shape=None):
     neuron_activations = torch.ones((1, *input_shape))
     sizes = []
     with torch.no_grad():
-        for layer in network:
-            # if its not a loss function
-            if not isinstance(layer, torch.nn.modules.loss._Loss):
-                neuron_activations = layer.forward(neuron_activations)
-                sizes.append(neuron_activations.size())
+        try:
+            for layer in network:
+                # if its not a loss function
+                if not isinstance(layer, torch.nn.modules.loss._Loss):
+                    neuron_activations = layer.forward(neuron_activations)
+                    sizes.append(neuron_activations.size())
+        except Exception as error:
+            neuron_activations = neuron_activations.to(device)
+            for layer in network:
+                # if its not a loss function
+                if not isinstance(layer, torch.nn.modules.loss._Loss):
+                    neuron_activations = layer.forward(neuron_activations)
+                    sizes.append(neuron_activations.size())
         
     return sizes
 
@@ -258,6 +266,7 @@ def init():
     
     return locals()
 
+real_to_tensor = to_tensor
 @namespace
 def forward():
     def to_device(function_being_wrapped):
@@ -272,9 +281,9 @@ def forward():
             return function_being_wrapped(self, *new_args, **kwargs)
         return wrapper
     
-    def all_args_to_tensor(function_being_wrapped):
+    def to_tensor(function_being_wrapped):
         def wrapper(self, *args, **kwargs):
-            return function_being_wrapped(self, *tuple(to_tensor(each) for each in args), **kwargs)
+            return function_being_wrapped(self, *tuple(real_to_tensor(each) for each in args), **kwargs)
         return wrapper
     
     def to_batched_tensor(number_of_dimensions=4):
