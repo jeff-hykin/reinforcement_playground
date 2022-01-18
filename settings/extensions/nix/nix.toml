@@ -49,7 +49,7 @@
 
 [[packages]]
 load = [ "zellij",]
-from = "860b56be91fb874d48e23a950815969a7b832fbc"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 load = [ "git-subrepo",]
