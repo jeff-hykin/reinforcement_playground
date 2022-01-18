@@ -62,7 +62,6 @@ class BasicLearningRateScheduler:
     def __init__(self, *, value_function, optimizers):
         self.optimizers = optimizers
         self.timestep_index = -1
-        self.episode_index = -1
         # allow the "function" to be a constant
         if not callable(value_function):
             # value_functiontion that returns a constant
@@ -73,6 +72,7 @@ class BasicLearningRateScheduler:
         self.when_weight_update_starts()
     
     def when_weight_update_starts(self):
+        self.timestep_index += 1
         learning_rate = self.current_value
         for each_optimizer in self.optimizers:
             for param_group in each_optimizer.param_groups:

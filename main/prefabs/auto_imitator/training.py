@@ -24,7 +24,7 @@ logging = LazyDict(
     correctness_card=ss.DisplayCard("quickLine", []),
     loss_card=ss.DisplayCard("quickLine", []),
     name_card=ss.DisplayCard("quickMarkdown", f""),
-    update_name_card=lambda info: name_card.send(info), 
+    update_name_card=lambda info: logging.name_card.send(info), 
     update_correctness=lambda data: logging.correctness_card.send("clear").send(tuple(zip(
             # indicies
             range(0, len(data), logging.smoothing_size),
@@ -50,23 +50,24 @@ database = AgentRecorder(
 # 
 other_curves = []
 def train(base_learning_rate):
+    batch_generator = database.load_batch_data("preprocessed64")
     def learning_rate(timestep_index):
-        # reduce by orders of magnitude over time
-        min_rate = base_learning_rate/(10 * 1)
+        # reduce to 1/2 over time
+        min_rate = base_learning_rate/2
         flexible_part = base_learning_rate - min_rate
-        return min_rate + ((database.size-timestep_index)/database.number_of_batches * flexible_part)
+        return min_rate + ((batch_generator.number_of_batches-timestep_index)/batch_generator.number_of_batches * flexible_part)
     
     auto_imitator = AutoImitator(
         learning_rate=learning_rate,
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_2_{base_learning_rate}.model",
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_3_{base_learning_rate}.model",
     )
     
     batch_size = 64
-    for index, (observations, actions) in enumerate(database.load_batch_data("preprocessed64")):
-        if logging.should_print(): print(f'trial: {len(other_curves)+1}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value}, batch {index+1}/{database.number_of_batches}')
+    for index, (observations, actions) in enumerate(batch_generator()):
+        if logging.should_print(): print(f'trial: {len(other_curves)+1}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value}, batch {index+1}/{batch_generator.number_of_batches}')
         auto_imitator.update_weights(
             batch_of_inputs=observations,
             batch_of_ideal_outputs=actions,
@@ -102,7 +103,7 @@ def tune_hyperparams(number_of_trials, fitness_func):
     # connect the trial-object to hyperparams and setup a measurement of fitness
     objective_func = lambda trial: fitness_func(
         train(
-            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00007, 0.00035),
+            base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00007, 0.00030),
         )
     )
     study = optuna.create_study(direction="maximize")

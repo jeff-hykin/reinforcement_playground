@@ -116,9 +116,12 @@ class AgentRecorder():
     def load_batch_data(self, batch_name):
         batch_path = f"{self.save_to}/{batch_name}"
         batch_names = FileSystem.list_files(batch_path)
-        self.number_of_batches = len(batch_names)
-        for each in batch_names:
-            yield large_pickle_load(f'{batch_path}/{each}')
+        def sampler():
+            for each in batch_names:
+                yield large_pickle_load(f'{batch_path}/{each}')
+        sampler.number_of_batches = len(batch_names)
+        return sampler
+        
     
     def names(self,):
         return ( each.split(".")[0] for each in FileSystem.list_files(self.save_to) )
