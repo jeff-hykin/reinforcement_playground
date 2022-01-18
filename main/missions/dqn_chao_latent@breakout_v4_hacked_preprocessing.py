@@ -21,7 +21,7 @@ from tools.pytorch_tools import to_tensor
 def run(
         training_mode,
         pretrained,
-        path="./models.ignore/dqn_chao",
+        path="./models.ignore/dqn_chao_latent",
         number_of_episodes=1000,
         exploration_max=1,
         env_name="BreakoutNoFrameskip-v4",

@@ -19,11 +19,23 @@ from prefabs.auto_imitator.main import AutoImitator
 from tools.progress_bar import ProgressBar
 from tools.pytorch_tools import to_tensor
 
+# remaining: ________ | [>........................] 0.00% | 0/1000 | started: 22:26:08 |                                                                                                   
+# remaining: 10:29sec | [>........................] 0.80% | 8/1000 | started: 22:26:08 |                                                                                                   
+# remaining: 13:05sec | [==>......................] 10.00% | 100/1000 | started: 22:26:08 | Episode 101 score = tensor([[2.]]), average score = 2.02970290184021                           
+# remaining: 9:39sec | [=====>...................] 20.00% | 200/1000 | started: 22:26:08 | Episode 201 score = tensor([[1.]]), average score = 1.5273631811141968                          
+# remaining: 7:38sec | [=======>.................] 30.00% | 300/1000 | started: 22:26:08 | Episode 301 score = tensor([[0.]]), average score = 1.3820598125457764                          
+# remaining: 7:12sec | [==========>..............] 40.00% | 400/1000 | started: 22:26:08 | Episode 401 score = tensor([[1.]]), average score = 1.503740668296814                           
+# remaining: 6:12sec | [============>............] 50.00% | 500/1000 | started: 22:26:08 | Episode 501 score = tensor([[0.]]), average score = 1.4570858478546143                          
+# remaining: 4:51sec | [===============>.........] 60.00% | 600/1000 | started: 22:26:08 | Episode 601 score = tensor([[3.]]), average score = 1.4975041151046753                          
+# remaining: 3:32sec | [=================>.......] 70.00% | 700/1000 | started: 22:26:08 | Episode 701 score = tensor([[0.]]), average score = 1.4907275438308716                          
+# remaining: 2:15sec | [====================>....] 80.00% | 800/1000 | started: 22:26:08 | Episode 801 score = tensor([[1.]]), average score = 1.5043694972991943                          
+# remaining: 1:06sec | [======================>..] 90.00% | 900/1000 | started: 22:26:08 | Episode 901 score = tensor([[2.]]), average score = 1.4950056076049805                          
+# remaining: 0:02sec | [========================>] 99.70% | 997/1000 | started: 22:26:08 | 
 
 def run(
         training_mode,
         pretrained,
-        path="./models.ignore/dqn_chao",
+        path="./models.ignore/dqn_chao_transfer",
         number_of_episodes=1000,
         exploration_max=1,
         env_name="BreakoutNoFrameskip-v4",
