@@ -1,3 +1,18 @@
+def create_linear_rate(base_learning_rate, min_learning_rate, number_of_training_steps):
+    printed_warning = False
+    def learning_rate(timestep_index):
+        nonlocal printed_warning
+        # a safeguard 
+        if timestep_index > number_of_training_steps:
+            # (+2 is an off-by-one protection against the warning)
+            if timestep_index > number_of_training_steps+2 and not printed_warning:
+                print(f"warning: create_linear_rate() got number_of_training_steps={number_of_training_steps}, but is currently on step {timestep_index}. So your number_of_training_steps is probably wrong")
+                printed_warning = True
+            return min_learning_rate
+        flexible_part = base_learning_rate - min_learning_rate
+        return min_learning_rate + ((number_of_training_steps-timestep_index)/number_of_training_steps * flexible_part)
+    return learning_rate
+
 class AgentLearningRateScheduler:
     """
     Examples:

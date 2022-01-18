@@ -4,6 +4,7 @@ from super_map import LazyDict
 from tools.basics import to_pure, Countdown
 from tools.stat_tools import bundle
 from tools.agent_recorder import AgentRecorder
+from tools.schedulers import create_linear_rate
 
 from prefabs.fail_fast_check import is_significantly_below_other_curves
 from prefabs.auto_imitator.main import AutoImitator
@@ -51,14 +52,13 @@ database = AgentRecorder(
 other_curves = []
 def train(base_learning_rate):
     batch_generator = database.load_batch_data("preprocessed64")
-    def learning_rate(timestep_index):
-        # reduce to 1/2 over time
-        min_rate = base_learning_rate/2
-        flexible_part = base_learning_rate - min_rate
-        return min_rate + ((batch_generator.number_of_batches-timestep_index)/batch_generator.number_of_batches * flexible_part)
     
     auto_imitator = AutoImitator(
-        learning_rate=learning_rate,
+        learning_rate=create_linear_rate(
+            base_learning_rate=base_learning_rate,
+            min_learning_rate=base_learning_rate/2,
+            number_of_training_steps=batch_generator.number_of_batches,
+        ),
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
