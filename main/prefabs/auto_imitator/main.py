@@ -7,14 +7,9 @@ from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, fo
 from tools.schedulers import BasicLearningRateScheduler
 
 class AutoImitator(nn.Module):
+    @init.hardware
     def __init__(self, **config):
         super(AutoImitator, self).__init__()
-        # put in a method for load/save reaons
-        self.construct(**config)
-    
-    @init.hardware
-    def construct(self, **config):
-        self.config = config
         self.logging = LazyDict(proportion_correct_at_index=[], loss_at_index=[])
         # 
         # options
@@ -90,39 +85,7 @@ class AutoImitator(nn.Module):
         return self.layers.forward(batch_of_inputs)
     
     def save(self, path=None):
-        data = (
-            self.state_dict() ,
-            self.config
-        )
-        large_pickle_save(data, file_path=(path or self.path))
-        return self
+        return torch.save(self.state_dict(), path or self.path)
 
     def load(self, path=None):
-        (
-            state_dict,
-            self.config,
-        ) = large_pickle_load(path or self.path)
-        # set everything up
-        self.construct(**self.config)
-        # then load weights back in
-        self.load_state_dict(state_dict)
-        return self
-    
-    def save(self, path=None):
-        data = (
-            self.state_dict() ,
-            self.config
-        )
-        large_pickle_save(data, file_path=(path or self.path))
-        return self
-
-    def load(self, path=None):
-        (
-            state_dict,
-            self.config,
-        ) = large_pickle_load(path or self.path)
-        # set everything up
-        self.construct(**self.config)
-        # then load weights back in
-        self.load_state_dict(state_dict)
-        return self
+        return self.load_state_dict(torch.load(path or self.path))
