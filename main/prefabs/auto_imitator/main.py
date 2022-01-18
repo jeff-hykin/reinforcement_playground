@@ -3,7 +3,7 @@ from super_map import LazyDict
 from tools.all_tools import *
 
 from tools.basics import product
-from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, Sequential, tensor_to_image
+from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image
 from tools.schedulers import BasicLearningRateScheduler
 
 class AutoImitator(nn.Module):
@@ -56,8 +56,8 @@ class AutoImitator(nn.Module):
             except Exception as error:
                 pass
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @misc.all_args_to_tensor
+    @misc.all_args_to_device
     def loss_function(self, model_output, ideal_output):
         which_ideal_actions = ideal_output.long()
         # ideal output is vector of indicies, model_output is vector of one-hot vectors
@@ -67,8 +67,8 @@ class AutoImitator(nn.Module):
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @misc.all_args_to_tensor
+    @misc.all_args_to_device
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.learning_rate_scheduler.when_weight_update_starts()
         self.optimizer.zero_grad()
@@ -78,8 +78,8 @@ class AutoImitator(nn.Module):
         self.optimizer.step()
         return loss
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     def forward(self, batch_of_inputs):
         # 0 to 1 =>> -1 to 1
         return self.layers.forward(batch_of_inputs)

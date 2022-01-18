@@ -11,43 +11,36 @@ import time
 
 from tools.agent_skeleton import Skeleton
 from tools.file_system_tools import FileSystem
+from tools.basics import product
+from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, Sequential, tensor_to_image
+from tools.schedulers import BasicLearningRateScheduler
 
 class Network(nn.Module):
     """
-    Convolutional Neural Net with 3 conv layers and two linear layers
+    Shallow Neural Net
     """
+    @init.hardware
     def __init__(self, input_shape, n_actions):
         super(Network, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU()
-        )
-
-        conv_out_size = self._get_conv_out(input_shape)
-        self.fc = nn.Sequential(
-            nn.Linear(conv_out_size, 512),
+        self.input_shape = input_shape
+        self.fc = Sequential(
+            nn.Linear(product(self.input_shape), 512),
             nn.ReLU(),
             nn.Linear(512, n_actions)
         )
     
-    def _get_conv_out(self, shape):
-        o = self.conv(torch.zeros(1, *shape))
-        return int(np.prod(o.size()))
-
+    @forward.to_tensor
+    @forward.to_device
     def forward(self, x):
-        conv_out = self.conv(x).view(x.size()[0], -1)
-        return self.fc(conv_out)
+        return self.fc(x).view(x.size()[0], -1)
 
 class Agent(Skeleton):
+    @init.hardware
     def __init__(self, observation_space, action_space, max_memory_size, batch_size, gamma, lr, dropout, exploration_max, exploration_min, exploration_decay, pretrained, path, training_mode):
         self.training_mode = training_mode
         self.path = path
         FileSystem.ensure_is_folder(FileSystem.dirname(self.path))
-        
+
         # Define DQN Layers
         self.state_space = observation_space.shape
         self.action_space = action_space.n
@@ -83,20 +76,6 @@ class Agent(Skeleton):
             self.num_in_queue = 0
         
         self.memory_sample_size = batch_size
-        
-        # Learning parameters
-        self.gamma = gamma
-        self.l1 = nn.SmoothL1Loss().to(self.device) # Also known as Huber loss
-        self.exploration_max = exploration_max
-        self.exploration_rate = exploration_max
-        self.exploration_min = exploration_min
-        self.exploration_decay = exploration_decay
-        
-        # logging
-        self.total_rewards = []
-        if self.training_mode and self.pretrained:
-            with open(path+"total_rewards.pkl", 'rb') as f:
-                self.total_rewards = pickle.load(f)
 
     def remember(self, state, action, reward, state2, done):
         """Store the experiences in a buffer to use later"""

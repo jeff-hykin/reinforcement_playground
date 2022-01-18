@@ -97,7 +97,7 @@ class AgentRecorder():
         remaining_indicies = set(self.indicies())
         total = math.floor(len(remaining_indicies) / batch_size)
         batch_index = -1
-        for each in ProgressBar(range(total)):
+        for progress, each in ProgressBar(range(total)):
             batch_index += 1
             entries = random.sample(remaining_indicies, k=batch_size)
             # remove the ones we just sampled
@@ -113,14 +113,30 @@ class AgentRecorder():
             # save it
             large_pickle_save(batch, f"{batch_path}/{batch_index}")
     
-    def load_batch_data(self, batch_name):
-        batch_path = f"{self.save_to}/{batch_name}"
-        batch_names = FileSystem.list_files(batch_path)
-        def sampler():
-            for each in batch_names:
-                yield large_pickle_load(f'{batch_path}/{each}')
-        sampler.number_of_batches = len(batch_names)
-        return sampler
+    @property
+    def load_batch_data(self):
+        dataset = self
+        class Batch:
+            def __init__(self, batch_name):
+                batch_path = f"{dataset.save_to}/{batch_name}"
+                batch_names = FileSystem.list_files(batch_path)
+                self.number_of_batches = len(batch_names)
+                self.batch_name = batch_name
+                def sampler():
+                    for each in batch_names:
+                        yield large_pickle_load(f'{batch_path}/{each}')
+                self.iterator = sampler()
+            
+            def __len__(self,):
+                return self.number_of_batches
+            
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                return next(self.iterator)
+        
+        return Batch
         
     
     def names(self,):

@@ -29,13 +29,13 @@ class Encoder(nn.Module):
         self.layers.add_module('fc1',              nn.Linear(self.layers.output_size, product(self.output_shape)))
         self.layers.add_module('fc1_activation',   nn.ReLU())
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     def loss_function(self, model_output, ideal_output):
         return nn.functional.nll_loss(model_output, ideal_output)
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     def forward(self, batch_of_inputs):
         return self.layers.forward(batch_of_inputs)
     
@@ -75,14 +75,14 @@ class Decoder(nn.Module):
         # loss
         self.loss_function = nn.mse_loss()
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     def loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
         return nn.functional.mse_loss(model_output, ideal_output)
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     def forward(self, batch_of_inputs):
         return self.layers.forward(batch_of_inputs)
     
@@ -109,19 +109,19 @@ class ImageCoder(nn.Module):
         # optimizer
         self.optimizer = optim.SGD(self.parameters(), lr=self.learning_rate, momentum=self.momentum)
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     def loss_function(self, model_output, ideal_output):
         ideal_output = opencv_image_to_torch_image(ideal_output)
         return F.mse_loss(model_output, ideal_output)
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     def encode(self, input_data):
         return self.layers.encoder.forward(input_data)
     
-    @forward.all_args_to_tensor
-    @forward.all_args_to_device
+    @forward.to_tensor
+    @forward.to_device
     @forward.to_batched_tensor(number_of_dimensions=4) # batch_size, color_channels, image_width, image_height
     @forward.from_opencv_image_to_torch_image
     def forward(self, input_batch):

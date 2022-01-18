@@ -5,6 +5,7 @@ from tools.basics import to_pure, Countdown
 from tools.stat_tools import bundle
 from tools.agent_recorder import AgentRecorder
 from tools.schedulers import create_linear_rate
+from tools.progress_bar import ProgressBar
 
 from prefabs.fail_fast_check import is_significantly_below_other_curves
 from prefabs.auto_imitator.main import AutoImitator
@@ -66,17 +67,17 @@ def train(base_learning_rate):
     )
     
     batch_size = 64
-    for index, (observations, actions) in enumerate(batch_generator()):
-        if logging.should_print(): print(f'trial: {len(other_curves)+1}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value}, batch {index+1}/{batch_generator.number_of_batches}')
+    for progress, (observations, actions) in ProgressBar(batch_generator(), title=f"trial: {len(other_curves)}"):
+        if progress.updated: print(f'learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}')
         auto_imitator.update_weights(
             batch_of_inputs=observations,
             batch_of_ideal_outputs=actions,
             epoch_index=1,
-            batch_index=index
+            batch_index=progress.index
         )
         
-        if logging.should_log() or index == 0:
-            logging.update_name_card(f"trial: {len(other_curves)+1}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value}")
+        if logging.should_log() or progress.index == 0:
+            logging.update_name_card(f"trial: {len(other_curves)}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}")
             logging.update_correctness(auto_imitator.logging.proportion_correct_at_index)
             logging.update_loss(auto_imitator.logging.loss_at_index)
             # fail fast check

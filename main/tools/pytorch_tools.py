@@ -260,7 +260,7 @@ def init():
 
 @namespace
 def forward():
-    def all_args_to_device(function_being_wrapped):
+    def to_device(function_being_wrapped):
         def wrapper(self, *args, **kwargs):
             new_args = []
             for each in args:
@@ -301,6 +301,27 @@ def forward():
         def wrapper(self, input_data, *args, **kwargs):
             # converts to torch if needed
             return function_being_wrapped(self, opencv_image_to_torch_image(input_data), *args, **kwargs)
+        return wrapper
+    
+    return locals()
+
+@namespace
+def misc():
+    def all_args_to_device(function_being_wrapped):
+        def wrapper(self, *args, **kwargs):
+            new_args = []
+            for each in args:
+                # converts to torch if needed
+                if hasattr(self, "hardware"):
+                    new_args.append(each.to(self.hardware))
+                elif hasattr(self, "device"):
+                    new_args.append(each.to(self.device))
+            return function_being_wrapped(self, *new_args, **kwargs)
+        return wrapper
+    
+    def all_args_to_tensor(function_being_wrapped):
+        def wrapper(self, *args, **kwargs):
+            return function_being_wrapped(self, *tuple(to_tensor(each) for each in args), **kwargs)
         return wrapper
     
     return locals()
