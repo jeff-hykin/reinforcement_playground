@@ -11,14 +11,32 @@ import time
 
 # 22 min: Episode 1000 score = 9.0, average score = 5.572
 
-from world_builders.atari.preprocessor_chao import create_env
-from agent_builders.dqn_chao.main import Agent
+from world_builders.atari.custom_preprocessing import preprocess, AutoLatentSpaceWrap, TensorWrap
+from agent_builders.dqn_chao_latent.main import Agent
 
 from tools.progress_bar import ProgressBar
+from tools.pytorch_tools import to_tensor
 
-def run(training_mode, pretrained, path="./models.ignore/dqn_chao", number_of_episodes=1000, exploration_max=1):
-    env = create_env(
-        gym.make('Breakout-v4')
+
+def run(
+        training_mode,
+        pretrained,
+        path="./models.ignore/dqn_chao",
+        number_of_episodes=1000,
+        exploration_max=1,
+        env_name="BreakoutNoFrameskip-v4",
+        frame_buffer_size=4, # open ai defaults to 4 (VecFrameStack)
+        frame_sample_rate=4,    # open ai defaults to 4, see: https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
+    ):
+    
+    env = TensorWrap(
+        AutoLatentSpaceWrap(
+                preprocess(
+                env=gym.make(env_name),
+                frame_buffer_size=frame_buffer_size,
+                frame_sample_rate=frame_sample_rate,
+            )
+        )
     )
     
     mr_bond = Agent(

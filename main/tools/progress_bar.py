@@ -2,10 +2,10 @@
 from datetime import datetime, timedelta
 import time
 import sys
-import numpy as np
 import math
 from super_map import Map
-
+from statistics import stdev, mean
+    
 class ProgressBar:
     """
     for progress, each in ProgressBar(range(100)):
@@ -48,18 +48,16 @@ class ProgressBar:
                     self.eslaped_time       = 0
                     self.secs_remaining     = math.inf
                     # compute changes (need at least two times to do that)
-                    if len(self.times) > 2:
+                    if len(self.times) > 1:
                         self.total_eslaped_time = self.times[-1] - self.times[ 0]
                         self.eslaped_time       = self.times[-1] - self.times[-2]
-                        p = np.poly1d(
-                            np.polyfit(
-                                self.past_indicies,
-                                self.times[1:],
-                                w=np.arange(1, len(self.times)),
-                                deg=1
-                            )
-                        )
-                        self.secs_remaining = p(self.progress_data.total) - p(self.progress_data.index)
+                        iter_durations = tuple(each-prev for prev, each in zip(self.times[0:-1], self.times[1:]))
+                        average_iteration_time = mean(iter_durations)
+                        deviation = stdev(iter_durations)
+                        # use percentage as a degree of over esitmation (start as an overestimate, then get closer to exact over time)
+                        amount_above = (self.progress_data.percent/100) * deviation
+                        remaining_iterations = self.progress_data.total - (self.progress_data.index+1)
+                        self.secs_remaining = remaining_iterations * (average_iteration_time + amount_above)
                     
                     if self.inline:
                         self.print('\r', end='')
