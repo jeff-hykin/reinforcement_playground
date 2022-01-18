@@ -48,7 +48,7 @@ class ProgressBar:
                     self.eslaped_time       = 0
                     self.secs_remaining     = math.inf
                     # compute changes (need at least two times to do that)
-                    if len(self.times) > 1:
+                    if len(self.times) > 2:
                         self.total_eslaped_time = self.times[-1] - self.times[ 0]
                         self.eslaped_time       = self.times[-1] - self.times[-2]
                         iter_durations = tuple(each-prev for prev, each in zip(self.times[0:-1], self.times[1:]))
