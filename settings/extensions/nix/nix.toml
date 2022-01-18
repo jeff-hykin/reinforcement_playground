@@ -198,6 +198,12 @@ onlyIf = [ [ "stdenv", "isLinux",],]
 load = [ "stdenv", "cc",]
 onlyIf = [ [ "stdenv", "isLinux",],]
 
+#
+#
+# Basic Commandline tools
+#
+#
+
 [[packages]]
 load = [ "man",]
 
