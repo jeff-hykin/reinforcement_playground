@@ -11,6 +11,7 @@ auto imitator bootstrapping:
         - DONE try training the chao's DQN on 0 to 255 normally, record the curve
         - DONE try training the chao's DQN but only on the latent space of auto imitator, record the curve
         - DONE try training the chao's DQN but just transfer weights for the first half, record the curve
+        - try transfering the latent space directly from the baselines A2C to chao dqn
         - hack the a2c network by transfering much of the network, but randomizing everything past the latent space
         - keep track of the rewards/training time curve
     - train the auto imitator on the uncompressed env:
