@@ -22,8 +22,8 @@ def run(training_mode, pretrained, path="./models.ignore/dqn_chao", number_of_ep
     )
     
     mr_bond = Agent(
-        state_space=env.observation_space.shape,
-        action_space=env.action_space.n,
+        observation_space=env.observation_space,
+        action_space=env.action_space,
         max_memory_size=30000,
         batch_size=32,
         gamma=0.90,

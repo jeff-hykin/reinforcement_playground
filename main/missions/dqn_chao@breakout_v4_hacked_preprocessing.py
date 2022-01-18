@@ -12,9 +12,12 @@ import time
 # 22 min: Episode 1000 score = 9.0, average score = 5.572
 
 from world_builders.atari.custom_preprocessing import preprocess
+from world_builders.atari.preprocessor_chao import TensorWrap
 from agent_builders.dqn_chao.main import Agent
 
 from tools.progress_bar import ProgressBar
+from tools.pytorch_tools import to_tensor
+
 
 def run(
         training_mode,
@@ -27,15 +30,17 @@ def run(
         frame_sample_rate=4,    # open ai defaults to 4, see: https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
     ):
     
-    env = preprocess(
-        env=gym.make(env_name),
-        frame_buffer_size=frame_buffer_size,
-        frame_sample_rate=frame_sample_rate,
+    env = TensorWrap(
+        preprocess(
+            env=gym.make(env_name),
+            frame_buffer_size=frame_buffer_size,
+            frame_sample_rate=frame_sample_rate,
+        )
     )
     
     mr_bond = Agent(
-        observation_space=observation_space,
-        action_space=action_space,
+        observation_space=env.observation_space,
+        action_space=env.action_space,
         max_memory_size=30000,
         batch_size=32,
         gamma=0.90,

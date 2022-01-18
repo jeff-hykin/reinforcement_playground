@@ -192,7 +192,7 @@ class Agent(Skeleton):
         self.total_rewards.append(self.total_reward)
         
         if episode_index != 0 and episode_index % 100 == 0:
-            print("Episode {} score = {}, average score = {}".format(episode_index + 1, self.total_rewards[-1], np.mean(self.total_rewards)))
+            print(f"Episode {episode_index + 1} score = {self.total_rewards[-1]}, average score = {np.mean(self.total_rewards)}")
     
     def when_mission_ends(self, mission_index=0):
         pass

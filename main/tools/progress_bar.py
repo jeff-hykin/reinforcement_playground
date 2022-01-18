@@ -13,7 +13,7 @@ class ProgressBar:
     """
     layout = [ 'remaining_time', 'spacer', 'bar', 'percent', 'spacer', 'fraction', 'spacer', 'start_time' ]
     
-    def __init__(self, iterations, inline=True, show_bar=True, disable=False, title=None, progress_bar_size=20, update_frequency=10, layout=None):
+    def __init__(self, iterations, inline=True, show_bar=True, disable=False, title=None, progress_bar_size=25, update_frequency=10, layout=None):
         original_generator = range(int(iterations)) if isinstance(iterations, (int, float)) else iterations
         self.print = print if not disable else lambda *args, **kwargs: None
         self.times = [time.time()]
@@ -34,7 +34,7 @@ class ProgressBar:
             total=len(original_generator),
         )
         def generator_func():
-            for self.progress_data.index, each in enumerate(original_generator):
+            for self.progress_data.index, each_original in enumerate(original_generator):
                 self.progress_data.time    = time.time()
                 self.progress_data.updated = self.progress_data.time - self.prev_time > self.update_frequency
                 self.progress_data.percent = (self.progress_data.index * 10000 // self.progress_data.total) / 100
@@ -81,7 +81,7 @@ class ProgressBar:
                         self.show_done()
                     
         
-                yield self.progress_data, each
+                yield self.progress_data, each_original
             
             self.show_done()
             
@@ -120,10 +120,10 @@ class ProgressBar:
             self.print(f'remaining: {self.to_time_string(self.secs_remaining)}sec', end='')
         
     def show_percent(self):
-        self.print('{}%'.format(self.progress_data.percent), end='')
+        self.print(f'{self.progress_data.percent:.2f}%', end='')
     
     def show_duration(self):
-        self.print('%s' % (self.to_time_string(self.total_eslaped_time)), end='')
+        self.print(self.to_time_string(self.total_eslaped_time), end='')
     
     def show_fraction(self):
         self.print(f'{self.progress_data.index}/{self.progress_data.total}', end='')
