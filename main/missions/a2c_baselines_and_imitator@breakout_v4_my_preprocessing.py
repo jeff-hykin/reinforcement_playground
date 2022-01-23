@@ -54,7 +54,7 @@ def default_mission(
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_0.00021598702086765554.model",
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_5_0.00020898165099704166.model",
     )
     
     mr_bond.when_mission_starts()
