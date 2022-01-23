@@ -118,7 +118,7 @@ class Agent(OnPolicyAlgorithm, Skeleton):
         if _init_setup_model:
             self._setup_model()
         
-        self.log = Agent.Logger(agent=self)
+        self.logging = Agent.Logger(agent=self)
 
     def train(self) -> None:
         """
@@ -219,23 +219,23 @@ class Agent(OnPolicyAlgorithm, Skeleton):
     # Hooks (Special Names)
     # 
     def when_mission_starts(self):
-        self.log.when_mission_starts()
+        self.logging.when_mission_starts()
         
     def when_episode_starts(self, episode_index):
-        self.log.when_episode_starts(episode_index)
+        self.logging.when_episode_starts(episode_index)
         
     def when_timestep_starts(self, timestep_index):
-        self.log.when_timestep_starts(timestep_index)
+        self.logging.when_timestep_starts(timestep_index)
         self.action, _ = self.predict(self.observation)
     
     def when_timestep_ends(self, timestep_index):
-        self.log.when_timestep_ends(timestep_index)
+        self.logging.when_timestep_ends(timestep_index)
     
     def when_episode_ends(self, episode_index):
-        self.log.when_episode_ends(episode_index)
+        self.logging.when_episode_ends(episode_index)
     
     def when_mission_ends(self):
-        self.log.when_mission_ends()
+        self.logging.when_mission_ends()
     
     # 
     # tools

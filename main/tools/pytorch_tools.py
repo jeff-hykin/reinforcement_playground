@@ -66,11 +66,21 @@ def opencv_image_to_torch_image(array):
     new_shape[-1] = width
     return tensor.permute(*new_shape)
 
+def torch_image_to_opencv_image(array):
+    # 1, 3, 210, 160 => 1, 210, 160, 3
+    tensor = to_tensor(array)
+    dimension_count = len(tensor.shape)
+    new_shape = [ each for each in range(dimension_count) ]
+    channels = new_shape[-3]
+    height = new_shape[-2]
+    width = new_shape[-1]
+    new_shape[-3] = height  
+    new_shape[-2] = width   
+    new_shape[-1] = channels
+    return tensor.permute(*new_shape)
+
 def pil_image_to_opencv_image(image):
     return numpy.array(image.convert('RGB') ) 
-
-def torch_image_to_opencv_image(tensor):
-    return pil_image_to_opencv_image(tensor_to_image(tensor))
 
 try:
     import numpy
@@ -294,7 +304,7 @@ def forward():
         def wrapper1(function_being_wrapped):
             def wrapper2(self, input_data, *args, **kwargs):
                 # converts to torch if needed
-                input_data = to_tensor(input_data).type(torch.float)
+                input_data = real_to_tensor(input_data).type(torch.float)
                 existing_dimensions = input_data.shape[-number_of_dimensions:]
                 number_missing = number_of_dimensions - len(existing_dimensions)
                 missing_dimensions = number_missing * [1]

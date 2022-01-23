@@ -39,5 +39,4 @@ from tools.dataset_tools import *
 from tools.config_tools import *
 from tools.debug import *
 from tools.stat_tools import *
-from tools.progress_bar import *
 #%% 

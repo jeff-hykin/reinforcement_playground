@@ -80,6 +80,7 @@ class AutoImitator(nn.Module):
     
     @forward.to_tensor
     @forward.to_device
+    @forward.to_batched_tensor(number_of_dimensions=4)
     def forward(self, batch_of_inputs):
         # 0 to 1 =>> -1 to 1
         return self.layers.forward(batch_of_inputs)
