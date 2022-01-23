@@ -9,8 +9,6 @@ import collections
 import cv2
 import time
 
-# 22 min: Episode 1000 score = 9.0, average score = 5.572
-
 from world_builders.atari.custom_preprocessing import preprocess
 from world_builders.atari.preprocessor_chao import TensorWrap
 from agent_builders.dqn_chao.main import Agent
@@ -18,6 +16,15 @@ from agent_builders.dqn_chao.main import Agent
 from tools.progress_bar import ProgressBar
 from tools.pytorch_tools import to_tensor
 
+# remaining: 49:54sec | [==>......................] 10.00% | 100/1000 | started: 08:31:29 | Episode 101 score = tensor([[7.]]), average score = 3.297029733657837
+# remaining: 47:29sec | [=====>...................] 20.00% | 200/1000 | started: 08:31:29 | Episode 201 score = tensor([[3.]]), average score = 4.641790866851807
+# remaining: 41:42sec | [=======>.................] 30.00% | 300/1000 | started: 08:31:29 | Episode 301 score = tensor([[3.]]), average score = 4.956810474395752
+# remaining: 34:36sec | [==========>..............] 40.00% | 400/1000 | started: 08:31:29 | Episode 401 score = tensor([[4.]]), average score = 5.306733131408691
+# remaining: 28:37sec | [============>............] 50.00% | 500/1000 | started: 08:31:29 | Episode 501 score = tensor([[7.]]), average score = 5.433133602142334
+# remaining: 22:40sec | [===============>.........] 60.00% | 600/1000 | started: 08:31:29 | Episode 601 score = tensor([[3.]]), average score = 5.417637348175049
+# remaining: 16:51sec | [=================>.......] 70.00% | 700/1000 | started: 08:31:29 | Episode 701 score = tensor([[5.]]), average score = 5.5106987953186035
+# remaining: 11:05sec | [====================>....] 80.00% | 800/1000 | started: 08:31:29 | Episode 801 score = tensor([[11.]]), average score = 5.433208465576172
+# remaining: 5:30sec | [======================>..] 90.00% | 900/1000 | started: 08:31:29 | Episode 901 score = tensor([[3.]]), average score = 5.3895673751831055
 
 def run(
         training_mode,

@@ -125,12 +125,14 @@ class AgentRecorder():
                 def sampler():
                     for each in batch_names:
                         yield large_pickle_load(f'{batch_path}/{each}')
+                self.generator = sampler
                 self.iterator = sampler()
             
             def __len__(self,):
                 return self.number_of_batches
             
             def __iter__(self):
+                self.iterator = self.generator()
                 return self
 
             def __next__(self):
