@@ -586,6 +586,17 @@ docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
 testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-black (>=0.3.7)", "pytest-mypy"]
 
 [[package]]
+name = "informative-iterator"
+version = "0.0.2"
+description = "A replacement for tqdm"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+super-map = ">=1.1.1"
+
+[[package]]
 name = "ipykernel"
 version = "6.4.1"
 description = "IPython Kernel for Jupyter"
@@ -1900,7 +1911,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "3e4603804257882a8feef34cf003c0a9113865be783ce93a959ba14354c9cecd"
+content-hash = "c53e3920f6bb92e928d3efeaddad080b1aaecd621bdffaebfd9425b346d0fdbb"
 
 [metadata.files]
 absl-py = [
@@ -2300,6 +2311,10 @@ importlib-metadata = [
 importlib-resources = [
     {file = "importlib_resources-5.4.0-py3-none-any.whl", hash = "sha256:33a95faed5fc19b4bc16b29a6eeae248a3fe69dd55d4d229d2b480e23eeaad45"},
     {file = "importlib_resources-5.4.0.tar.gz", hash = "sha256:d756e2f85dd4de2ba89be0b21dba2a3bbec2e871a42a3a16719258a11f87506b"},
+]
+informative-iterator = [
+    {file = "informative_iterator-0.0.2-py3-none-any.whl", hash = "sha256:bafdf8769059b2dd20f94fee217fa49d20ed1b97f692bde9fc2e42fbc5a17739"},
+    {file = "informative_iterator-0.0.2.tar.gz", hash = "sha256:2ac0e3af467201a6001919be7f8988785923429b6c4aa97db2379077e19a72f1"},
 ]
 ipykernel = [
     {file = "ipykernel-6.4.1-py3-none-any.whl", hash = "sha256:a3f6c2dda2ecf63b37446808a70ed825fea04790779ca524889c596deae0def8"},

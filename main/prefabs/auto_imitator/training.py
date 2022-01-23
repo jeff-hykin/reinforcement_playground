@@ -5,7 +5,7 @@ from tools.basics import to_pure, Countdown
 from tools.stat_tools import bundle
 from tools.agent_recorder import AgentRecorder
 from tools.schedulers import create_linear_rate
-from tools.progress_bar import ProgressBar
+from informative_iterator import ProgressBar
 
 from prefabs.fail_fast_check import is_significantly_below_other_curves
 from prefabs.auto_imitator.main import AutoImitator

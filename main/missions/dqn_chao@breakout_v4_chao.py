@@ -14,7 +14,7 @@ import time
 from world_builders.atari.preprocessor_chao import create_env
 from agent_builders.dqn_chao.main import Agent
 
-from tools.progress_bar import ProgressBar
+from informative_iterator import ProgressBar
 
 def run(training_mode, pretrained, path="./models.ignore/dqn_chao", number_of_episodes=1000, exploration_max=1):
     env = create_env(

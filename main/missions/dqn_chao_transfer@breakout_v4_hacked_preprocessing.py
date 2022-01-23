@@ -16,7 +16,7 @@ from world_builders.atari.preprocessor_chao import TensorWrap
 from agent_builders.dqn_chao_transfer.main import Agent
 
 from prefabs.auto_imitator.main import AutoImitator
-from tools.progress_bar import ProgressBar
+from informative_iterator import ProgressBar
 from tools.pytorch_tools import to_tensor
 
 # remaining: 1:03:23sec | [==>......................] 10.00% | 100/1000 | started: 07:19:29 | Episode 101 score = tensor([[10.]]), average score = 3.267326831817627

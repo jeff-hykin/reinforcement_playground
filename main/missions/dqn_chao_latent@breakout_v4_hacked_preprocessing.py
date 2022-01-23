@@ -13,7 +13,7 @@ import time
 from world_builders.atari.custom_preprocessing import preprocess, AutoLatentSpaceWrap, TensorWrap
 from agent_builders.dqn_chao_latent.main import Agent
 
-from tools.progress_bar import ProgressBar
+from informative_iterator import ProgressBar
 from tools.pytorch_tools import to_tensor
 
 # remaining: 12:32sec | [==>......................] 10.00% | 100/1000 | started: 07:07:24 | Episode 101 score = tensor([[2.]]), average score = 1.6732673645019531

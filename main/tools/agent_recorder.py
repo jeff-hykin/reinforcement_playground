@@ -1,6 +1,6 @@
 from tools.basics import large_pickle_load, large_pickle_save, to_pure
 from tools.file_system_tools import FileSystem
-from tools.progress_bar import ProgressBar
+from informative_iterator import ProgressBar
 import os
 import math
 import json
