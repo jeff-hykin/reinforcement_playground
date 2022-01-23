@@ -99,16 +99,26 @@ class FileSystem():
 
     @classmethod
     def list_files(self, path="."):
-        return [ each for each in FileSystem.ls(path) if FileSystem.is_file(FileSystem.join(path, each)) ]
+        if FileSystem.is_folder(path):
+            with os.scandir(path) as iterator:
+                for entry in iterator:
+                    if entry.is_file():
+                        yield entry.name
     
     @classmethod
     def list_folders(self, path="."):
-        return [ each for each in FileSystem.ls(path) if FileSystem.is_folder(FileSystem.join(path, each)) ]
+        if FileSystem.is_folder(path):
+            with os.scandir(path) as iterator:
+                for entry in iterator:
+                    if entry.is_dir():
+                        yield entry.name
     
     @classmethod
     def ls(self, file_path="."):
         if os.path.isdir(file_path):
-            return listdir(file_path)
+            with os.scandir(file_path) as iterator:
+                for entry in iterator:
+                    yield entry
         else:
             return []
 
