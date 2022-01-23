@@ -20,12 +20,12 @@ from prefabs.auto_imitator.preprocess_dataset import compress_observations, comp
 
 logging = LazyDict(
     smoothing_size=128,
-    smoother=lambda data: tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size)),
     should_log=Countdown(size=1000),
     should_print=Countdown(size=100),
     correctness_card=ss.DisplayCard("quickLine", []),
     loss_card=ss.DisplayCard("quickLine", []),
     name_card=ss.DisplayCard("quickMarkdown", f""),
+    smoother=lambda data: tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size)),
     update_name_card=lambda info: logging.name_card.send(info), 
     update_correctness=lambda data: logging.correctness_card.send("clear").send(tuple(zip(
             # indicies
@@ -67,10 +67,10 @@ def train(base_learning_rate):
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_4_{base_learning_rate}.model",
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_5_{base_learning_rate}.model",
     )
-    
-    for progress, (observations, actions) in ProgressBar(batch_generator, title=f"trial: {len(other_curves)}: "):
+    this_score_curve = [0]
+    for progress, (observations, actions) in ProgressBar(batch_generator, seconds_per_print=60):
         auto_imitator.update_weights(
             batch_of_inputs=observations,
             batch_of_ideal_outputs=actions,
@@ -78,7 +78,9 @@ def train(base_learning_rate):
             batch_index=batch_generator.batch_index,
         )
         
-        if progress.updated: print(f'learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}')
+        if progress.updated:
+            accuracy = this_score_curve[-1]
+            print(f"learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}, accuracy: {accuracy}, trial: {len(other_curves)}, epoch:{batch_generator.epoch_index}", end="")
         if logging.should_log() or progress.index == 0:
             logging.update_name_card(f"trial: {len(other_curves)}, epoch:{batch_generator.epoch_index}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}")
             logging.update_correctness(auto_imitator.logging.proportion_correct_at_index)

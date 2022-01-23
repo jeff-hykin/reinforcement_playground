@@ -6,7 +6,28 @@ import numpy as np
 import math
 from super_map import Map
 
+try:
+    from IPython.display import display, HTML, clear_output
+    from io import StringIO
+    ipython_exists = True
+except:
+    ipython_exists = False
+    
 class NotGiven: pass
+
+def subsequence_replace(a_list, sequence, replacement):
+    que = []
+    new_list = []
+    for each in a_list:
+        que.append(each)
+        while len(que) > len(sequence):
+            new_list.append(que.pop(0))
+        if que == sequence:
+            que.clear()
+            for each in replacement:
+                new_list.append(each)
+    new_list += que # add any remaining elements
+    return new_list    
 
 class ProgressBar:
     """
@@ -51,7 +72,6 @@ class ProgressBar:
         self.next_percent_mark = self.percent_per_print
         self.prev_time         = -math.inf
         self.times             = [time.time()]
-        self.print             = print if not self.disable_print else lambda *args, **kwargs: None
         self.progress_data     = Map(
             index=0,
             percent=0,
@@ -59,7 +79,63 @@ class ProgressBar:
             time=self.times[0],
             total=len(original_generator),
         )
-        
+        # setup print
+        if self.disable_print:
+            self.print = lambda *args, **kwargs: None
+        elif not ipython_exists:
+            self.print = print
+        else:
+            # remove the progress bar and percent
+            layout = list(self.layout)
+            layout = subsequence_replace(layout, [ 'spacer', 'bar'    , 'spacer' ], ['spacer'])
+            layout = subsequence_replace(layout, [ 'spacer', 'bar'    ,          ], ['spacer'])
+            layout = subsequence_replace(layout, [           'bar'    , 'spacer' ], ['spacer'])
+            layout = subsequence_replace(layout, [           'bar'               ], [])
+            layout = subsequence_replace(layout, [ 'spacer', 'percent', 'spacer' ], ['spacer'])
+            layout = subsequence_replace(layout, [ 'spacer', 'percent',          ], ['spacer'])
+            layout = subsequence_replace(layout, [           'percent', 'spacer' ], ['spacer'])
+            layout = subsequence_replace(layout, [           'percent',          ], [])
+            layout = subsequence_replace(layout, [ 'spacer', 'spacer'            ], ['spacer'])
+            self.layout = layout
+            self.string_buffer = ""
+            def ipython_print(*args, **kwargs):
+                # get the string value
+                string_stream = StringIO()
+                print(*args, **kwargs, file=string_stream)
+                output_str = string_stream.getvalue()
+                string_stream.close()
+                self.string_buffer += output_str
+                
+                # clear output whenever newline is created
+                if kwargs.get("end", "\n") in ['\n', '\r']:
+                    clear_output(wait=True)
+                    display(HTML(f'''
+                        <div style="width: 100%; background: transparent; color: white; position: relative; padding: 1.2rem 0.4rem; box-sizing: border-box;">
+                            <div style="position: relative; background: #46505a; height: 2.7rem; width: 100%; border-radius: 10rem; border: transparent solid 0.34rem; box-sizing: border-box;">
+                                <!-- color bar -->
+                                <div style="height: 100%; width: {self.progress_data.percent}%; background: #9b68ab; border-radius: 10rem;"></div>
+                                <!-- percentage text -->
+                                <div style="height: 100%; width: 100%; position: absolute; top: 0; left: 0; display: flex; flex-direction: column; align-items: center; align-content: center; justify-items: center;  justify-content: center;">
+                                    <span>
+                                        {self.progress_data.percent:0.2f}%
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="width: 100%; height: 1rem;">
+                            </div>
+                            <div style="position: relative; height: fit-content; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; align-content: center; justify-items: center;  justify-content: center;">
+                                <div style="position: relative; background: #46505a; height: 1.7rem; width: fit-content; border-radius: 10rem; border: transparent solid 0.5rem; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; align-content: center; justify-items: center;  justify-content: center;">
+                                    <code style="whitespace: pre; color: whitesmoke;" >
+                                        {self.string_buffer}
+                                    </code>
+                                </div>
+                            </div>
+                        </div>
+                    '''))
+                    # clear the buffer
+                    self.string_buffer = ""
+            self.print = ipython_print
+            
         # setup layout
         if layout == None and self.minimal:
             self.layout = ProgressBar.minimal_layout
@@ -103,10 +179,7 @@ class ProgressBar:
                         self.secs_remaining = p(self.progress_data.total) - p(self.progress_data.index)
                     
                     if self.inline:
-                        self.print('\r', end='')
-                    
-                    if self.title is not None:
-                        self.print(self.title, end=' ')
+                        self.print('', end='\r')
                     
                     # display each thing according to the layout
                     for each in self.layout:
@@ -189,6 +262,8 @@ class ProgressBar:
             print("")
         duration = self.to_time_string(time.time() - self.times[0])
         end_time = datetime.now().strftime("%H:%M:%S")
+        self.progress_data.percent = 100.0
+        self.string_buffer = "" # for ipython
         self.print(f'Done in {duration}sec at {end_time}')
 
     def __iter__(self):
