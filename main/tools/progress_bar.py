@@ -5,41 +5,82 @@ import sys
 import numpy as np
 import math
 from super_map import Map
-    
+
+class NotGiven: pass
+
 class ProgressBar:
     """
-    for progress, each in ProgressBar(range(100)):
-        pass
+    from tools.progress_bar import ProgressBar, time
+    for progress, each in ProgressBar(10000):
+        time.sleep(0.01)
     """
-    layout = [ 'remaining_time', 'spacer', 'bar', 'percent', 'spacer', 'fraction', 'spacer', 'start_time' ]
+    layout = [ 'title', 'bar', 'percent', 'spacer', 'fraction', 'spacer', 'start_time', 'spacer', 'end_time', 'spacer', 'remaining_time', 'spacer', ]
+    minimal_layout = [ 'title', 'bar', 'spacer', 'end_time', 'spacer', ]
+    spacer = " | "
+    minmal = False
+    inline = True
+    disable_print = False
+    progress_bar_size = 35
+    seconds_per_print = 1
+    percent_per_print = 10
     
-    def __init__(self, iterations, inline=True, show_bar=True, disable=False, title=None, progress_bar_size=25, update_frequency=10, layout=None):
+    @classmethod
+    def configure(this_class, **config):
+        for each_key, each_value in config.items():
+            setattr(this_class, each_key, each_value)
+    
+    def __init__(self, iterations, *, title=None, layout=None, disable_print=NotGiven, minimal=NotGiven, inline=NotGiven, progress_bar_size=NotGiven, seconds_per_print=NotGiven, percent_per_print=NotGiven, ):
         original_generator = range(int(iterations)) if isinstance(iterations, (int, float)) else iterations
-        self.print = print if not disable else lambda *args, **kwargs: None
-        self.times = [time.time()]
-        self.inline            = inline
-        self.should_show_bar   = show_bar
-        self.progress_bar_size = progress_bar_size
-        self.past_indicies     = list()
-        self.title             = title
+        self.title = title
+        
+        # inherit unspecified options from class object
+        for each_option in [ "disable_print", "minimal", "inline", "progress_bar_size", "seconds_per_print", "percent_per_print", ]:
+            arg_value = eval(each_option, locals())
+            # default to the class value if not given
+            if arg_value == NotGiven:
+                actual_value = getattr(ProgressBar, each_option, None)
+            # otherwise use the given value
+            else:
+                actual_value = arg_value
+            # set the object's value
+            setattr(self, each_option, actual_value)
+        
+        # initilize misc values
+        self.past_indicies     = []
         self.start_time        = datetime.now()
-        self.update_frequency  = update_frequency
+        self.next_percent_mark = self.percent_per_print
         self.prev_time         = -math.inf
-        self.layout            = layout
-        self.progress_data = Map(
+        self.times             = [time.time()]
+        self.print             = print if not self.disable_print else lambda *args, **kwargs: None
+        self.progress_data     = Map(
             index=0,
             percent=0,
             updated=True,
             time=self.times[0],
             total=len(original_generator),
         )
+        
+        # setup layout
+        if layout == None and self.minimal:
+            self.layout = ProgressBar.minimal_layout
+        elif layout == None:
+            self.layout = ProgressBar.layout
+        else:
+            self.layout = layout
+        
         def generator_func():
             for self.progress_data.index, each_original in enumerate(original_generator):
+                # update
                 self.progress_data.time    = time.time()
-                self.progress_data.updated = self.progress_data.time - self.prev_time > self.update_frequency
-                self.progress_data.percent = (self.progress_data.index * 10000 // self.progress_data.total) / 100
-                a_ten_percent_mark = int(self.progress_data.percent % 10) == 0
-                if self.progress_data.updated or a_ten_percent_mark:
+                self.progress_data.updated = (self.progress_data.time - self.prev_time) > self.seconds_per_print
+                self.progress_data.percent = (self.progress_data.index * 10000 // self.progress_data.total) / 100 # two decimals of accuracy
+                
+                # also printout at each percent marker
+                if self.progress_data.percent >= self.next_percent_mark:
+                    self.next_percent_mark += self.percent_per_print
+                    self.progress_data.updated = True
+                
+                if self.progress_data.updated:
                     self.prev_time = self.progress_data.time
                     # compute data
                     self.times.append(time.time())
@@ -68,17 +109,11 @@ class ProgressBar:
                         self.print(self.title, end=' ')
                     
                     # display each thing according to the layout
-                    for each in (self.layout or ProgressBar.layout):
+                    for each in self.layout:
                         getattr(self, f"show_{each}", lambda : None)()
                     
-                    # padding
                     if not self.inline:
                         self.print()
-                    else:
-                        self.show_spacer()
-                    
-                    if self.progress_data.index == self.progress_data.total:
-                        self.show_done()
                     
         
                 yield self.progress_data, each_original
@@ -103,15 +138,18 @@ class ProgressBar:
         return str_hours + '{}:{}'.format(mins, secs)
     
     def show_spacer(self):
-        self.print(" | ", end='')
+        self.print(self.spacer, end='')
+    
+    def show_title(self):
+        if self.title is not None:
+            self.print(self.title, end=' ')
         
     def show_bar(self):
-        if self.should_show_bar:
-            prog = int((self.progress_data.index / self.progress_data.total) * self.progress_bar_size)
-            self.print('[' + '=' * prog, end='')
-            if prog != self.progress_bar_size:
-                self.print('>' + '.' * (self.progress_bar_size - prog - 1), end='')
-            self.print('] ', end='')
+        prog = int((self.progress_data.index / self.progress_data.total) * self.progress_bar_size)
+        self.print('[' + '=' * prog, end='')
+        if prog != self.progress_bar_size:
+            self.print('>' + '.' * (self.progress_bar_size - prog - 1), end='')
+        self.print('] ', end='')
     
     def show_remaining_time(self):
         if self.secs_remaining == math.inf:
@@ -120,13 +158,14 @@ class ProgressBar:
             self.print(f'remaining: {self.to_time_string(self.secs_remaining)}sec', end='')
         
     def show_percent(self):
-        self.print(f'{self.progress_data.percent:.2f}%', end='')
+        self.print(f'{self.progress_data.percent:.2f}%'.rjust(6), end='')
     
     def show_duration(self):
         self.print(self.to_time_string(self.total_eslaped_time), end='')
     
     def show_fraction(self):
-        self.print(f'{self.progress_data.index}/{self.progress_data.total}', end='')
+        total_str = f"{self.progress_data.total}"
+        self.print(f'{self.progress_data.index}'.rjust(len(total_str))+f'/{self.progress_data.total}', end='')
         
     def show_iteration_time(self):
         iterations_per_sec = (self.past_indicies[-1] - self.past_indicies[-2]) / self.eslaped_time
@@ -137,9 +176,13 @@ class ProgressBar:
             self.print(f'started: {self.start_time.strftime("%H:%M:%S")}',  end='')
     
     def show_end_time(self):
-        endtime = self.start_time + timedelta(seconds=self.total_eslaped_time + self.secs_remaining)
         if self.progress_data.percent != 100:
-            self.print(f'eta: {endtime.strftime("%H:%M:%S")}',  end='')
+            time_format = "%H:%M:%S"
+            try:
+                endtime = self.start_time + timedelta(seconds=self.total_eslaped_time + self.secs_remaining)
+                self.print(f'eta: {endtime.strftime("%H:%M:%S")}',  end='')
+            except:
+                self.print(f'eta: {"_"*len(time_format)}',  end='')
     
     def show_done(self):
         if self.inline:
