@@ -56,13 +56,13 @@ def train(base_learning_rate):
     batch_size = 64
     
     
-    batch_generator = database.load_batch_data("preprocessed64")
+    batch_generator = database.load_batch_data("preprocessed64", epochs=number_of_epochs)
     
     auto_imitator = AutoImitator(
         learning_rate=create_linear_rate(
             base_learning_rate=base_learning_rate,
             min_learning_rate=base_learning_rate/2,
-            number_of_training_steps=(batch_generator.number_of_batches * number_of_epochs),
+            number_of_training_steps=(batch_generator.length),
         ),
         input_shape=(4,84,84),
         latent_shape=(512,),
@@ -70,33 +70,31 @@ def train(base_learning_rate):
         path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_4_{base_learning_rate}.model",
     )
     
-    for epoch_index in range(number_of_epochs):
-        iter(batch_generator)
-        for progress, (observations, actions) in ProgressBar(batch_generator, title=f"trial: {len(other_curves)}"):
-            if progress.updated: print(f'learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}')
-            auto_imitator.update_weights(
-                batch_of_inputs=observations,
-                batch_of_ideal_outputs=actions,
-                epoch_index=epoch_index,
-                batch_index=progress.index
-            )
-            
-            if logging.should_log() or progress.index == 0:
-                logging.update_name_card(f"trial: {len(other_curves)}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}")
-                logging.update_correctness(auto_imitator.logging.proportion_correct_at_index)
-                logging.update_loss(auto_imitator.logging.loss_at_index)
-                # fail fast check
-                this_score_curve = logging.smoother(auto_imitator.logging.proportion_correct_at_index)
-                if is_significantly_below_other_curves(this_score_curve, other_curves):
-                    print("ending early due to being below other curves")
+    for progress, (observations, actions) in ProgressBar(batch_generator, title=f"trial: {len(other_curves)}: "):
+        auto_imitator.update_weights(
+            batch_of_inputs=observations,
+            batch_of_ideal_outputs=actions,
+            epoch_index=batch_generator.epoch_index,
+            batch_index=batch_generator.batch_index,
+        )
+        
+        if progress.updated: print(f'learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}')
+        if logging.should_log() or progress.index == 0:
+            logging.update_name_card(f"trial: {len(other_curves)}, epoch:{batch_generator.epoch_index}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}")
+            logging.update_correctness(auto_imitator.logging.proportion_correct_at_index)
+            logging.update_loss(auto_imitator.logging.loss_at_index)
+            # fail fast check
+            this_score_curve = logging.smoother(auto_imitator.logging.proportion_correct_at_index)
+            if is_significantly_below_other_curves(this_score_curve, other_curves):
+                print("ending early due to being below other curves")
+                return this_score_curve
+            # hard coded early stopping
+            if progress.index >= 3000:
+                if this_score_curve[-1] < 0.4:
+                    print("ending early from poor performance")
                     return this_score_curve
-                # hard coded early stopping
-                if progress.index >= 3000:
-                    if this_score_curve[-1] < 0.4:
-                        print("ending early from poor performance")
-                        return this_score_curve
-                
-                auto_imitator.save()
+            
+            auto_imitator.save()
         
     smoothed_correctness = logging.smoother(auto_imitator.logging.proportion_correct_at_index)
     print('smoothed_correctness = ', smoothed_correctness)

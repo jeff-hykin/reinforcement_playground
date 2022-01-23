@@ -117,25 +117,48 @@ class AgentRecorder():
     def load_batch_data(self):
         dataset = self
         class Batch:
-            def __init__(self, batch_name):
+            def __init__(self, batch_name, *, epochs=1):
                 batch_path = f"{dataset.save_to}/{batch_name}"
                 batch_names = FileSystem.list_files(batch_path)
-                self.number_of_batches = len(batch_names)
-                self.batch_name = batch_name
+                
+                self.batch_name        = batch_name
+                self.number_of_epochs  = epochs
+                self.batches_per_epoch = len(batch_names)
+                self.length = self.batches_per_epoch * self.number_of_epochs
+                self.epoch_index = -1
+                self.batch_index = -1
+                self.number = 0 # index + 1
+                
+                # create the reset indicies for the epochs
+                total = self.batches_per_epoch
+                self.reset_indicies = set()
+                while total < self.length:
+                    self.reset_indicies.add(total)
+                    total += self.batches_per_epoch
+                
                 def sampler():
-                    for each in batch_names:
+                    random.shuffle(batch_names)
+                    self.epoch_index += 1
+                    for self.batch_index, each in enumerate(batch_names):
+                        self.number += 1
                         yield large_pickle_load(f'{batch_path}/{each}')
+                        
                 self.generator = sampler
                 self.iterator = sampler()
             
             def __len__(self,):
-                return self.number_of_batches
+                return self.length
             
             def __iter__(self):
                 self.iterator = self.generator()
                 return self
 
             def __next__(self):
+                # if the end of an epoch, with more epochs to go
+                if self.number in self.reset_indicies:
+                    # repeat
+                    self.iterator = self.generator()
+                    
                 return next(self.iterator)
         
         return Batch
