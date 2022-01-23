@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 import time
 import sys
-import numpy as np
+from statistics import mean, stdev
 import math
 from super_map import Map
 
@@ -151,32 +151,34 @@ class ProgressBar:
                 self.progress_data.updated = (self.progress_data.time - self.prev_time) > self.seconds_per_print
                 self.progress_data.percent = (self.progress_data.index * 10000 // self.progress_data.total) / 100 # two decimals of accuracy
                 
+                if self.progress_data.updated:
+                    self.prev_time = self.progress_data.time
+                    self.times.append(self.progress_data.time)
+                    self.past_indicies.append(self.progress_data.index)
+                    
                 # also printout at each percent marker
                 if self.progress_data.percent >= self.next_percent_mark:
                     self.next_percent_mark += self.percent_per_print
                     self.progress_data.updated = True
                 
                 if self.progress_data.updated:
-                    self.prev_time = self.progress_data.time
-                    # compute data
-                    self.times.append(time.time())
-                    self.past_indicies.append(self.progress_data.index)
                     self.total_eslaped_time = 0
                     self.eslaped_time       = 0
                     self.secs_remaining     = math.inf
                     # compute changes (need at least two times to do that)
-                    if len(self.times) > 2:
+                    if len(self.times) > 3:
                         self.total_eslaped_time = self.times[-1] - self.times[ 0]
                         self.eslaped_time       = self.times[-1] - self.times[-2]
-                        p = np.poly1d(
-                            np.polyfit(
-                                self.past_indicies,
-                                self.times[1:],
-                                w=np.arange(1, len(self.times)),
-                                deg=1
-                            )
-                        )
-                        self.secs_remaining = p(self.progress_data.total) - p(self.progress_data.index)
+                        
+                        # compute ETA as a slight overestimate that is less of an overesitmate over time
+                        iterations_per_update = tuple(each-prev for prev, each in zip(self.past_indicies[0:-1], self.past_indicies[1:]))
+                        average_iterations = mean(iterations_per_update)
+                        deviation = stdev(iterations_per_update)
+                        partial_deviation = (self.progress_data.percent/100) * deviation
+                        lowerbound_iterations_per_update = average_iterations - partial_deviation
+                        expected_number_of_updates_needed = (self.progress_data.total - self.progress_data.index) / lowerbound_iterations_per_update
+                        time_per_update = self.total_eslaped_time / len(iterations_per_update)
+                        self.secs_remaining = time_per_update * expected_number_of_updates_needed
                     
                     if self.inline:
                         self.print('', end='\r')
