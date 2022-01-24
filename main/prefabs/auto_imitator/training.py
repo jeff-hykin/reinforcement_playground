@@ -67,7 +67,7 @@ def train(base_learning_rate):
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_5_{base_learning_rate}.model",
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_6_{base_learning_rate}.model",
     )
     this_score_curve = [0]
     for progress, (observations, actions) in ProgressBar(batch_generator, seconds_per_print=60):

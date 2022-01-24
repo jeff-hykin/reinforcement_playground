@@ -1,6 +1,8 @@
 from tools.basics import large_pickle_load, large_pickle_save, to_pure
 from tools.file_system_tools import FileSystem
 from informative_iterator import ProgressBar
+from super_map import Map
+
 import os
 import math
 import json
@@ -92,27 +94,50 @@ class AgentRecorder():
         batch_path = f"{self.save_to}/{batch_name}"
         FileSystem.ensure_is_folder(batch_path)
         
-        # FIXME uniformly random sample from action space
+        # build a index lookup based on the action
+        print("building action index")
+        samples_by_action_type = Map()
+        for progress, metadata in ProgressBar(self.load_metadata(), iterations=self.size):
+            if metadata not in samples_by_action_type:
+                samples_by_action_type[metadata] = set()
+            samples_by_action_type[metadata].add(progress.index)
         
-        remaining_indicies = set(self.indicies())
-        total = math.floor(len(remaining_indicies) / batch_size)
-        batch_index = -1
-        for progress, each in ProgressBar(range(total)):
-            batch_index += 1
-            entries = random.sample(remaining_indicies, k=batch_size)
-            # remove the ones we just sampled
-            remaining_indicies = remaining_indicies - set(entries)
+        actions = list(samples_by_action_type[Map.Keys])
+        print("starting batch creation")
+        # this actually overshoots because its unknown how many iterations there will be
+        max_number_of_batches = math.floor(self.size / batch_size)
+        for progress, batch_index in ProgressBar(max_number_of_batches):
             batch = []
-            # load all the ones in the batch
-            for each_index in entries:
+            # 
+            # build batch
+            # 
+            while len(batch) < batch_size:
+                # 
+                # pick action
+                # 
+                which_action = random.choice(actions)
+                remaining_indicies = samples_by_action_type[which_action]
+                # 
+                # pick index
+                # 
+                if len(remaining_indicies) == 0:
+                    return
+                index_of_element = random.choice(tuple(remaining_indicies))
+                remaining_indicies.remove(index_of_element)
+                # 
+                # load index
+                #
                 batch.append(
-                    (each_index, *large_pickle_load(self.save_to+f"/{each_index}{self._data_file_extension}"))
+                    (index_of_element, *large_pickle_load(self.save_to+f"/{index_of_element}{self._data_file_extension}"))
                 )
+            # 
+            # preprocess batch
+            # 
             # do any compression/decompression/augmentation stuff
-            batch = preprocessing(batch)
+            batch = preprocessing(batch)   
             # save it
             large_pickle_save(batch, f"{batch_path}/{batch_index}")
-    
+                
     @property
     def load_batch_data(self):
         dataset = self
