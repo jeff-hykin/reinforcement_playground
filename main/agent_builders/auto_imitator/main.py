@@ -7,7 +7,7 @@ import numpy as np
 import collections 
 import cv2
 import time
-from super_map import LazyDict
+from super_map import LazyDict, Map
 
 from tools.agent_skeleton import Skeleton
 from tools.file_system_tools import FileSystem
@@ -57,6 +57,8 @@ class Agent(Skeleton):
             self.episode_reward_card = None
             self.episode_loss_card = None
             self.number_of_updates = 0
+            self.action_frequency = Map()
+            self.reward_frequency = Map()
             
             # init class attributes if doesn't already have them
             self.static = Agent.Logger.static = LazyDict(
@@ -88,6 +90,8 @@ class Agent(Skeleton):
             self.static.total_number_of_timesteps += 1
             
         def when_timestep_ends(self, timestep_index):
+            self.action_frequency[self.agent.action] += 1
+            self.reward_frequency[self.agent.reward] += 1
             self.accumulated_reward += self.agent.reward
         
         def when_episode_ends(self, episode_index):
@@ -117,6 +121,11 @@ class Agent(Skeleton):
 
         def when_weight_update_ends(self):
             self.accumulated_loss += self.agent.loss.item()
+        
+        @property
+        def action_percents(self):
+            return stat_tools.percentize(self.action_frequency[Map.Dict])
+        
     
     # 
     # Hooks (Special Names)

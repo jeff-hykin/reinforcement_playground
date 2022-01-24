@@ -8,7 +8,7 @@ from torch import nn
 import gym
 import numpy as np
 import silver_spectacle as ss
-from super_map import LazyDict
+from super_map import LazyDict, Map
 import math
 from collections import defaultdict
 import functools
@@ -20,7 +20,7 @@ from statistics import mean as average
 
 
 import tools.stat_tools as stat_tools
-from tools.basics import product, flatten, to_pure
+from tools.basics import product, flatten, to_pure, Countdown
 from tools.debug import debug
 from tools.pytorch_tools import layer_output_shapes, opencv_image_to_torch_image, to_tensor, init, forward, Sequential
 from tools.frame_que import FrameQue
@@ -54,11 +54,15 @@ def default_mission(
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_5_0.00020898165099704166.model",
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_6_0.000084407439.model",
+    )
+    
+    logger = LazyDict(
+        should_log=Countdown(size=100),
     )
     
     mr_bond.when_mission_starts()
-    for progress, episode_index in ProgressBar(range(number_of_episodes)):
+    for progress, episode_index in ProgressBar(number_of_episodes):
         print('episode_index = ', episode_index)
         if progress.updated and len(mr_bond.logging.episode_rewards) > 0:
             print("average reward: ", average(mr_bond.logging.episode_rewards))
@@ -74,8 +78,10 @@ def default_mission(
             
             mr_bond.when_timestep_starts(timestep_index)
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
-            print('mr_bond.action = ', mr_bond.action, 'timestep_index = ', timestep_index, 'mr_bond.episode_is_over = ', mr_bond.episode_is_over, 'mr_bond.reward = ', mr_bond.reward)
             mr_bond.when_timestep_ends(timestep_index)
+            
+            if logger.should_log():
+                print('timestep:', timestep_index, 'action frequency:', mr_bond.logging.action_frequency, 'reward_frequency = ', mr_bond.logging.reward_frequency)
             
         mr_bond.when_episode_ends(episode_index)
     mr_bond.when_mission_ends()

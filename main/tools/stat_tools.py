@@ -2,7 +2,8 @@ import math
 import scipy.stats as stats
 from statistics import mean as average
 from statistics import stdev as standard_deviation
-from super_map import LazyDict
+from super_map import LazyDict, Map
+from collections import Counter # frequency count
 
 def probabilitity_of_at_least_one(*probabilities):
     chance_of_none = 1
@@ -197,6 +198,17 @@ def probability_of_belonging_if_bellcurve(item, existing_items, above=False, bel
     how_many_deviations_away = math.abs(item-the_mean) / standard_deviation_amount
     return stats.norm.cdf(how_many_deviations_away)
     
+
+def frequency(iterable):
+    return dict(Counter(iterable))
+
+def percentize(frequency):
+    percents = {}
+    total = sum(frequency.values())
+    for key, value in frequency.items():
+        percents[key] = value/total
+    return percents
+
 
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
