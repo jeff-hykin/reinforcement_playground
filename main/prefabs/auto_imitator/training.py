@@ -1,8 +1,9 @@
 import silver_spectacle as ss
-from super_map import LazyDict
+from super_map import LazyDict, Map
 
 from tools.basics import to_pure, Countdown
-from tools.stat_tools import bundle
+from tools.file_system_tools import FileSystem
+from tools.stat_tools import bundle, proportionalize
 from tools.agent_recorder import AgentRecorder
 from tools.schedulers import create_linear_rate
 from informative_iterator import ProgressBar
@@ -19,13 +20,14 @@ from prefabs.auto_imitator.preprocess_dataset import compress_observations, comp
 
 
 logging = LazyDict(
-    smoothing_size=128,
+    smoothing_size=512,
     should_log=Countdown(size=1000),
     should_print=Countdown(size=100),
     correctness_card=ss.DisplayCard("quickLine", []),
     loss_card=ss.DisplayCard("quickLine", []),
     name_card=ss.DisplayCard("quickMarkdown", f""),
     smoother=lambda data: tuple(average(to_pure(each)) for each in bundle(data, bundle_size=logging.smoothing_size)),
+    correct_action_frequency=Map(),
     update_name_card=lambda info: logging.name_card.send(info), 
     update_correctness=lambda data: logging.correctness_card.send("clear").send(tuple(zip(
             # indicies
@@ -42,6 +44,7 @@ logging = LazyDict(
         ))
     ),
 )
+logging.correct_action_frequency[Map.Merge]({0:1,1:0,2:0,3:0})
 
 database = AgentRecorder(
     save_to="resources/datasets.ignore/atari/baselines_pretrained@breakout_custom"
@@ -54,23 +57,31 @@ other_curves = []
 def train(base_learning_rate):
     number_of_epochs = 2
     batch_size = 64
+    path = f"models.ignore/auto_imitator_hacked_compressed_preprocessing_debug_{base_learning_rate:.12f}.model"
     
+    FileSystem.delete(path)
     
     batch_generator = database.load_batch_data("balanced64", epochs=number_of_epochs)
     
     auto_imitator = AutoImitator(
         learning_rate=create_linear_rate(
             base_learning_rate=base_learning_rate,
-            min_learning_rate=base_learning_rate/2,
+            min_learning_rate=base_learning_rate/1.1,
             number_of_training_steps=(batch_generator.length),
         ),
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_6_{base_learning_rate:.12f}.model",
+        path=path,
     )
+    auto_imitator.action_frequency[Map.Merge]({0:1,1:0,2:0,3:0})
+    
+    print("progress starting")
     this_score_curve = [0]
     for progress, (observations, actions) in ProgressBar(batch_generator, seconds_per_print=60):
+        for each in actions:
+            logging.correct_action_frequency[to_pure(each)] += 1
+            
         auto_imitator.update_weights(
             batch_of_inputs=observations,
             batch_of_ideal_outputs=actions,
@@ -82,7 +93,12 @@ def train(base_learning_rate):
             accuracy = this_score_curve[-1]
             print(f"learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}, accuracy: {accuracy}, trial: {len(other_curves)}, epoch:{batch_generator.epoch_index}", end="")
         if logging.should_log() or progress.index == 0:
-            logging.update_name_card(f"trial: {len(other_curves)}, epoch:{batch_generator.epoch_index}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}")
+            logging.update_name_card(f"""
+### trial: {len(other_curves)}, epoch: {batch_generator.epoch_index}, learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}
+imitator: {proportionalize(auto_imitator.action_frequency[Map.Dict])}
+imitator: {to_pure(auto_imitator.action_tensor_sum)}
+a2c     : {proportionalize(logging.correct_action_frequency[Map.Dict])}
+            """)
             logging.update_correctness(auto_imitator.logging.proportion_correct_at_index)
             logging.update_loss(auto_imitator.logging.loss_at_index)
             # fail fast check

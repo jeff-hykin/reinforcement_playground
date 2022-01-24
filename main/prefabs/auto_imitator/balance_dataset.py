@@ -5,7 +5,7 @@ from tools.agent_recorder import AgentRecorder
 number_of_metadata_entries = 2848404
 database = AgentRecorder(save_to="resources/datasets.ignore/atari/baselines_pretrained@breakout_custom")
 
-def percentize(frequency: Map):
+def proportionalize(frequency: Map):
     percents = Map()
     total = sum(frequency[Map.Values])
     for key, value in frequency:
@@ -16,7 +16,7 @@ frequency = Map()
 for progress, metadata in ProgressBar(database.load_metadata(), iterations=database.size):
     frequency[metadata] += 1
     if progress.updated:
-        print(str(percentize(frequency)))
+        print(str(proportionalize(frequency)))
 
 print('frequency = ', frequency)
 

@@ -124,7 +124,7 @@ class Agent(Skeleton):
         
         @property
         def action_percents(self):
-            return stat_tools.percentize(self.action_frequency[Map.Dict])
+            return stat_tools.proportionalize(self.action_frequency[Map.Dict])
         
     
     # 

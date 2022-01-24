@@ -202,7 +202,7 @@ def probability_of_belonging_if_bellcurve(item, existing_items, above=False, bel
 def frequency(iterable):
     return dict(Counter(iterable))
 
-def percentize(frequency):
+def proportionalize(frequency):
     percents = {}
     total = sum(frequency.values())
     for key, value in frequency.items():

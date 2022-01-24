@@ -81,7 +81,7 @@ def default_mission(
             mr_bond.when_timestep_ends(timestep_index)
             
             if logger.should_log():
-                print('timestep:', timestep_index, 'action frequency:', mr_bond.logging.action_frequency, 'reward_frequency = ', mr_bond.logging.reward_frequency)
+                print('timestep:', timestep_index, 'action frequency:', mr_bond.action_frequency, 'reward_frequency = ', mr_bond.reward_frequency)
             
         mr_bond.when_episode_ends(episode_index)
     mr_bond.when_mission_ends()

@@ -208,6 +208,8 @@ class ProgressBar:
                     if not self.inline:
                         self.print()
                     
+                    sys.stdout.flush()
+                    
                 yield self.progress_data, each_original
                 # manual stop if given an infinite generator and a "total_iterations" argument
                 if self.progress_data.index+1 >= self.progress_data.total_iterations:
