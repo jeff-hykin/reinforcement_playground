@@ -144,7 +144,7 @@ class AgentRecorder():
         class Batch:
             def __init__(self, batch_name, *, epochs=1):
                 batch_path = f"{dataset.save_to}/{batch_name}"
-                batch_names = FileSystem.list_files(batch_path)
+                batch_names = list(FileSystem.list_files(batch_path))
                 
                 self.batch_name        = batch_name
                 self.number_of_epochs  = epochs

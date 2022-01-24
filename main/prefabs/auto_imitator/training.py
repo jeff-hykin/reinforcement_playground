@@ -52,11 +52,11 @@ database = AgentRecorder(
 # 
 other_curves = []
 def train(base_learning_rate):
-    number_of_epochs = 3
+    number_of_epochs = 2
     batch_size = 64
     
     
-    batch_generator = database.load_batch_data("preprocessed64", epochs=number_of_epochs)
+    batch_generator = database.load_batch_data("balanced64", epochs=number_of_epochs)
     
     auto_imitator = AutoImitator(
         learning_rate=create_linear_rate(
@@ -67,7 +67,7 @@ def train(base_learning_rate):
         input_shape=(4,84,84),
         latent_shape=(512,),
         output_shape=(4,),
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_6_{base_learning_rate}.model",
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_6_{base_learning_rate:.12f}.model",
     )
     this_score_curve = [0]
     for progress, (observations, actions) in ProgressBar(batch_generator, seconds_per_print=60):
