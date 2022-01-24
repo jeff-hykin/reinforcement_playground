@@ -2,6 +2,7 @@ from tools.basics import large_pickle_load, large_pickle_save, to_pure
 from tools.file_system_tools import FileSystem
 from informative_iterator import ProgressBar
 from super_map import Map
+import tools.stat_tools as stat_tools
 
 import os
 import math
@@ -83,29 +84,31 @@ class AgentRecorder():
     
     def load_data(self):
         for each_name in self.names():
-            yield large_pickle_load(self.save_to+f"/{each_name}{self._data_file_extension}")
+            yield each_name, large_pickle_load(self.save_to+f"/{each_name}{self._data_file_extension}")
 
     def load_metadata(self):
         for each_name in self.names():
-            yield read_json(path=self.save_to+f"/{each_name}{self._metadata_file_extension}")
+            yield each_name, read_json(path=self.save_to+f"/{each_name}{self._metadata_file_extension}")
     
     def create_batch_data(self, batch_name, batch_size, preprocessing=lambda batch:batch):
         # create folder for batch
         batch_path = f"{self.save_to}/{batch_name}"
+        FileSystem.delete(batch_path)
         FileSystem.ensure_is_folder(batch_path)
         
         # build a index lookup based on the action
-        print("building action index")
+        number_of_entries = self.size/50
+        print('building action index')
         samples_by_action_type = Map()
-        for progress, metadata in ProgressBar(self.load_metadata(), iterations=self.size):
-            if metadata not in samples_by_action_type:
-                samples_by_action_type[metadata] = set()
-            samples_by_action_type[metadata].add(progress.index)
+        for progress, (name, action) in ProgressBar(self.load_metadata(), iterations=number_of_entries):
+            if action not in samples_by_action_type:
+                samples_by_action_type[action] = set()
+            samples_by_action_type[action].add(name)
         
         actions = list(samples_by_action_type[Map.Keys])
-        print("starting batch creation")
+        print('creating batches')
         # this actually overshoots because its unknown how many iterations there will be
-        max_number_of_batches = math.floor(self.size / batch_size)
+        max_number_of_batches = math.floor(number_of_entries / batch_size)
         for progress, batch_index in ProgressBar(max_number_of_batches):
             batch = []
             # 

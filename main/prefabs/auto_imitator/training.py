@@ -20,8 +20,8 @@ from prefabs.auto_imitator.preprocess_dataset import compress_observations, comp
 
 
 logging = LazyDict(
-    smoothing_size=512,
-    should_log=Countdown(size=1000),
+    smoothing_size=128,
+    should_log=Countdown(size=1000/10),
     should_print=Countdown(size=100),
     correctness_card=ss.DisplayCard("quickLine", []),
     loss_card=ss.DisplayCard("quickLine", []),
@@ -61,7 +61,7 @@ def train(base_learning_rate):
     
     FileSystem.delete(path)
     
-    batch_generator = database.load_batch_data("balanced64", epochs=number_of_epochs)
+    batch_generator = database.load_batch_data("balanced64_2", epochs=number_of_epochs)
     
     auto_imitator = AutoImitator(
         learning_rate=create_linear_rate(
@@ -78,7 +78,7 @@ def train(base_learning_rate):
     
     print("progress starting")
     this_score_curve = [0]
-    for progress, (observations, actions) in ProgressBar(batch_generator, seconds_per_print=60):
+    for progress, (observations, actions) in ProgressBar(batch_generator, seconds_per_print=1):
         for each in actions:
             logging.correct_action_frequency[to_pure(each)] += 1
             

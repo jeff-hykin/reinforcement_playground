@@ -38,7 +38,7 @@ class AutoImitator(nn.Module):
         
         self.layers.add_module('encoder', self.encoder)
         self.layers.add_module('linear2'           , nn.Linear(in_features=latent_size, out_features=product(self.output_shape), bias=True),)
-        self.layers.add_module('linear2_activation', nn.Sigmoid())
+        # self.layers.add_module('linear2_activation', nn.Sigmoid())
         
         # optimizer
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1)
@@ -59,13 +59,16 @@ class AutoImitator(nn.Module):
         #     except Exception as error:
         #         pass
     
+    #
+    # manual MSE loss
+    #
     @misc.all_args_to_tensor
     @misc.all_args_to_device
     def loss_function(self, model_output_batch, ideal_output_batch):
         which_ideal_actions = ideal_output_batch.long()
         which_ideal_actions_one_hot = to_tensor([ self.one_hotifier.to_one_hot(each) for each in which_ideal_actions ]).to(self.hardware)
         which_model_actions = model_output_batch.argmax(dim=-1)
-        
+    
         number_correct_plus_one = 1 + (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions)
         # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
         loss = torch.nn.functional.mse_loss(model_output_batch*100, which_ideal_actions_one_hot*100)
@@ -78,6 +81,42 @@ class AutoImitator(nn.Module):
         self.logging.proportion_correct_at_index.append( to_pure(number_correct_plus_one-1) )
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
+    
+    # #
+    # # simple mse
+    # #
+    # @misc.all_args_to_tensor
+    # @misc.all_args_to_device
+    # def loss_function(self, model_output_batch, ideal_output_batch):
+    #     which_ideal_actions = ideal_output_batch.long()
+    #     which_ideal_actions_one_hot = to_tensor([ self.one_hotifier.to_one_hot(each) for each in which_ideal_actions ])
+    #     print('model_output_batch.shape = ', model_output_batch.shape)
+    #     print('which_ideal_actions_one_hot = ', which_ideal_actions_one_hot)
+    #     # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
+    #     loss = torch.nn.functional.mse_loss(model_output_batch, which_ideal_actions_one_hot)
+    #     which_model_actions = model_output_batch.detach().argmax(dim=-1)
+    #     for each in model_output_batch:
+    #         self.action_tensor_sum += each
+    #     for each in which_model_actions:
+    #         self.action_frequency[to_pure(each)] += 1
+    #     self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions) )
+    #     self.logging.loss_at_index.append(to_pure(loss))
+    #     return loss
+        
+    # @misc.all_args_to_tensor
+    # @misc.all_args_to_device
+    # def loss_function(self, model_output_batch, ideal_output_batch):
+    #     which_ideal_actions = ideal_output_batch.long()
+    #     # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
+    #     loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions)
+    #     which_model_actions = model_output_batch.detach().argmax(dim=-1)
+    #     for each in model_output_batch:
+    #         self.action_tensor_sum += each
+    #     for each in which_model_actions:
+    #         self.action_frequency[to_pure(each)] += 1
+    #     self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions) )
+    #     self.logging.loss_at_index.append(to_pure(loss))
+    #     return loss
     
     @misc.all_args_to_tensor
     @misc.all_args_to_device
