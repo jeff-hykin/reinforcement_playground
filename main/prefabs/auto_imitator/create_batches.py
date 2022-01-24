@@ -30,7 +30,7 @@ def compress_raw_images(batch):
         actions.append(action)
     return opencv_image_to_torch_image(to_tensor(raw_image_stacks)), to_tensor(actions)
     
-database.create_batch_data(batch_name="balanced64_2", batch_size=64, preprocessing=compress_observations) 
+database.create_batch_data(batch_name="balanced64", batch_size=64, preprocessing=compress_observations) 
 # database.create_batch_data(batch_name="raw64", batch_size=64, preprocessing=compress_raw_images)
 
 # ~44506 total

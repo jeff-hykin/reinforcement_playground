@@ -61,7 +61,7 @@ def train(base_learning_rate):
     
     FileSystem.delete(path)
     
-    batch_generator = database.load_batch_data("balanced64_2", epochs=number_of_epochs)
+    batch_generator = database.load_batch_data("balanced64", epochs=number_of_epochs)
     
     auto_imitator = AutoImitator(
         learning_rate=create_linear_rate(

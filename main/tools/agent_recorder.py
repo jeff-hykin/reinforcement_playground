@@ -97,7 +97,7 @@ class AgentRecorder():
         FileSystem.ensure_is_folder(batch_path)
         
         # build a index lookup based on the action
-        number_of_entries = self.size/50
+        number_of_entries = self.size
         print('building action index')
         samples_by_action_type = Map()
         for progress, (name, action) in ProgressBar(self.load_metadata(), iterations=number_of_entries):
