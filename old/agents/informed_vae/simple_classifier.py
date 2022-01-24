@@ -65,7 +65,7 @@ class SimpleClassifier(pl.LightningModule):
         
         # calculate loss
         batch_of_guesses = self(batch_of_inputs)
-        batch_of_ideal_number_outputs = from_onehot_batch(batch_of_ideal_outputs)
+        batch_of_ideal_number_outputs = from_one_hot_batch(batch_of_ideal_outputs)
         loss = F.nll_loss(batch_of_guesses, batch_of_ideal_number_outputs)
         record["classifier_loss"] = loss.item()
         
@@ -90,7 +90,7 @@ class SimpleClassifier(pl.LightningModule):
         
     def loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
-        ideal_output = from_onehot_batch(ideal_output)
+        ideal_output = from_one_hot_batch(ideal_output)
         return F.nll_loss(model_output, ideal_output)
 
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):

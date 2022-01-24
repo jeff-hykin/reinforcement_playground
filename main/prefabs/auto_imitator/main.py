@@ -3,7 +3,7 @@ from super_map import LazyDict
 from tools.all_tools import *
 
 from tools.basics import product
-from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image
+from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier
 from tools.schedulers import BasicLearningRateScheduler
 
 class AutoImitator(nn.Module):
@@ -49,6 +49,7 @@ class AutoImitator(nn.Module):
             optimizers=[ self.optimizer ],
         )
         
+        self.one_hotifier = OneHotifier(list(range(output_shape[0])))
         # try to load from path if its given
         if self.path:
             try:
@@ -58,22 +59,25 @@ class AutoImitator(nn.Module):
     
     @misc.all_args_to_tensor
     @misc.all_args_to_device
-    def loss_function(self, model_output, ideal_output):
-        which_ideal_actions = ideal_output.long()
-        # ideal output is vector of indicies, model_output is vector of one-hot vectors
-        loss = torch.nn.functional.cross_entropy(input=model_output, target=which_ideal_actions)
-        which_model_actions = model_output.detach().argmax(dim=-1)
+    def loss_function(self, model_output_batch, ideal_output_batch):
+        which_ideal_actions = ideal_output_batch.long()
+        which_ideal_actions_one_hot = to_tensor([ self.one_hotifier.to_one_hot(each) for each in which_ideal_actions ])
+        print('model_output_batch.shape = ', model_output_batch.shape)
+        print('which_ideal_actions_one_hot = ', which_ideal_actions_one_hot)
+        # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
+        loss = torch.nn.functional.mse_loss(model_output_batch, which_ideal_actions_one_hot)
+        which_model_actions = model_output_batch.detach().argmax(dim=-1)
         self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions) )
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
     
     @misc.all_args_to_tensor
     @misc.all_args_to_device
-    def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
+    def update_weights(self, batch_of_inputs, batch_of_ideal_output_batchs, epoch_index, batch_index):
         self.learning_rate_scheduler.when_weight_update_starts()
         self.optimizer.zero_grad()
         batch_of_actual_outputs = self.forward(batch_of_inputs)
-        loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
+        loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_output_batchs)
         loss.backward()
         self.optimizer.step()
         return loss

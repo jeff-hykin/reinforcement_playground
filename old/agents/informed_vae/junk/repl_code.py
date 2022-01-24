@@ -137,12 +137,12 @@ if True:
                 onehot_tensor[each_index] = 1
         return onehot_tensor
     
-    def from_onehot_batch(tensor_batch):
+    def from_one_hot_batch(tensor_batch):
         # make sure its a tensor
         tensor_batch = to_tensor(tensor_batch)
         return tensor_batch.max(1, keepdim=True).indices.squeeze()
     
-    def from_onehot(tensor):
+    def from_one_hot(tensor):
         # make sure its a tensor
         tensor = to_tensor(tensor)
         return tensor.max(0, keepdim=True).indices.squeeze().item()
@@ -253,8 +253,8 @@ if True:
                 are one-hot encoded.
             """
             # convert to a batch of real-numbered outputs
-            model_batch_output = from_onehot_batch(model_batch_output)
-            ideal_batch_output = from_onehot_batch(ideal_batch_output)
+            model_batch_output = from_one_hot_batch(model_batch_output)
+            ideal_batch_output = from_one_hot_batch(ideal_batch_output)
             # element-wise compare how many are equal, then sum them up into a scalar
             number_correct = model_batch_output.eq(ideal_batch_output).sum().item()
             return number_correct
@@ -870,7 +870,7 @@ if True:
             
         def loss_function(self, model_output, ideal_output):
             # convert from one-hot into number, and send tensor to device
-            ideal_output = from_onehot_batch(ideal_output).to(self.hardware)
+            ideal_output = from_one_hot_batch(ideal_output).to(self.hardware)
             return F.nll_loss(model_output, ideal_output)
         
         def correctness_function(self, model_batch_output, ideal_batch_output):
@@ -1001,7 +1001,7 @@ if True:
             
         def loss_function(self, model_output, ideal_output):
             # convert from one-hot into number, and send tensor to device
-            ideal_output = from_onehot_batch(ideal_output).to(self.hardware)
+            ideal_output = from_one_hot_batch(ideal_output).to(self.hardware)
             return F.nll_loss(model_output, ideal_output)
         
         def correctness_function(self, model_batch_output, ideal_batch_output):

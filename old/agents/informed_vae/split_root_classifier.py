@@ -53,7 +53,7 @@ class SplitRootClassifier(nn.Module):
     
     def classifier_loss_function(self, model_output, ideal_output):
         # convert from one-hot into number, and send tensor to device
-        ideal_output = from_onehot_batch(ideal_output).to(self.hardware)
+        ideal_output = from_one_hot_batch(ideal_output).to(self.hardware)
         return F.nll_loss(model_output, ideal_output)
         
     def forward(self, batch_of_inputs):

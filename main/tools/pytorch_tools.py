@@ -186,14 +186,14 @@ class OneHotifier():
             possible_values = tuple(possible_values)
         self.possible_values = possible_values
     
-    def to_onehot(self, value):
+    def to_one_hot(self, value):
         index = self.possible_values.index(value)
         return torch.nn.functional.one_hot(
             torch.tensor(index),
             len(self.possible_values)
         )
     
-    def from_onehot(self, vector):
+    def from_one_hot(self, vector):
         vector = to_tensor(vector)
         index_value = vector.max(0).indices
         return self.possible_values[index_value]
@@ -207,7 +207,7 @@ def onehot_argmax(tensor):
             onehot_tensor[each_index] = 1
     return onehot_tensor
 
-def from_onehot_batch(tensor_batch):
+def from_one_hot_batch(tensor_batch):
     device = None
     if isinstance(tensor_batch, torch.Tensor):
         device = tensor_batch.device
@@ -217,7 +217,7 @@ def from_onehot_batch(tensor_batch):
     # send to same device
     return output.to(device) if device else output
 
-def from_onehot(tensor):
+def from_one_hot(tensor):
     # make sure its a tensor
     tensor = to_tensor(tensor)
     return tensor.max(0, keepdim=True).indices.squeeze().item()
@@ -467,8 +467,8 @@ def Network():
             are one-hot encoded.
         """
         # convert to a batch of real-numbered outputs
-        model_batch_output = from_onehot_batch(model_batch_output)
-        ideal_batch_output = from_onehot_batch(ideal_batch_output)
+        model_batch_output = from_one_hot_batch(model_batch_output)
+        ideal_batch_output = from_one_hot_batch(ideal_batch_output)
         # element-wise compare how many are equal, then sum them up into a scalar
         model_batch_output = model_batch_output.to(self.hardware)
         ideal_batch_output = ideal_batch_output.to(self.hardware)
