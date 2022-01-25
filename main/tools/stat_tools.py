@@ -203,12 +203,18 @@ def frequency(iterable):
     return dict(Counter(iterable))
 
 def proportionalize(frequency):
-    percents = {}
-    total = sum(frequency.values())
-    for key, value in frequency.items():
-        percents[key] = value/total
-    return percents
-
+    if isinstance(frequency, dict):
+        percents = {}
+        total = sum(frequency.values())
+        for key, value in frequency.items():
+            percents[key] = value/total
+        return percents
+    else:
+        output = []
+        total = sum(frequency)
+        for key, value in enumerate(frequency):
+            output.append(value/total)
+        return output
 
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
