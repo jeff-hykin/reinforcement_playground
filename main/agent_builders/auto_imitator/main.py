@@ -8,31 +8,45 @@ import collections
 import cv2
 import time
 from super_map import LazyDict, Map
+from statistics import mean as average
 
 from tools.agent_skeleton import Skeleton
 from tools.file_system_tools import FileSystem
 from tools.basics import product
 from tools.pytorch_tools import opencv_image_to_torch_image, torch_image_to_opencv_image, to_tensor, init, forward, Sequential, tensor_to_image
 from tools.basics import to_pure
+from tools.agent_recorder import AgentRecorder
 
 from prefabs.auto_imitator.main import AutoImitator
 
+def observation_generator():
+    database = AgentRecorder(
+        save_to="resources/datasets.ignore/atari/baselines_pretrained@breakout_custom"
+    )
+    generator = database.load_batch_data("balanced64", epochs=9999999)
+    for observations, actions in generator:
+        for each in observations:
+            yield each
+
+observation_iterator = observation_generator()
+                    
 class Agent(Skeleton):
     @init.hardware
     def __init__(self, observation_space, action_space, **config):
         # 
         # special
         # 
-        self.observation = None     # external world will change this
-        self.reward = None          # external world will change this
-        self.action = None          # external world will read this
+        self.observation     = None # external world will change this
+        self.reward          = None # external world will change this
+        self.action          = None # external world will read this
         self.episode_is_over = None # external world will change this
         
         # 
         # regular/misc attributes
         # 
-        self.path  = config.get("path", f"models.ignore/auto_imitator_hacked_compressed_preprocessing_0.00021598702086765554.model")
-        self.logging = Agent.Logger(agent=self)
+        self.path              = config.get("path", None)
+        self.random_proportion = config.get("random_proportion", None)
+        self.logging = Agent.Logger(agent=self, **config)
         self.model = AutoImitator(
             learning_rate=0.00021,
             input_shape=(4,84,84),
@@ -40,7 +54,11 @@ class Agent(Skeleton):
             output_shape=(4,),
             path=self.path,
         ).to(self.hardware)
-
+        
+        
+        self.action_from_given_observation = Map({0:0,1:0,2:0,3:0})
+        self.action_from_database_observation = Map({0:0,1:0,2:0,3:0})
+        self.observation_iterator = observation_iterator
 
     class Logger:
         # depends on:
@@ -49,15 +67,19 @@ class Agent(Skeleton):
         def __init__(self, agent, **config):
             self.agent = agent
             
+            self.should_print     = config.get("should_print"    , True)
             self.should_display   = config.get("should_display"  , False)
             self.live_updates     = config.get("live_updates"    , False)
             self.smoothing_amount = config.get("smoothing_amount", 5    )
+            self.across_episodes = LazyDict(
+                average_reward=None,
+            )
             self.episode_rewards = []
             self.episode_losses  = []
             self.episode_reward_card = None
             self.episode_loss_card = None
             self.number_of_updates = 0
-            self.action_frequency = Map()
+            self.action_frequency = Map({0:0,1:0,2:0,3:0})
             self.reward_frequency = Map()
             
             # init class attributes if doesn't already have them
@@ -99,14 +121,20 @@ class Agent(Skeleton):
             self.episode_rewards.append(self.accumulated_reward)
             self.episode_losses.append(self.accumulated_loss)
             if self.live_updates:
-                self.episode_reward_card.send     ([episode_index, self.accumulated_reward      ])
-                self.episode_loss_card.send ([episode_index, self.accumulated_loss  ])
-            print('episode_index = ', episode_index)
-            print(f'    total_number_of_timesteps :{self.static.total_number_of_timesteps}',)
-            print(f'    number_of_updates         :{self.number_of_updates}',)
-            print(f'    average_episode_time      :{(time.time()-self.static.start_time)/self.static.total_number_of_episodes}',)
-            print(f'    accumulated_reward        :{self.accumulated_reward      }',)
-            print(f'    accumulated_loss          :{self.accumulated_loss  }',)
+                self.episode_reward_card.send([episode_index, self.accumulated_reward      ])
+                self.episode_loss_card.send([episode_index, self.accumulated_loss  ])
+            self.across_episodes.average_reward = average(self.episode_rewards)
+            if self.should_print:
+                print("\033[2J\033[1;1H") # clearscreen 
+                print('episode_index = ', episode_index)
+                print(f'    total_number_of_timesteps :{self.static.total_number_of_timesteps}',)
+                print(f'    number_of_updates         :{self.number_of_updates}',)
+                print(f'    average_episode_time      :{(time.time()-self.static.start_time)/self.static.total_number_of_episodes}',)
+                print(f'    average_reward            :{self.across_episodes.average_reward     }',)
+                print(f'    accumulated_reward        :{self.accumulated_reward      }',)
+                print(f'    accumulated_loss          :{self.accumulated_loss  }',)
+                print(f'    action_frequency          :{self.agent.action_from_given_observation  }',)
+                print(f'    reward_frequency          :{self.reward_frequency }',)
         
         def when_mission_ends(self,):
             if self.should_display:
@@ -138,13 +166,27 @@ class Agent(Skeleton):
         
     def when_timestep_starts(self, timestep_index):
         self.logging.when_timestep_starts(timestep_index)
-        
         # 
         # run the model
-        # 
-        action_one_hot = self.model.forward(
-            to_tensor(self.observation)
-        )
+        #
+        if (
+                   False
+                or (random.random() <= self.random_proportion)
+                # or (timestep_index < 10000 and random.random() <= 0.009)
+                # or (timestep_index < 1000 and random.random() <= 0.02)
+                # or (timestep_index < 100  and random.random() <= 0.05)
+                # or (timestep_index < 10   and random.random() <= 0.1)
+                # or (timestep_index < 2)
+            ):
+            self.logging.action_frequency = Map()
+            action_one_hot = self.model.forward(
+                to_tensor(next(self.observation_iterator))
+            )
+        else:
+            self.logging.action_frequency = self.action_from_given_observation
+            action_one_hot = self.model.forward(
+                to_tensor(self.observation)
+            )
         
         # 
         # choose an action

@@ -1654,7 +1654,7 @@ simple-namespace = "1.0.0"
 
 [[package]]
 name = "super-map"
-version = "1.1.1"
+version = "1.2.0"
 description = "Like dict, but easier"
 category = "main"
 optional = false
@@ -1911,7 +1911,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "ba4a3fc6282291c13bc37df315b48e760b1b90f50aff486fcf465c80d7df6572"
+content-hash = "759aa9da59973b69210fb33a57fb9aea7f3757426551d818f9484a7881490ddd"
 
 [metadata.files]
 absl-py = [
@@ -3189,8 +3189,8 @@ super-hash = [
     {file = "super_hash-1.0.5.tar.gz", hash = "sha256:266cf1e04f31a5b530532d4c349ef9a311618fe102f094e9bfd0d7a1f93e55a6"},
 ]
 super-map = [
-    {file = "super_map-1.1.1-py3-none-any.whl", hash = "sha256:66796b870f4d070c4e876cf81ca51e5c9e2c8771c8e4a3c5f5a554c13f12206f"},
-    {file = "super_map-1.1.1.tar.gz", hash = "sha256:2955b2408d1fe2f31ecfc80a851910910b7bfde2cdc667a4e6e5b4b53968b7ea"},
+    {file = "super_map-1.2.0-py3-none-any.whl", hash = "sha256:1361d2fa0f8033ae6659720990f661f9cdb687c8d86e6e03e401df9d4a0afe82"},
+    {file = "super_map-1.2.0.tar.gz", hash = "sha256:2024cd9cfc4115438d02a61f89afdf04630465ef35a4c0d4022d8af6d68b35c1"},
 ]
 tensorboard = [
     {file = "tensorboard-2.6.0-py3-none-any.whl", hash = "sha256:f7dac4cdfb52d14c9e3f74585ce2aaf8e6203620a864e51faf84988b09f7bbdb"},
