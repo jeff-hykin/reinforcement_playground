@@ -2,9 +2,17 @@
 # debug var
 # 
 from super_map import LazyDict
+class DebugObject(LazyDict):
+    def __call__(self, *args):
+        if len(args) == 0:
+            return self[DebugObject]
+        elif len(args) == 1:
+            self[DebugObject] = args[0]
+            return args[0]
 # simple but effective 
-debug = LazyDict()
 # (import this value into other modules, and set attributes to watch values)
+debug = DebugObject()
+
 
 # 
 # icecream

@@ -33,6 +33,11 @@ from agent_builders.a2c_baselines.main import Agent as A2C
 from agent_builders.auto_imitator.main import Agent # as Imitator
 from world_builders.atari.custom_preprocessing import preprocess
 
+env = preprocess(
+    env=gym.make("BreakoutNoFrameskip-v4"),
+    frame_buffer_size=4,
+    frame_sample_rate=4,
+)
 
 def default_mission(
         env_name="BreakoutNoFrameskip-v4",
@@ -44,13 +49,9 @@ def default_mission(
         path=None,
         random_proportion=0,
         episode_timeout=25,
+        mission_timeout=300,
     ):
     
-    env = preprocess(
-        env=gym.make(env_name),
-        frame_buffer_size=frame_buffer_size,
-        frame_sample_rate=frame_sample_rate,
-    )
     
     # mr_bond = A2C.load("models.ignore/BreakoutNoFrameskip-v4.zip")
     mr_bond = Agent(
@@ -71,19 +72,22 @@ def default_mission(
     )
     
     mr_bond.when_mission_starts()
+    mission_start_time = now()
     for progress, episode_index in ProgressBar(number_of_episodes, disable_logging=True):
         mr_bond.observation = env.reset()
         mr_bond.reward = 0
         mr_bond.episode_is_over = False
         
         mr_bond.when_episode_starts(episode_index)
-        start_time = now()
+        episode_start_time = now()
         timestep_index = -1
         while not mr_bond.episode_is_over:
             timestep_index += 1
             
             # check if episode is taking too long
-            if episode_timeout < now() - start_time:
+            if episode_timeout < now() - episode_start_time:
+                return mr_bond
+            if mission_timeout < now() - mission_start_time:
                 return mr_bond
             
             mr_bond.when_timestep_starts(timestep_index)
@@ -92,7 +96,6 @@ def default_mission(
             
         mr_bond.when_episode_ends(episode_index)
     mr_bond.when_mission_ends()
-    env.close()
     return mr_bond
 
 def tune_hyperparams(number_of_episodes_per_trial=100_000, fitness_func=trend_up):
@@ -153,117 +156,138 @@ paths = [
     "models.ignore/auto_imitator_hacked_compressed_preprocessing_5_9.846282994344578e-05.model",
     "models.ignore/auto_imitator_hacked_compressed_preprocessing_6_0.000084407439.model",
     "models.ignore/auto_imitator_hacked_compressed_preprocessing_6_0.000113584572.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000074111241.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000075921072.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000080808598.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000085952679.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000087287003.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000088948328.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000092262921.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000093408395.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000094157877.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000096989272.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000097074061.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000098383606.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000100988997.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000102281871.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000104861100.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000106861278.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000108202428.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000108213181.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000108902888.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000109039653.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000111631595.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000112464959.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000114267607.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000114996759.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000115118452.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000115656138.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000117193527.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000120552473.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000123065215.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000124264122.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000128483367.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000128858096.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000130179438.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000132100360.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000133176788.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000134853188.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000138390956.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000138707078.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000139845239.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000142148532.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000145002650.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000147158579.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000149861495.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000151478996.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000152685371.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000153511651.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000157044798.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000157184687.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000157653836.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000159121446.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000159206199.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000160683460.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000161672050.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000163811219.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000164009785.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000164273321.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000164911138.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000168394876.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000168654194.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000170264552.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000171426049.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000174712371.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000175127593.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000176037294.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000178195535.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000178791579.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000179133440.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000179588275.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000180808054.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000181755364.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000182594345.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000184523995.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000184719039.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000186450345.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000187735534.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000190241887.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000191715671.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000192749715.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000192880004.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000194966399.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000195333990.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000198926836.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000201998968.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000203522155.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000203702994.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000203981199.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000204270238.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000206924927.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000211810528.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000212590315.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000214681865.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000220707832.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000221255917.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000225778823.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000229174533.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000237143204.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000246800656.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000250362957.model",
-    "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000265237521.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000074111241.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000075921072.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000080808598.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000085952679.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000087287003.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000088948328.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000092262921.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000093408395.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000094157877.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000096989272.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000097074061.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000098383606.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000100988997.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000102281871.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000104861100.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000106861278.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000108202428.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000108213181.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000108902888.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000109039653.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000111631595.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000112464959.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000114267607.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000114996759.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000115118452.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000115656138.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000117193527.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000120552473.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000123065215.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000124264122.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000128483367.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000128858096.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000130179438.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000132100360.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000133176788.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000134853188.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000138390956.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000138707078.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000139845239.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000142148532.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000145002650.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000147158579.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000149861495.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000151478996.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000152685371.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000153511651.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000157044798.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000157184687.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000157653836.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000159121446.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000159206199.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000160683460.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000161672050.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000163811219.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000164009785.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000164273321.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000164911138.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000168394876.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000168654194.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000170264552.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000171426049.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000174712371.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000175127593.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000176037294.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000178195535.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000178791579.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000179133440.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000179588275.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000180808054.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000181755364.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000182594345.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000184523995.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000184719039.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000186450345.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000187735534.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000190241887.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000191715671.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000192749715.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000192880004.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000194966399.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000195333990.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000198926836.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000201998968.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000203522155.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000203702994.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000203981199.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000204270238.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000206924927.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000211810528.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000212590315.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000214681865.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000220707832.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000221255917.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000225778823.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000229174533.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000237143204.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000246800656.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000250362957.model",
+    # "models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000265237521.model",
 ]
-random.shuffle(paths)
-for each_path in paths:
-    name = each_path.replace("models.ignore/auto_imitator_hacked_compressed_preprocessing_", "")
-    for each_random_rate in random_rates:
+
+paths_and_rates = [ (each_path, each_random_rate) for each_path in paths for each_random_rate in random_rates]
+random.shuffle(paths_and_rates)
+print(f"group\tname\tepisodes\trandom\treward\taction:0\taction:1\taction:2\taction:3")
+for each_path, each_random_rate in paths_and_rates:
+    name = each_path.replace("models.ignore/auto_imitator_hacked_compressed_preprocessing_", "").replace(".model", "")
+    try:
+        agent = default_mission(
+            number_of_episodes=30,
+            random_proportion=each_random_rate,
+            path=each_path,
+        )
+        a = "None"
+        b = "None"
+        c = "None"
+        d = "None"
+        e = "None"
+        try: a = str(name).replace("_", "\t")
+        except: pass
+        try: b = str(len(agent.logging.episode_rewards))
+        except: pass
+        try: c = str(each_random_rate)
+        except: pass
+        try: d = f"{agent.logging.across_episodes.average_reward:.2f}"
+        except: pass
         try:
-            agent = default_mission(
-                number_of_episodes=30,
-                random_proportion=each_random_rate,
-                path=each_path,
-            )
-            print(f"{name}: episodes: {len(agent.logging.episode_rewards)} random: {each_random_rate} reward:{agent.logging.across_episodes.average_reward} actions: {agent.action_from_given_observation}")
-        except Exception as error:
-            print('error = ', error)
+            actions_values = "\t".join(str(each) for each in agent.action_from_given_observation[Map.Values])
+            e = f"{actions_values}"
+        except: pass
         
+        print(f"{a}\t{b}\t{c}\t{d}\t{e}")
+    except Exception as error:
+        print('error = ', error)
+        print('name = ', name)
+        print('each_random_rate = ', each_random_rate)

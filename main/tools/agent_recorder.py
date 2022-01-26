@@ -145,11 +145,18 @@ class AgentRecorder():
     def load_batch_data(self):
         dataset = self
         class Batch:
-            def __init__(self, batch_name, *, epochs=1):
+            def __init__(self, batch_name, *, epochs=1, batches_per_epoch=None):
                 batch_path = f"{dataset.save_to}/{batch_name}"
-                # print('loading batch summary data')
-                batch_names = list(FileSystem.list_files(batch_path))
-                # print('summary data loaded')
+                # limit the size of the epoch if needed
+                if batches_per_epoch is None:
+                    batch_names = list(FileSystem.list_files(batch_path))
+                else:
+                    batch_names = []
+                    for each in FileSystem.list_files(batch_path):
+                        batches_per_epoch -= 1
+                        batch_names.append(each)
+                        if not batches_per_epoch:
+                            break
                 
                 self.batch_name        = batch_name
                 self.number_of_epochs  = epochs
@@ -159,36 +166,23 @@ class AgentRecorder():
                 self.batch_index = -1
                 self.number = 0 # index + 1
                 
-                # create the reset indicies for the epochs
-                total = self.batches_per_epoch
-                self.reset_indicies = set()
-                while total < self.length:
-                    self.reset_indicies.add(total)
-                    total += self.batches_per_epoch
-                
                 def sampler():
-                    random.shuffle(batch_names)
-                    self.epoch_index += 1
-                    for self.batch_index, each in enumerate(batch_names):
-                        self.number += 1
-                        yield large_pickle_load(f'{batch_path}/{each}')
+                    while self.number < self.length:
+                        random.shuffle(batch_names)
+                        self.epoch_index += 1
+                        for self.batch_index, each in enumerate(batch_names):
+                            self.number += 1
+                            yield large_pickle_load(f'{batch_path}/{each}')
                         
-                self.generator = sampler
                 self.iterator = sampler()
             
             def __len__(self,):
                 return self.length
             
             def __iter__(self):
-                self.iterator = self.generator()
                 return self
 
             def __next__(self):
-                # if the end of an epoch, with more epochs to go
-                if self.number in self.reset_indicies:
-                    # repeat
-                    self.iterator = self.generator()
-                    
                 return next(self.iterator)
         
         return Batch

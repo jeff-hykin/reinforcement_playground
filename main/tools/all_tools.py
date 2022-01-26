@@ -33,7 +33,7 @@ import pytorch_lightning as pl
 # local
 import tools.fix_ssl_certificates
 from tools.basics import *
-from tools.file_system_tools import FS
+from tools.file_system_tools import FS, FileSystem
 from tools.pytorch_tools import *
 from tools.dataset_tools import *
 from tools.config_tools import *

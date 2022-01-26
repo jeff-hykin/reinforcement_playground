@@ -69,6 +69,13 @@ class AutoImitator(nn.Module):
     
     @misc.all_args_to_tensor
     @misc.all_args_to_device
+    def correctness(self, model_output_batch, ideal_output_batch):
+        which_ideal_actions = ideal_output_batch.long()
+        which_model_actions = model_output_batch.detach().argmax(dim=-1)
+        return (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions)
+    
+    @misc.all_args_to_tensor
+    @misc.all_args_to_device
     def update_weights(self, batch_of_inputs, batch_of_ideal_outputs, epoch_index, batch_index):
         self.learning_rate_scheduler.when_weight_update_starts()
         self.optimizer.zero_grad()
