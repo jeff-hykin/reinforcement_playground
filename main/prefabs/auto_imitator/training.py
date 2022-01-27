@@ -1,5 +1,6 @@
 import silver_spectacle as ss
 from super_map import LazyDict, Map
+from super_hash import super_hash
 
 from tools.all_tools import *
 from tools.basics import to_pure, Countdown
@@ -55,16 +56,18 @@ database = AgentRecorder(
 # 
 # testing
 # 
-testing_batch_generator = database.load_batch_data("balanced64", epochs=1, batches_per_epoch=500)
+testing_batch_generator = database.load_batch_data("balanced64", epochs=1, batches_per_epoch=300)
 # create one huge batch
 print("creating test batch")
 test_observations = []
 test_actions = []
-for progress, (observations, a2c_actions) in ProgressBar(testing_batch_generator):
+for progress, (observations, a2c_actions) in ProgressBar(testing_batch_generator, seconds_per_print=0.2):
     test_observations += [ each for each in observations ]
     test_actions      += [ each for each in a2c_actions ]
-test_observations = to_tensor(test_observations)
-test_actions = to_tensor(test_actions)
+test_observations = to_tensor(test_observations).to(device)
+test_actions = to_tensor(test_actions).to(device)
+print("creating hashes")
+test_observation_hashes = tuple(super_hash(each.tolist()) for _, each in ProgressBar(test_observations))
 def test(model):
     return model.correctness(
         model.forward(test_observations),
@@ -75,14 +78,14 @@ print("test_batch created")
 # 
 # training
 # 
-training_batch_generator = database.load_batch_data("balanced64", epochs=math.inf, batches_per_epoch=512)
+training_batch_generator = database.load_batch_data("balanced64", epochs=math.inf, batches_per_epoch=6000)
 other_curves = []
 def train(
         base_learning_rate=0.00022,
         learning_rate_shrink=0.1,
         number_of_epochs=200,
     ):
-    path = f"models.ignore/auto_imitator_hacked_compressed_preprocessing_overfit_{base_learning_rate:.12f}.model"
+    path = f"models.ignore/auto_imitator_hacked_compressed_preprocessing_ManyEpochs_{base_learning_rate:.12f}.model"
     FileSystem.delete(path)
     
     
@@ -105,8 +108,10 @@ def train(
     # 
     # training
     # 
-    for progress, (observations, actions) in ProgressBar(training_batch_generator, iterations=iterations, seconds_per_print=0.5, disable_logging=False):
-            
+    for progress, (observations, actions) in ProgressBar(training_batch_generator, iterations=iterations, seconds_per_print=30, disable_logging=False):
+        if super_hash(observations[0].tolist()) in test_observation_hashes:
+            continue
+        
         auto_imitator.update_weights(
             batch_of_inputs=observations,
             batch_of_ideal_outputs=actions,
@@ -115,8 +120,8 @@ def train(
         )
         
         if progress.updated:
-            accuracy = Percent(training_log.this_score_curve[-1])
-            print(f"learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}, train_accuracy: {accuracy:.3f}, test_accuracy: {test(auto_imitator):.3f}, trial: {len(other_curves)}, epoch:{training_batch_generator.epoch_index}", end="")
+            accuracy = Percent(training_log.this_score_curve[-1]*100)
+            print(f"learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}, train_accuracy: {str(accuracy)}, test_accuracy: {test(auto_imitator):.3f}, trial: {len(other_curves)}, epoch:{training_batch_generator.epoch_index}", end="")
         
         if logging.should_update_graphs() or progress.index == 0:
             logging.update_name_card(f"""
@@ -160,7 +165,7 @@ def tune_hyperparams(number_of_trials, fitness_func):
     objective_func = lambda trial: fitness_func(
         train(
             base_learning_rate=trial.suggest_loguniform('learning_rate', 0.00007, 0.00030),
-            number_of_epochs=trial.suggest_categorical('number_of_epochs', [ 1, 5, 100, 1000, 10000, 100000 ]),
+            number_of_epochs=trial.suggest_categorical('number_of_epochs', [ 100, ]),
             # trial.suggest_categorical
             # trial.suggest_discrete_uniform
             # trial.suggest_float
