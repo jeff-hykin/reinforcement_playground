@@ -21,8 +21,10 @@ from tools.pytorch_tools import to_tensor
 
 
 logging = LazyDict(
-    should_update_card=Countdown(seconds=0.1),
+    should_render=Countdown(seconds=0.1),
+    reasons=[],
     render_card=ss.DisplayCard("quickImage", to_pure(torch.zeros((84, 84)))),
+    text_card=ss.DisplayCard("quickMarkdown", "starting"),
 )
 
 def default_mission(
@@ -64,12 +66,15 @@ def default_mission(
             timestep_index += 1
             
             mr_bond.when_timestep_starts(timestep_index)
+            logging.reasons.append(mr_bond.reason)
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
             # print('timestep_index = ', timestep_index, 'mr_bond.episode_is_over = ', mr_bond.episode_is_over, 'mr_bond.reward = ', mr_bond.reward)
             mr_bond.when_timestep_ends(timestep_index)
             
-            if logging.should_update_card():
+            if logging.should_render():
                 logging.render_card.send(env.prev_unpreprocessed_frame)
+                logging.text_card.send(str(logging.reasons))
+                logging.reasons.clear()
             
         mr_bond.when_episode_ends(episode_index)
         

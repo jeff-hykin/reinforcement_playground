@@ -9,6 +9,7 @@ import cv2
 import time
 import include
 from super_map import LazyDict, Map
+from super_hash import super_hash
 from statistics import mean as average
 
 from tools.agent_skeleton import Skeleton
@@ -57,6 +58,7 @@ class Agent(Skeleton):
         self.action_from_given_observation = Map({0:0,1:0,2:0,3:0})
         self.action_from_database_observation = Map({0:0,1:0,2:0,3:0})
         self.observation_iterator = observation_iterator
+        self.reason = None
 
     class Logger:
         # depends on:
@@ -164,28 +166,32 @@ class Agent(Skeleton):
         
     def when_timestep_starts(self, timestep_index):
         self.logging.when_timestep_starts(timestep_index)
+        first_frame = super_hash(self.observation[0])
+        matches = [super_hash(each_frame) == first_frame for each_frame in self.observation]
         # 
-        # run the model
-        #
-        if (
-                   self.random_proportion
-                and (random.random() <= self.random_proportion)
-                # or (timestep_index < 10000 and random.random() <= 0.009)
-                # or (timestep_index < 1000 and random.random() <= 0.02)
-                # or (timestep_index < 100  and random.random() <= 0.05)
-                # or (timestep_index < 10   and random.random() <= 0.1)
-                # or (timestep_index < 2)
-            ):
+        # start check
+        # 
+        if all(matches):
+            action_one_hot = to_tensor([ 0, 1.0, 0, 0 ])
+            self.reason = "start"
+        # 
+        # random action
+        # 
+        elif self.random_proportion and random.random() <= self.random_proportion:
+            self.reason = "random"
             self.logging.action_frequency = Map()
             action_one_hot = self.model.forward(
                 to_tensor(next(self.observation_iterator))
             )
+        # 
+        # intelligent action
+        # 
         else:
+            self.reason = "choice"
             self.logging.action_frequency = self.action_from_given_observation
             action_one_hot = self.model.forward(
                 to_tensor(self.observation)
             )
-        
         # 
         # choose an action
         # 
