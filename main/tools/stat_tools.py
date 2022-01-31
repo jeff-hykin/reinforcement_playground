@@ -1,6 +1,6 @@
 import math
 import scipy.stats as stats
-from statistics import mean as average
+from statistics import mean
 from statistics import stdev as standard_deviation
 from super_map import LazyDict, Map
 from collections import Counter # frequency count
@@ -216,6 +216,14 @@ def proportionalize(frequency):
             output.append(value/total)
         return output
 
+def average(iterable):
+    # TODO: optimize this for torch tensors
+    cleaned_data = tuple(flatten(to_pure(each) for each in iterable))
+    if len(cleaned_data) == 0:
+        return None
+    else:
+        return mean(cleaned_data)
+    
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
 #     import math
