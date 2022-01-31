@@ -39,7 +39,7 @@ auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
     output_shape=(4,),
-    path="models.ignore/auto_imitator_long_term_1.model",
+    path="models.ignore/auto_imitator_long_term_2.model",
 )
 
 # 
@@ -67,22 +67,22 @@ logging = LazyDict(
     auto_imitator=LazyDict(
         action_distribution=LazyDict({0:0,1:0,2:0,3:0}),
     ),
-    should_update_graphs=Countdown(size=1000/2),
-    should_print=Countdown(size=100),
+    should_update_graphs=Countdown(size=1000),
+    should_print=Countdown(size=2000),
     correctness_card=ss.DisplayCard("quickLine", []),
     loss_card=ss.DisplayCard("quickLine", []),
     name_card=ss.DisplayCard("quickMarkdown", f""),
     update_name_card=lambda info: logging.name_card.send(info), 
     update_correctness=lambda data: logging.correctness_card.send("clear").send(tuple(zip(
             # indicies
-            range(0, len(data), logging.smoothing_size),
+            range(0, len(data), mission.smoothing_size),
             # values
             mission.smoother(data),
         ))
     ),
     update_loss=lambda data: logging.loss_card.send("clear").send(tuple(zip(
             # indicies
-            range(0, len(data), logging.smoothing_size),
+            range(0, len(data), mission.smoothing_size),
             # values
             mission.smoother(data),
         ))
@@ -106,12 +106,13 @@ def run():
         while not mr_bond.episode_is_over:
             index += 1
             timestep_index += 1
+            batch_index = index // batch_size
             
-            observation_in_torch_form = opencv_image_to_torch_image(observation)
+            # observation_in_torch_form = opencv_image_to_torch_image(mr_bond.observation)
             mr_bond.when_timestep_starts(timestep_index)
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
             # save the data to the current batch
-            mission.current_batch_details.observations[index % batch_size] = observation_in_torch_form
+            mission.current_batch_details.observations[index % batch_size] = to_tensor(mr_bond.observation)
             mission.current_batch_details.actions[index % batch_size] = to_pure(mr_bond.action)
             mr_bond.when_timestep_ends(timestep_index)
             
@@ -129,12 +130,16 @@ def run():
             # logging
             # 
             if logging.should_print():
-                batch_index = index / batch_size
                 print(f'''batch_index:{batch_index}, ''', end="")
                 auto_imitator.log()
+                import sys
+                sys.stdout.flush()
             
             if logging.should_update_graphs():
-                logging.update_name_card()
+                logging.update_name_card(f"""
+                    ideal_action_ratio: {auto_imitator.logging.get_ideal_action_ratio()}
+                    imitator_action_ratio: {auto_imitator.logging.get_imitator_action_ratio()}
+                """.replace("                    ", ""))
                 logging.update_correctness(auto_imitator.logging.proportion_correct_at_index)
                 logging.update_loss(auto_imitator.logging.loss_at_index)
                 

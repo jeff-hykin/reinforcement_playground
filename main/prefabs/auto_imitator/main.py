@@ -59,9 +59,12 @@ class AutoImitator(nn.Module):
                 pass
         
         self.logging = LazyDict(
-            action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
+            imitator_action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
+            ideal_action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
             proportion_correct_at_index=[],
             loss_at_index=[],
+            get_imitator_action_ratio=lambda : "[" + ",".join([ f"{(float(each_value)*100):.2f}%" for each_key, each_value in proportionalize(self.logging.imitator_action_frequency).items() ]) + "]" , 
+            get_ideal_action_ratio=   lambda : "[" + ",".join([ f"{(float(each_value)*100):.2f}%" for each_key, each_value in proportionalize(self.logging.ideal_action_frequency   ).items() ]) + "]" , 
         )
     
     @misc.all_args_to_tensor
@@ -114,8 +117,7 @@ class AutoImitator(nn.Module):
         return self.load_state_dict(torch.load(path or self.path))
     
     def log(self):
-        average_loss          = average(self.logging.loss_at_index[-self.smoothing   : ])
-        average_correct       = average(self.logging.correct_at_index[-self.smoothing: ])
-        imitator_action_ratio = ",".join([ f"{(each_value*100): .2}%" for each_key, each_value in proportionalize(self.logging.imitator_action_frequency) ])
-        ideal_action_ratio    = ",".join([ f"{(each_value*100): .2}%" for each_key, each_value in proportionalize(self.logging.ideal_action_frequency   ) ])
-        print(f'''loss: {average_loss}, correct: {average_correct}, imitator_action_ratio: {imitator_action_ratio}, ideal_action_ratio: {ideal_action_ratio}''')
+        average_loss    = average(self.logging.loss_at_index[-self.smoothing: ])
+        average_correct = average(self.logging.proportion_correct_at_index[-self.smoothing: ])
+        print(f'''loss: {average_loss:.4f}, correct: {average_correct:.4f}, imitator_action_ratio: {self.logging.get_imitator_action_ratio()}, ideal_action_ratio: {self.logging.get_ideal_action_ratio()}''')
+    

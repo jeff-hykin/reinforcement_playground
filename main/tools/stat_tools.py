@@ -207,7 +207,10 @@ def proportionalize(frequency):
         percents = {}
         total = sum(frequency.values())
         for key, value in frequency.items():
-            percents[key] = value/total
+            if total == 0:
+                percents[key] = 0
+            else:
+                percents[key] = value/total
         return percents
     else:
         output = []
@@ -217,8 +220,9 @@ def proportionalize(frequency):
         return output
 
 def average(iterable):
+    from tools.basics import to_pure
     # TODO: optimize this for torch tensors
-    cleaned_data = tuple(flatten(to_pure(each) for each in iterable))
+    cleaned_data = tuple(to_pure(each) for each in iterable)
     if len(cleaned_data) == 0:
         return None
     else:
