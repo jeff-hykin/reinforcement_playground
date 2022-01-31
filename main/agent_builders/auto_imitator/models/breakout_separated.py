@@ -75,12 +75,20 @@ class AutoImitatorSingular(nn.Module):
         ideal_action_yes_no_batch = ideal_output_batch
         model_action_yes_no_batch = model_output_batch.squeeze()
         # update output weights
-        self.model_total_yes += model_action_yes_no_batch.sum()
-        self.ideal_total_yes += ideal_output_batch.sum()
+        self.model_total_yes += model_action_yes_no_batch.detach().sum()
+        self.ideal_total_yes += ideal_output_batch.detach().sum()
         self.total_actions += len(ideal_output_batch)
-        yes_proportion = (self.ideal_total_yes/self.total_actions)
-        weight_for_yes = 1/yes_proportion # only a few yes's => more weight on yes
-        weight_for_no  = 1/(1-yes_proportion)
+        
+        ideal_yes_proportion = self.ideal_total_yes/self.total_actions
+        model_yes_proportion = self.model_total_yes/self.total_actions
+        overshoot = (ideal_yes_proportion - model_yes_proportion)
+        weight_for_yes = 0.5 - overshoot/2
+        weight_for_no = 1 - weight_for_yes
+        
+        # yes_proportion = (self.ideal_total_yes/self.total_actions)
+        # no_proportion = 1 - yes_proportion
+        # weight_for_yes = torch.nn.functional.sigmoid(self.ideal_total_yes - self.model_total_yes)
+        # weight_for_no  = 1 - 2 ** no_proportion
         
         total_loss = torch.tensor(0.0, requires_grad=True)
         for each_model_yes_no, each_ideal_yes_no in zip(model_action_yes_no_batch, ideal_action_yes_no_batch):
@@ -233,7 +241,7 @@ class AutoImitator(nn.Module):
         average_correct = average(self.logging.proportion_correct_at_index[-self.smoothing: ])
         average_loss    = average(self.logging.loss_at_index[-self.smoothing: ])
         
-        ideal0 = f"{self.logging.ideal.action_0_count_at_index[-1]}".rjust(4, " ")
-        model0 = f"{self.logging.model.action_0_count_at_index[-1]}".rjust(4, " ")
-        print(f'''loss: {average_loss:.4f}, correctness: {average_correct:.3f}, losses: {average_losses}, average_normal_losses: {average_normal_losses}, correctnesses: {average_correctnesses}, ideal0:{ideal0}, model0:{model0}, imitator_action_ratio: {self.logging.get_imitator_action_ratio()}, ideal_action_ratio: {self.logging.get_ideal_action_ratio()}'''.replace('"',''))
+        ideal0 = f"{average(self.logging.ideal.action_0_count_at_index[-self.smoothing:]):.1f}".rjust(4, " ")
+        model0 = f"{average(self.logging.model.action_0_count_at_index[-self.smoothing:]):.1f}".rjust(4, " ")
+        print(f'''loss: {average_loss:.4f}, correctness: {average_correct:.3f}, losses: {average_losses}, average_normal_losses: {average_normal_losses}, correctnesses: {average_correctnesses}, ideal0:{ideal0}, model0:{model0}, imitator_action_ratio: {self.logging.get_imitator_action_ratio()}, ideal_action_ratio: {self.logging.get_ideal_action_ratio()}'''.replace("'",''))
     

@@ -72,11 +72,10 @@ class AutoImitator(nn.Module):
     def loss_function(self, model_output_batch, ideal_output_batch):
         which_ideal_actions = ideal_output_batch.long()
         # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
-        weight = to_tensor([ 1/each for each in propotionalize(self.logging.ideal_action_frequency).values()]) # [5.053057099545225, 2.962962962962963, 5.393743257820928, 3.5816618911174785] from [19.79,33.75,18.54,27.92]
-        # ideal_weight = to_tensor(proportionalize(self.logging.ideal_action_frequency).values()).to(self.hardware)
-        # model_weight = to_tensor(proportionalize(self.logging.imitator_action_frequency).values()).to(self.hardware)
+        ideal_weight = to_tensor(proportionalize(self.logging.ideal_action_frequency).values()).to(self.hardware)
+        model_weight = to_tensor(proportionalize(self.logging.imitator_action_frequency).values()).to(self.hardware)
         # print(f'''weight = {weight}''')
-        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions, weight=weight).to(self.hardware))
+        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions) + 10000 * torch.nn.functional.mse_loss(model_weight, ideal_weight)
         which_model_actions = model_output_batch.detach().argmax(dim=-1)
         # 
         # logging
