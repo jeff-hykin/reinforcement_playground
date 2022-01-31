@@ -41,7 +41,7 @@ auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
     output_shape=(4,),
-    path="models.ignore/auto_imitator_long_term_separated_1.model",
+    path="models.ignore/auto_imitator_dynamic_1.model",
 )
 
 # 
