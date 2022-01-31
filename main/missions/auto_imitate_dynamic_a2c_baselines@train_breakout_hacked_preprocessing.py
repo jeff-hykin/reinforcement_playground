@@ -14,8 +14,9 @@ from tools.agent_recorder import AgentRecorder
 from world_builders.atari.baselines_vectorized import Environment
 from world_builders.atari.custom_preprocessing import preprocess
 from agent_builders.a2c_baselines.main import Agent
+from agent_builders.auto_imitator.models.breakout_separated import AutoImitator
+# from prefabs.auto_imitator.main import AutoImitator
 from prefabs.baselines_optimizer import RMSpropTFLike
-from prefabs.auto_imitator.main import AutoImitator
 
 # 
 # Environment
@@ -39,7 +40,7 @@ auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
     output_shape=(4,),
-    path="models.ignore/auto_imitator_long_term_2.model",
+    path="models.ignore/auto_imitator_long_term_separated_1.model",
 )
 
 # 

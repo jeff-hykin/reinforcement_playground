@@ -40,7 +40,7 @@ class AutoImitatorSingular(nn.Module):
         
         self.layers.add_module('encoder', self.encoder)
         self.layers.add_module('linear2'           , nn.Linear(in_features=latent_size, out_features=product(self.output_shape), bias=True),)
-        # self.layers.add_module('linear2_activation', nn.Sigmoid())
+        self.layers.add_module('linear2_activation', nn.Sigmoid())
         
         # optimizer
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1)
@@ -70,13 +70,13 @@ class AutoImitatorSingular(nn.Module):
     def loss_function(self, model_output_batch, ideal_output_batch):
         ideal_action_yes_no_batch = ideal_output_batch
         # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
-        loss = torch.nn.functional.binary_cross_entropy(input=model_output_batch, target=ideal_action_yes_no_batch)
+        loss = torch.nn.functional.binary_cross_entropy(input= model_output_batch.squeeze(), target=ideal_action_yes_no_batch.squeeze())
         model_action_yes_no_batch = model_output_batch.detach().round().long()
         # 
         # logging
         # 
         self.logging.proportion_correct_at_index.append( (model_action_yes_no_batch == ideal_action_yes_no_batch).float().mean() )
-        self.logging.loss_at_index.append(to_pure(loss))
+        self.logging.loss_at_index.append(loss.item())
         return loss
     
     @misc.all_args_to_tensor
@@ -130,9 +130,8 @@ class AutoImitator(nn.Module):
         self.logging = LazyDict(
             imitator_action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
             ideal_action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
-            correctnesses_at_index=[ each.logging.correctness_at_index for each in self.networks ],
-            losses_at_index=[ each.logging.losses_at_index for each in self.networks ],
-            correctness_at_index=[],
+            loss_at_index=[],
+            proportion_correct_at_index=[],
             get_imitator_action_ratio=lambda : "[" + ",".join([ f"{(float(each_value)*100):.2f}%" for each_key, each_value in proportionalize(self.logging.imitator_action_frequency).items() ]) + "]" , 
             get_ideal_action_ratio=   lambda : "[" + ",".join([ f"{(float(each_value)*100):.2f}%" for each_key, each_value in proportionalize(self.logging.ideal_action_frequency   ).items() ]) + "]" , 
         )
@@ -145,7 +144,7 @@ class AutoImitator(nn.Module):
         correctnesses = []
         output_one_proportion = []
         for each_index, each_network in enumerate(self.networks):
-            ideal_outputs = (ideal_output_batch == torch.tensor(each_index)).long()
+            ideal_outputs = (batch_of_ideal_outputs == torch.tensor(each_index)).float()
             losses.append(each_network.update_weights(
                 batch_of_inputs=batch_of_inputs,
                 batch_of_ideal_outputs=ideal_outputs,
@@ -153,17 +152,24 @@ class AutoImitator(nn.Module):
                 batch_index=batch_index,
             ))
             outputs.append(each_network.prev_output.detach())
-            correctnesses.append(each_network.logging.correctnesses_at_index[-1])
+            correctnesses.append(each_network.logging.proportion_correct_at_index[-1])
         # this isn't an accurate shape (should basically be transposed), but we pick dim=0 instead of -1 for that reason so it doesn't matter
-        model_action_choices = to_tensor(outputs).argmax(dim=0)
-        self.logging.correctness_at_index.append( (model_action_choices == batch_of_ideal_outputs).float().mean() )
-        for each in ideal_output_batch:
+        model_output = to_tensor(outputs).squeeze().transpose(-1,-2)
+        model_action_choices = model_output.argmax(dim=-1)
+        self.logging.proportion_correct_at_index.append( (model_action_choices == batch_of_ideal_outputs).float().mean() )
+        for each in batch_of_ideal_outputs:
             self.logging.ideal_action_frequency[to_pure(each)] += 1
         for each in model_action_choices:
-            self.logging.imitator_action_frequency[to_pure(each)] += 1
-        self.losses_at_index.append(losses)
-        self.correctnesses_at_index.append(outputs)
+            self.logging.imitator_action_frequency[to_pure(each.squeeze())] += 1
+        self.logging.loss_at_index.append(to_pure(self.loss_function(model_output, batch_of_ideal_outputs)))
         return losses
+    
+    @misc.all_args_to_tensor
+    @misc.all_args_to_device
+    def loss_function(self, model_output_batch, ideal_output_batch):
+        which_ideal_actions = ideal_output_batch.long()
+        # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
+        return torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions)
     
     @forward.to_tensor
     @forward.to_device
@@ -188,8 +194,9 @@ class AutoImitator(nn.Module):
         return self
     
     def log(self):
-        average_loss          = [ f"{average(each[-self.smoothing: ]):.4f}" for each in self.logging.losses_at_index ]
-        average_correctnesses = [ f"{average(each[-self.smoothing: ]):.4f}" for each in self.logging.correctnesses_at_index ]
-        average_correct = average(self.logging.correctness_at_index[-self.smoothing: ])
-        print(f'''correctness: {average_correct:.3f}, losses: {average_loss:.4f}, correctnesses: {average_correctnesses:.4f}, imitator_action_ratio: {self.logging.get_imitator_action_ratio()}, ideal_action_ratio: {self.logging.get_ideal_action_ratio()}'''.replace('"',''))
+        average_loss          = [ f"{average(each.logging.loss_at_index[-self.smoothing: ]):.4f}" for each in self.networks ]
+        average_correctnesses = [ f"{average(each.logging.proportion_correct_at_index[-self.smoothing: ]):.4f}" for each in self.networks ]
+        average_correct = average(self.logging.proportion_correct_at_index[-self.smoothing: ])
+        average_loss    = average(self.logging.loss_at_index[-self.smoothing: ])
+        print(f'''loss: {average_loss:.4f}, correctness: {average_correct:.3f}, losses: {average_loss}, correctnesses: {average_correctnesses}, imitator_action_ratio: {self.logging.get_imitator_action_ratio()}, ideal_action_ratio: {self.logging.get_ideal_action_ratio()}'''.replace('"',''))
     
