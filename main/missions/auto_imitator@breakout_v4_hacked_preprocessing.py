@@ -45,9 +45,11 @@ def default_mission(
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        random_proportion=0.005,
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000214681865.model",
+        random_proportion=0.009,
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000134853188.model",
     )
+    # from agent_builders.a2c_baselines.main import Agent
+    # mr_bond = Agent.load("models.ignore/BreakoutNoFrameskip-v4.zip")
     
     print('starting mission')
     mr_bond.when_mission_starts()
@@ -66,7 +68,7 @@ def default_mission(
             timestep_index += 1
             
             mr_bond.when_timestep_starts(timestep_index)
-            logging.reasons.append(f"{mr_bond.reason}:{mr_bond.action}")
+            logging.reasons.append(f":{mr_bond.action}")
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
             # print('timestep_index = ', timestep_index, 'mr_bond.episode_is_over = ', mr_bond.episode_is_over, 'mr_bond.reward = ', mr_bond.reward)
             mr_bond.when_timestep_ends(timestep_index)
