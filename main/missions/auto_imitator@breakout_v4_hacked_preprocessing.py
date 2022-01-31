@@ -45,8 +45,8 @@ def default_mission(
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        random_proportion=0.05,
-        path=f"models.ignore/auto_imitator_long_term_separated_1.model",
+        random_proportion=0.005,
+        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_7_0.000214681865.model",
     )
     
     print('starting mission')
@@ -66,14 +66,14 @@ def default_mission(
             timestep_index += 1
             
             mr_bond.when_timestep_starts(timestep_index)
-            logging.reasons.append(mr_bond.reason)
+            logging.reasons.append(f"{mr_bond.reason}:{mr_bond.action}")
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
             # print('timestep_index = ', timestep_index, 'mr_bond.episode_is_over = ', mr_bond.episode_is_over, 'mr_bond.reward = ', mr_bond.reward)
             mr_bond.when_timestep_ends(timestep_index)
             
             if logging.should_render():
                 logging.render_card.send(env.prev_unpreprocessed_frame)
-                logging.text_card.send(str(logging.reasons))
+                logging.text_card.send(f"### {logging.reasons}".replace("'", " "))
                 logging.reasons.clear()
             
         mr_bond.when_episode_ends(episode_index)
