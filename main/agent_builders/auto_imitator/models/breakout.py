@@ -72,7 +72,7 @@ class AutoImitator(nn.Module):
     def loss_function(self, model_output_batch, ideal_output_batch):
         which_ideal_actions = ideal_output_batch.long()
         # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
-        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions)
+        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions, weights=to_tensor(proportionalize(self.logging.imitator_action_frequency).values()))
         which_model_actions = model_output_batch.detach().argmax(dim=-1)
         # 
         # logging
