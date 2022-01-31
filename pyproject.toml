@@ -24,7 +24,7 @@ matplotlib = "^3.4.2"
 gdown = "^3.13.0"
 torchsampler = { git = "https://github.com/jeff-hykin/imbalanced-dataset-sampler", tag = "1.0.0" }
 Flask = "^2.0.1"
-silver-spectacle = "0.6.7"
+silver-spectacle = "0.7.0"
 slick-siphon = "0.1.1"
 ipykernel = "^6.0.3"
 notebook = "^6.4.0"

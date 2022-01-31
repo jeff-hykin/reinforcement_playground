@@ -1540,7 +1540,7 @@ win32 = ["pywin32"]
 
 [[package]]
 name = "silver-spectacle"
-version = "0.6.7"
+version = "0.7.0"
 description = "An easier way to display data"
 category = "main"
 optional = false
@@ -1911,7 +1911,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "759aa9da59973b69210fb33a57fb9aea7f3757426551d818f9484a7881490ddd"
+content-hash = "71664b6a4d41dc8f6acc4069a74a76a276e0e64d883ff32bf3bf89c7fc171ad1"
 
 [metadata.files]
 absl-py = [
@@ -3123,8 +3123,8 @@ send2trash = [
     {file = "Send2Trash-1.8.0.tar.gz", hash = "sha256:d2c24762fd3759860a0aff155e45871447ea58d2be6bdd39b5c8f966a0c99c2d"},
 ]
 silver-spectacle = [
-    {file = "silver_spectacle-0.6.7-py3-none-any.whl", hash = "sha256:9ab237b919a3219163532d2b922f68ab275a3758cb143ca8490fbb7c308913bf"},
-    {file = "silver_spectacle-0.6.7.tar.gz", hash = "sha256:334555fc37b8633dbe79b5b2d0aa971a755b77ea9ec82d9c86ea6a387d549d86"},
+    {file = "silver_spectacle-0.7.0-py3-none-any.whl", hash = "sha256:1ada3ea0099764997c27ba9e5a14dbe8ee633a991017cafd26ce10c97706b82f"},
+    {file = "silver_spectacle-0.7.0.tar.gz", hash = "sha256:22e817eb40da79918b2672b8060f5d446badda3fd580d188d4f890b9e3f695ce"},
 ]
 simple-namespace = [
     {file = "simple_namespace-1.0.0-py3-none-any.whl", hash = "sha256:abbcb832ee44a6fbf4c0fa654388ad90d11297ab71b9d3d7bc4e2e882e57173f"},

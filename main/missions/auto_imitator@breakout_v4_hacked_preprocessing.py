@@ -9,13 +9,21 @@ import cv2
 import time
 from informative_iterator import ProgressBar
 from statistics import mean as average
+import silver_spectacle as ss
+
 
 from world_builders.atari.custom_preprocessing import preprocess
 from world_builders.atari.preprocessor_chao import TensorWrap
 from agent_builders.auto_imitator.main import Agent
 
+from tools.all_tools import *
 from tools.pytorch_tools import to_tensor
 
+
+logging = LazyDict(
+    should_update_card=Countdown(seconds=0.1),
+    render_card=ss.DisplayCard("quickImage", to_pure(torch.zeros((84, 84)))),
+)
 
 def default_mission(
         number_of_episodes=1000,
@@ -35,13 +43,13 @@ def default_mission(
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        random_proportion=0.005,
+        random_proportion=0.05,
         path=f"models.ignore/auto_imitator_long_term_separated_1.model",
     )
     
     print('starting mission')
     mr_bond.when_mission_starts()
-    for progress, episode_index in ProgressBar(range(number_of_episodes)):
+    for progress, episode_index in ProgressBar(number_of_episodes, seconds_per_print=1):
         print('episode_index = ', episode_index)
         if progress.updated and len(mr_bond.logging.episode_rewards) > 0:
             print("average reward: ", average(mr_bond.logging.episode_rewards))
@@ -60,8 +68,11 @@ def default_mission(
             # print('timestep_index = ', timestep_index, 'mr_bond.episode_is_over = ', mr_bond.episode_is_over, 'mr_bond.reward = ', mr_bond.reward)
             mr_bond.when_timestep_ends(timestep_index)
             
-        print('calling when_episode_ends')
+            if logging.should_update_card():
+                logging.render_card.send(env.prev_unpreprocessed_frame)
+            
         mr_bond.when_episode_ends(episode_index)
+        
     mr_bond.when_mission_ends()
     mr_bond.save()
     env.close()
