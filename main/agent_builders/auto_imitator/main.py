@@ -43,15 +43,15 @@ class Agent(Skeleton):
         # 
         # regular/misc attributes
         # 
-        self.which_model       = config.get("which_model", "")
+        self.which_model       = config.get("which_model", "breakout.py")
         AutoImitator = include.file(f"./models/{self.which_model}", {"__file__":__file__}).AutoImitator
         
-        # import [name] from-anywhere (doesnt pollute global namespace)
-        hello = include.file("./path/to/file/with/hello/func/code.py", {"__file__":__file__}).hello
         self.path              = config.get("path", None)
         self.random_proportion = config.get("random_proportion", None)
         self.logging = Agent.Logger(agent=self, **config)
-        self.model = AutoImitator().to(self.hardware)
+        self.model = AutoImitator(
+            path=self.path,
+        ).to(self.hardware)
         
         
         self.action_from_given_observation = Map({0:0,1:0,2:0,3:0})
@@ -168,8 +168,8 @@ class Agent(Skeleton):
         # run the model
         #
         if (
-                   False
-                or (random.random() <= self.random_proportion)
+                   self.random_proportion
+                and (random.random() <= self.random_proportion)
                 # or (timestep_index < 10000 and random.random() <= 0.009)
                 # or (timestep_index < 1000 and random.random() <= 0.02)
                 # or (timestep_index < 100  and random.random() <= 0.05)

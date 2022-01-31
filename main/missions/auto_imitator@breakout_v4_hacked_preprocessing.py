@@ -35,7 +35,8 @@ def default_mission(
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        path=f"models.ignore/auto_imitator_hacked_compressed_preprocessing_0.00021598702086765554.model",
+        random_proportion=0.005,
+        path=f"models.ignore/auto_imitator_long_term_separated_1.model",
     )
     
     print('starting mission')
@@ -56,7 +57,7 @@ def default_mission(
             
             mr_bond.when_timestep_starts(timestep_index)
             mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
-            print('timestep_index = ', timestep_index, 'mr_bond.episode_is_over = ', mr_bond.episode_is_over, 'mr_bond.reward = ', mr_bond.reward)
+            # print('timestep_index = ', timestep_index, 'mr_bond.episode_is_over = ', mr_bond.episode_is_over, 'mr_bond.reward = ', mr_bond.reward)
             mr_bond.when_timestep_ends(timestep_index)
             
         print('calling when_episode_ends')
