@@ -5,12 +5,13 @@ from tools.all_tools import *
 from tools.basics import product
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier
 from tools.schedulers import BasicLearningRateScheduler
+from tools.stat_tools import proportionalize, average
 
 class AutoImitator(nn.Module):
     @init.hardware
     def __init__(self, **config):
         super(AutoImitator, self).__init__()
-        self.logging = LazyDict(proportion_correct_at_index=[], loss_at_index=[])
+        
         # 
         # options
         # 
@@ -18,7 +19,8 @@ class AutoImitator(nn.Module):
         self.latent_shape    = config.get('latent_shape'   , (512,))
         self.output_shape    = config.get('output_shape'   , (4,))
         self.path            = config.get('path'           , None)
-        self.learning_rate   = config.get('learning_rate'  , 0.001)
+        self.learning_rate   = config.get('learning_rate'  , 0.00022)
+        self.smoothing       = config.get('smoothing'      , 128)
         
         latent_size = product(self.latent_shape)
         # 
@@ -55,6 +57,12 @@ class AutoImitator(nn.Module):
                 self.load()
             except Exception as error:
                 pass
+        
+        self.logging = LazyDict(
+            action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
+            proportion_correct_at_index=[],
+            loss_at_index=[],
+        )
     
     @misc.all_args_to_tensor
     @misc.all_args_to_device
@@ -63,6 +71,13 @@ class AutoImitator(nn.Module):
         # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
         loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions)
         which_model_actions = model_output_batch.detach().argmax(dim=-1)
+        # 
+        # logging
+        # 
+        for each in ideal_output_batch:
+            self.logging.ideal_action_frequency[to_pure(each)] += 1
+        for each in which_model_actions:
+            self.logging.imitator_action_frequency[to_pure(each)] += 1
         self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions) )
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
@@ -97,3 +112,10 @@ class AutoImitator(nn.Module):
 
     def load(self, path=None):
         return self.load_state_dict(torch.load(path or self.path))
+    
+    def log(self):
+        average_loss          = average(self.logging.loss_at_index[-self.smoothing   : ])
+        average_correct       = average(self.logging.correct_at_index[-self.smoothing: ])
+        imitator_action_ratio = ",".join([ f"{(each_value*100): .2}%" for each_key, each_value in proportionalize(self.logging.imitator_action_frequency) ])
+        ideal_action_ratio    = ",".join([ f"{(each_value*100): .2}%" for each_key, each_value in proportionalize(self.logging.ideal_action_frequency   ) ])
+        print(f'''loss: {average_loss}, correct: {average_correct}, imitator_action_ratio: {imitator_action_ratio}, ideal_action_ratio: {ideal_action_ratio}''')
