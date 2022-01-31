@@ -330,25 +330,41 @@ def attempt(a_lambda, default=None, expected_errors=(Exception,)):
     except expected_errors:
         return default
 
-def Countdown(size, offset=0, delay=0,):
+def Countdown(size=None, offset=0, delay=0, seconds=None):
     """
         Returns a function
         That function will returns False until it has been called `size` times
         Then it auto resets
     """
+    if seconds:
+        def countdown():
+                
+            now = time.time()
+            # init
+            if countdown.marker is None:
+                countdown.marker = now
+            # enough time has passed
+            if countdown.marker + seconds <= now:
+                countdown.marker = now
+                return True
+            else:
+                return False
+        countdown.marker = None
+        return countdown
+    else:
+        remaining = size
+        def countdown():
+            countdown.remaining -= 1
+            if countdown.remaining + offset <= 0:
+                # restart
+                countdown.remaining = size - offset
+                return True
+            else:
+                return False
+        countdown.remaining = size + delay
+        countdown.size = size
+        return countdown
     
-    remaining = size
-    def countdown():
-        countdown.remaining -= 1
-        if countdown.remaining + offset <= 0:
-            # restart
-            countdown.remaining = size - offset
-            return True
-        else:
-            return False
-    countdown.remaining = size + delay
-    countdown.size = size
-    return countdown
 
 here = "os.path.dirname(__file__)"
 project_folder = os.environ.get('FORNIX_FOLDER', ".")
