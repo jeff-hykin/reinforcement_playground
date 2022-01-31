@@ -41,7 +41,7 @@ auto_imitator = AutoImitator(
     input_shape=(4,84,84),
     latent_shape=(512,),
     output_shape=(4,),
-    path="models.ignore/auto_imitator_long_term_separated_13.model",
+    path="models.ignore/auto_imitator_long_term_separated_1.model",
 )
 
 # 
@@ -51,6 +51,7 @@ batch_size = 128
 mission = LazyDict(
     batch_size=batch_size,
     should_create_batch=Countdown(size=batch_size),
+    should_save=Countdown(size=batch_size*1500),
     should_save_model=Countdown(size=256),
     # should_train_imitator=Countdown(size=1), # this will be improved in the future along with randomization
     smoothing_size=256,
@@ -128,6 +129,9 @@ def run():
                     epoch_index=episode_index,
                     batch_index=batch_index,
                 )
+            if mission.should_save():
+                auto_imitator.save()
+                
             # 
             # logging
             # 

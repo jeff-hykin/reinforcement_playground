@@ -59,8 +59,8 @@ class AutoImitator(nn.Module):
                 pass
         
         self.logging = LazyDict(
-            imitator_action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
-            ideal_action_frequency=LazyDict({0:0,1:0,2:0,3:0}),
+            imitator_action_frequency=LazyDict({0:1,1:1,2:1,3:1}),
+            ideal_action_frequency=LazyDict({0:1,1:1,2:1,3:1}),
             proportion_correct_at_index=[],
             loss_at_index=[],
             get_imitator_action_ratio=lambda : "[" + ",".join([ f"{(float(each_value)*100):.2f}%" for each_key, each_value in proportionalize(self.logging.imitator_action_frequency).items() ]) + "]" , 
@@ -72,11 +72,12 @@ class AutoImitator(nn.Module):
     def loss_function(self, model_output_batch, ideal_output_batch):
         which_ideal_actions = ideal_output_batch.long()
         # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
-        weight = to_tensor([ 1/each for each in propotionalize(self.logging.ideal_action_frequency).values()]) # [5.053057099545225, 2.962962962962963, 5.393743257820928, 3.5816618911174785] from [19.79,33.75,18.54,27.92]
-        # ideal_weight = to_tensor(proportionalize(self.logging.ideal_action_frequency).values()).to(self.hardware)
-        # model_weight = to_tensor(proportionalize(self.logging.imitator_action_frequency).values()).to(self.hardware)
+        ideal_action_proportions = proportionalize(self.logging.ideal_action_frequency).values()
+        weight1 = proportionalize([ 1/each for each in ideal_action_proportions]) # these weights are too strong for some reason (don't balance)
+        weight2 = proportionalize([ 1-each for each in ideal_action_proportions]) # these weights are too weak for some reason (don't balance)
+        weight = to_tensor([ average([ each1, each2 ]) for each1, each2 in zip(weight1, weight2) ]).to(self.hardware) # averaging surpisingly does balance them
         # print(f'''weight = {weight}''')
-        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions, weight=weight).to(self.hardware))
+        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions, weight=weight)
         which_model_actions = model_output_batch.detach().argmax(dim=-1)
         # 
         # logging
