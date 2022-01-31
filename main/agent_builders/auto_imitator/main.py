@@ -7,6 +7,7 @@ import numpy as np
 import collections 
 import cv2
 import time
+import include
 from super_map import LazyDict, Map
 from statistics import mean as average
 
@@ -16,8 +17,6 @@ from tools.basics import product
 from tools.pytorch_tools import opencv_image_to_torch_image, torch_image_to_opencv_image, to_tensor, init, forward, Sequential, tensor_to_image
 from tools.basics import to_pure
 from tools.agent_recorder import AgentRecorder
-
-from prefabs.auto_imitator.main import AutoImitator
 
 def observation_generator():
     database = AgentRecorder(
@@ -44,16 +43,15 @@ class Agent(Skeleton):
         # 
         # regular/misc attributes
         # 
+        self.which_model       = config.get("which_model", "")
+        AutoImitator = include.file(f"./models/{self.which_model}", {"__file__":__file__}).AutoImitator
+        
+        # import [name] from-anywhere (doesnt pollute global namespace)
+        hello = include.file("./path/to/file/with/hello/func/code.py", {"__file__":__file__}).hello
         self.path              = config.get("path", None)
         self.random_proportion = config.get("random_proportion", None)
         self.logging = Agent.Logger(agent=self, **config)
-        self.model = AutoImitator(
-            learning_rate=0.00021,
-            input_shape=(4,84,84),
-            latent_shape=(512,),
-            output_shape=(4,),
-            path=self.path,
-        ).to(self.hardware)
+        self.model = AutoImitator().to(self.hardware)
         
         
         self.action_from_given_observation = Map({0:0,1:0,2:0,3:0})

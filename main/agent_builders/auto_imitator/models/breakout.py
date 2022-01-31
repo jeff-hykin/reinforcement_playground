@@ -81,7 +81,7 @@ class AutoImitator(nn.Module):
             self.logging.ideal_action_frequency[to_pure(each)] += 1
         for each in which_model_actions:
             self.logging.imitator_action_frequency[to_pure(each)] += 1
-        self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).float().mean())
+        self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions) )
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
     
