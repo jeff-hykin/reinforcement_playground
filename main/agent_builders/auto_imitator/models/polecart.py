@@ -19,7 +19,7 @@ class AutoImitator(nn.Module):
         self.latent_shape    = config.get('latent_shape'   , (512,))
         self.output_shape    = config.get('output_shape'   , (4,))
         self.path            = config.get('path'           , None)
-        self.learning_rate   = config.get('learning_rate'  , 0.00022)
+        self.learning_rate   = config.get('learning_rate'  , 0.001)
         self.smoothing       = config.get('smoothing'      , 128)
         
         latent_size = product(self.latent_shape)
@@ -27,20 +27,13 @@ class AutoImitator(nn.Module):
         # layers
         # 
         self.layers = Sequential(input_shape=self.input_shape)
-        self.encoder = Sequential(input_shape=self.input_shape)
         
-        self.encoder.add_module('conv1'           , nn.Conv2d(self.input_shape[0], 32, kernel_size=8, stride=4, padding=0))
-        self.encoder.add_module('conv1_activation', nn.ReLU())
-        self.encoder.add_module('conv2'           , nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0))
-        self.encoder.add_module('conv2_activation', nn.ReLU())
-        self.encoder.add_module('conv3'           , nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
-        self.encoder.add_module('conv3_activation', nn.ReLU())
-        self.encoder.add_module('flatten'         , nn.Flatten(start_dim=1, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
-        self.encoder.add_module('linear1'         , nn.Linear(in_features=self.encoder.output_size, out_features=latent_size, bias=True)) 
-        
-        self.layers.add_module('encoder', self.encoder)
-        self.layers.add_module('linear2'           , nn.Linear(in_features=latent_size, out_features=product(self.output_shape), bias=True),)
-        # self.layers.add_module('linear2_activation', nn.Sigmoid())
+        self.layers.add_module('l1', nn.Linear(product(self.input_shape), 64))
+        self.layers.add_module('l2', nn.Tanh())
+        self.layers.add_module('l3', nn.Linear(64, 32))
+        self.layers.add_module('l4', nn.Tanh())
+        self.layers.add_module('l5', nn.Linear(32, product(self.output_shape)))
+        self.layers.add_module('l6', nn.Softmax(dim=0))
         
         # optimizer
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1)
@@ -110,7 +103,6 @@ class AutoImitator(nn.Module):
     @forward.to_device
     @forward.to_batched_tensor(number_of_dimensions=4)
     def forward(self, batch_of_inputs):
-        # 0 to 1 =>> -1 to 1
         return self.layers.forward(batch_of_inputs)
     
     def save(self, path=None):

@@ -93,6 +93,7 @@ class Agent(Skeleton):
         self.logging = LazyDict()
         self.logging.should_display = config.get("should_display", True)
         self.logging.live_updates   = config.get("live_updates"  , False)
+        self.logging.should_print   = config.get("should_print"  , False)
         self.logging.episode_rewards = []
         self.logging.episode_critic_losses = []
         self.logging.episode_actor_losses  = []
@@ -104,6 +105,13 @@ class Agent(Skeleton):
             Agent.agent_number_count = 0
         Agent.agent_number_count += 1
         self.agent_number = Agent.agent_number_count
+        
+        # try to load from path if its given
+        if self.path:
+            try:
+                self.load()
+            except Exception as error:
+                pass
     
     # 
     # Hooks (Special Names)
@@ -153,10 +161,11 @@ class Agent(Skeleton):
             self.logging.episode_reward_card.send     ([episode_index, self.logging.accumulated_reward      ])
             self.logging.episode_critic_loss_card.send([episode_index, self.logging.accumulated_critic_loss ])
             self.logging.episode_actor_loss_card.send ([episode_index, self.logging.accumulated_actor_loss  ])
-        print('episode_index = ', episode_index)
-        print(f'self.logging.accumulated_reward      :{self.logging.accumulated_reward      }',)
-        print(f'self.logging.accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
-        print(f'self.logging.accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
+        if self.logging.should_print:
+            print('episode_index = ', episode_index)
+            print(f'self.logging.accumulated_reward      :{self.logging.accumulated_reward      }',)
+            print(f'self.logging.accumulated_critic_loss :{self.logging.accumulated_critic_loss }',)
+            print(f'self.logging.accumulated_actor_loss  :{self.logging.accumulated_actor_loss  }',)
     
     def when_mission_ends(self,):
         if self.logging.should_display:

@@ -13,7 +13,7 @@ from informative_iterator import ProgressBar
 from prefabs.baselines_optimizer import RMSpropTFLike
 
 import tools.stat_tools as stat_tools
-from tools.basics import product, flatten
+from tools.basics import product, flatten, Countdown
 from tools.stat_tools import rolling_average
 from tools.basics import product, flatten
 from tools.debug import debug
@@ -27,13 +27,16 @@ database = AgentRecorder(
 )
 
 env = gym.make("CartPole-v1")
+should_save = Countdown(size=500)
 mr_bond = Agent(
     observation_space=env.observation_space,
     action_space=env.action_space,
-    path="models.ignore/a2c_mine_small_vectorized_1.model",
+    live_updates=False,
+    path="models.ignore/a2c_mine_small_vectorized_2.model",
 )
+ss.DisplayCard("quickMarkdown", "loading")
 mr_bond.when_mission_starts()
-for episode_index in ProgressBar(5000, iterations=100):
+for progress, episode_index in ProgressBar(5000, disable_logging=False):
     mr_bond.episode_is_over = False
     mr_bond.observation = env.reset()
     mr_bond.when_episode_starts(episode_index)
@@ -49,6 +52,6 @@ for episode_index in ProgressBar(5000, iterations=100):
         database.save(mr_bond.observation, mr_bond.action)
             
     mr_bond.when_episode_ends(episode_index)
-    mr_bond.save()
+    # if should_save(): mr_bond.save()
 mr_bond.when_mission_ends()
 env.close()
