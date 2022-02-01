@@ -20,11 +20,11 @@ def write_json(path, data):
         json.dump(data, outfile)
 
 class AgentRecorder():
-    def __init__(self, save_to):
-        self.save_to = FileSystem.absolute_path(save_to)
+    def __init__(self, path=None, save_to=None):
+        self.path = self.save_to = FileSystem.absolute_path(save_to or path)
         # create if doesnt exist
-        FileSystem.ensure_is_folder(save_to)
-        self.info_cache_path = save_to+"/.summary/info.json"
+        FileSystem.ensure_is_folder(self.save_to)
+        self.info_cache_path = self.save_to+"/.summary/info.json"
         self._size = None
         self._data_file_extension = None
         self._metadata_file_extension = None

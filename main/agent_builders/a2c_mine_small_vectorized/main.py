@@ -66,6 +66,7 @@ class Agent(Skeleton):
         self.actor_learning_rate  = config.get("actor_learning_rate", 0.001)
         self.critic_learning_rate = config.get("critic_learning_rate", 0.001)
         self.dropout_rate         = config.get("dropout_rate", 0.2)
+        self.path                 = config.get("path", None)
         
         self.observation_size = product(observation_space.shape)
         self.number_of_actions = action_space.n
@@ -82,6 +83,12 @@ class Agent(Skeleton):
         self.buffer.observations = []
         self.buffer.rewards = []
         self.buffer.action_log_probabilies = []
+        
+        self.save, self.load = Network.setup_save_and_load(
+            self,
+            normal_attributes=["discount_factor", "actor_learning_rate", "critic_learning_rate", "dropout_rate"],
+            network_attributes=["actor","critic"],
+        ) 
         
         self.logging = LazyDict()
         self.logging.should_display = config.get("should_display", True)

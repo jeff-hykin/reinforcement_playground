@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 from tools.debug import debug
-from tools.basics import product, bundle
+from tools.basics import product, bundle, large_pickle_save, large_pickle_load
 from tools.record_keeper import RecordKeeper
 from simple_namespace import namespace
 #%% pytorch_tools
@@ -348,6 +348,25 @@ def misc():
 
 @namespace
 def Network():
+    
+    def setup_save_and_load(self, normal_attributes, network_attributes):
+        def save(path=None):
+            network_data = tuple(getattr(self, each_attribute).state_dict() for each_attribute in network_attributes)
+            normal_data = tuple(getattr(self, each_attribute)               for each_attribute in normal_attributes)
+            if hasattr(self, "path"):
+                path = path or self.path
+            return large_pickle_save((normal_data, network_data), path)
+        
+        def load(path=None):
+            (normal_data, network_data) = large_pickle_load(path or self.path)
+            for each_attribute, each_value in zip(normal_attributes, normal_data):
+                setattr(self, each_attribute, each_value)
+            for each_attribute, each_value in zip(network_attributes, network_data):
+                getattr(self, each_attribute).load_state_dict(each_value)
+            return self
+        
+        return save, load
+
     
     def default_forward(self, input_data):
         """
