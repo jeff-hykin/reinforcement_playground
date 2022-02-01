@@ -14,7 +14,7 @@ from informative_iterator import ProgressBar
 
 
 from prefabs.fail_fast_check import is_significantly_below_other_curves
-from prefabs.auto_imitator.main import AutoImitator
+from agent_builders.auto_imitator.models.polecart import AutoImitator
 from prefabs.helpful_fitness_measures import trend_up, average
 from prefabs.auto_imitator.preprocess_dataset import compress_observations, compress_raw_images
 
@@ -25,7 +25,7 @@ from prefabs.auto_imitator.preprocess_dataset import compress_observations, comp
 
 
 logging = LazyDict(
-    smoothing_size=64,
+    smoothing_size=5,
     should_update_graphs=Countdown(size=1000/2),
     should_print=Countdown(size=100),
     correctness_card=ss.DisplayCard("quickLine", []),
@@ -96,9 +96,8 @@ def train(
             min_learning_rate=base_learning_rate * (1 - learning_rate_shrink),
             number_of_training_steps=iterations,
         ),
-        input_shape=(4,84,84),
-        latent_shape=(512,),
-        output_shape=(4,),
+        input_shape=(4,),
+        output_shape=(2,),
         path=path,
     )
     training_log = Map(
@@ -109,8 +108,6 @@ def train(
     # training
     # 
     for progress, (observations, actions) in ProgressBar(training_batch_generator, iterations=iterations, seconds_per_print=30, disable_logging=False):
-        print(f'''observations.shape = {observations.shape}''')
-        print(f'''actions.shape = {actions.shape}''')
         # if super_hash(observations[0].tolist()) in test_observation_hashes:
         #     continue
         
@@ -123,7 +120,7 @@ def train(
         
         if progress.updated:
             accuracy = Percent(training_log.this_score_curve[-1]*100)
-            print(f"learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}, train_accuracy: {str(accuracy)}, test_accuracy: {test(auto_imitator):.3f}, trial: {len(other_curves)}, epoch:{training_batch_generator.epoch_index}", end="")
+            print(f"learning_rate: {auto_imitator.learning_rate_scheduler.current_value:.12f}, train_accuracy: {str(accuracy)}, trial: {len(other_curves)}, epoch:{training_batch_generator.epoch_index}", end="")
         
         if logging.should_update_graphs() or progress.index == 0:
             logging.update_name_card(f"""

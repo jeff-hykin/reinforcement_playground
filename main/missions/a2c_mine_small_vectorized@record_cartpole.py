@@ -34,6 +34,8 @@ mr_bond = Agent(
     live_updates=False,
     path="models.ignore/a2c_mine_small_vectorized_2.model",
 )
+debug.a = env.action_space
+exit()
 ss.DisplayCard("quickMarkdown", "loading")
 mr_bond.when_mission_starts()
 for progress, episode_index in ProgressBar(5000, disable_logging=False):

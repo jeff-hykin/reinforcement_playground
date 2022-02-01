@@ -15,9 +15,9 @@ class AutoImitator(nn.Module):
         # 
         # options
         # 
-        self.input_shape     = config.get('input_shape'    , (4, 84, 84))
+        self.input_shape     = config.get('input_shape'    , (4, ))
         self.latent_shape    = config.get('latent_shape'   , (512,))
-        self.output_shape    = config.get('output_shape'   , (4,))
+        self.output_shape    = config.get('output_shape'   , (2,))
         self.path            = config.get('path'           , None)
         self.learning_rate   = config.get('learning_rate'  , 0.001)
         self.smoothing       = config.get('smoothing'      , 128)
@@ -63,30 +63,9 @@ class AutoImitator(nn.Module):
     @misc.all_args_to_tensor
     @misc.all_args_to_device
     def loss_function(self, model_output_batch, ideal_output_batch):
-        which_ideal_actions = ideal_output_batch.long()
-        # ideal output is vector of indicies, model_output_batch is vector of one-hot vectors
-        ideal_weight = to_tensor(proportionalize(self.logging.ideal_action_frequency).values()).to(self.hardware)
-        model_weight = to_tensor(proportionalize(self.logging.imitator_action_frequency).values()).to(self.hardware)
-        # print(f'''weight = {weight}''')
-        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=which_ideal_actions) + 10000 * torch.nn.functional.mse_loss(model_weight, ideal_weight)
-        which_model_actions = model_output_batch.detach().argmax(dim=-1)
-        # 
-        # logging
-        # 
-        for each in ideal_output_batch:
-            self.logging.ideal_action_frequency[to_pure(each)] += 1
-        for each in which_model_actions:
-            self.logging.imitator_action_frequency[to_pure(each)] += 1
-        self.logging.proportion_correct_at_index.append( (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions) )
+        loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=ideal_output_batch.long())
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
-    
-    @misc.all_args_to_tensor
-    @misc.all_args_to_device
-    def correctness(self, model_output_batch, ideal_output_batch):
-        which_ideal_actions = ideal_output_batch.long()
-        which_model_actions = model_output_batch.detach().argmax(dim=-1)
-        return (which_model_actions == which_ideal_actions).sum()/len(which_ideal_actions)
     
     @misc.all_args_to_tensor
     @misc.all_args_to_device
@@ -95,15 +74,17 @@ class AutoImitator(nn.Module):
         self.optimizer.zero_grad()
         batch_of_actual_outputs = self.forward(batch_of_inputs)
         loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
+        print(f'''loss = {loss}''')
         loss.backward()
         self.optimizer.step()
         return loss
     
     @forward.to_tensor
     @forward.to_device
-    @forward.to_batched_tensor(number_of_dimensions=4)
+    @forward.to_batched_tensor(number_of_dimensions=2)
     def forward(self, batch_of_inputs):
-        return self.layers.forward(batch_of_inputs)
+        probs = self.layers.forward(batch_of_inputs).float()
+        return probs
     
     def save(self, path=None):
         return torch.save(self.state_dict(), path or self.path)
