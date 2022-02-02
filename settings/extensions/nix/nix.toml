@@ -54,6 +54,18 @@ from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 [[packages]]
 load = [ "git-subrepo",]
 
+[[packages]] # for carla
+load = [ "llvmPackages","openmp",]
+
+[[packages]] # for carla
+load = [ "xdg-user-dirs",]
+
+[[packages]] # for carla
+load = [ "xdg-utils",]
+
+[[packages]] # for carla
+load = [ "xorg", "xhost",]
+
 [[packages]]
 load = [ "freetype",]
 

@@ -41,7 +41,10 @@ let
                 export CUDA_PATH="${main.packages.cudatoolkit}"
                 export EXTRA_LDFLAGS="-L/lib -L${main.packages.linuxPackages.nvidia_x11}/lib"
                 export EXTRA_CCFLAGS="$EXTRA_CCFLAGS:-I/usr/include"
-                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.linuxPackages.nvidia_x11}/lib:${main.packages.ncurses5}/lib:/run/opengl-driver/lib"
+                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.llvmPackages.openmp}/lib"
+                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.linuxPackages.nvidia_x11}/lib"
+                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.ncurses5}/lib"
+                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/run/opengl-driver/lib"
                 export LD_LIBRARY_PATH="$(${main.packages.nixGLNvidia}/bin/nixGLNvidia printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
                 export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
             fi
