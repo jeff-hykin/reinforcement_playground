@@ -1,3 +1,4 @@
+import time
 import silver_spectacle as ss
 from super_map import LazyDict, Map
 from super_hash import super_hash
@@ -25,7 +26,7 @@ from prefabs.auto_imitator.preprocess_dataset import compress_observations, comp
 
 
 logging = LazyDict(
-    smoothing_size=5,
+    smoothing_size=100,
     should_update_graphs=Countdown(size=1000/2),
     should_print=Countdown(size=100),
     correctness_card=ss.DisplayCard("quickLine", []),
@@ -78,7 +79,7 @@ database = AgentRecorder(
 # 
 # training
 # 
-training_batch_generator = database.load_batch_data("512", epochs=math.inf, batches_per_epoch=10)
+training_batch_generator = database.load_batch_data("512", epochs=math.inf, batches_per_epoch=100)
 other_curves = []
 def train(
         base_learning_rate=0.00022,
@@ -146,6 +147,7 @@ def train(
     # 
     # for progress, (observations, actions) in ProgressBar(testing_batch_generator, iterations=iterations, seconds_per_print=0.5, disable_logging=False):
     #     pass
+    time.sleep(5)
     smoothed_correctness = logging.smoother(auto_imitator.logging.proportion_correct_at_index)
     print('smoothed_correctness = ', smoothed_correctness)
     other_curves.append(smoothed_correctness)

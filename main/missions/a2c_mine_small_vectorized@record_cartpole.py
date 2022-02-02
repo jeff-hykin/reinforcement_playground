@@ -31,11 +31,9 @@ should_save = Countdown(size=500)
 mr_bond = Agent(
     observation_space=env.observation_space,
     action_space=env.action_space,
-    live_updates=False,
+    live_updates=True,
     path="models.ignore/a2c_mine_small_vectorized_2.model",
 )
-debug.a = env.action_space
-exit()
 ss.DisplayCard("quickMarkdown", "loading")
 mr_bond.when_mission_starts()
 for progress, episode_index in ProgressBar(5000, disable_logging=False):
@@ -51,9 +49,9 @@ for progress, episode_index in ProgressBar(5000, disable_logging=False):
         mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
         mr_bond.when_timestep_ends(timestep_index)
         
-        database.save(mr_bond.observation, mr_bond.action)
+        # database.save(mr_bond.observation, mr_bond.action)
             
     mr_bond.when_episode_ends(episode_index)
-    # if should_save(): mr_bond.save()
+    if should_save(): mr_bond.save()
 mr_bond.when_mission_ends()
 env.close()

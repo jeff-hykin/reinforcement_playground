@@ -64,6 +64,11 @@ class AutoImitator(nn.Module):
     @misc.all_args_to_device
     def loss_function(self, model_output_batch, ideal_output_batch):
         loss = torch.nn.functional.cross_entropy(input=model_output_batch, target=ideal_output_batch.long())
+        which_model_actions = model_output_batch.detach().argmax(dim=-1)
+        # 
+        # logging
+        # 
+        self.logging.proportion_correct_at_index.append( (which_model_actions == ideal_output_batch).sum()/len(ideal_output_batch) )
         self.logging.loss_at_index.append(to_pure(loss))
         return loss
     
@@ -74,7 +79,6 @@ class AutoImitator(nn.Module):
         self.optimizer.zero_grad()
         batch_of_actual_outputs = self.forward(batch_of_inputs)
         loss = self.loss_function(batch_of_actual_outputs, batch_of_ideal_outputs)
-        print(f'''loss = {loss}''')
         loss.backward()
         self.optimizer.step()
         return loss
