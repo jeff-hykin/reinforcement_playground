@@ -20,7 +20,7 @@
         )
     ),
     nixgl ? (builtins.import
-        (fetchTarball "https://github.com/guibou/nixGL/archive/main.tar.gz")
+        (fetchTarball "https://github.com/guibou/nixGL/archive/17658df1e17a64bc23ee5c93cfa9e8b663a4ac81.tar.gz")
         {}
     )
 }:
@@ -32,6 +32,11 @@
             nativeBuildInputs = [];
             shellCode = "";
         });
+        
+        salt = (builtins.import
+            (./nixpkgs/salt.nix)
+            main
+        );
         
         # 
         # Linux Only
@@ -76,7 +81,7 @@
         # 
         main.packages.mkShell {
             # inside that shell, make sure to use these packages
-            buildInputs =  main.project.buildInputs ++ macOnly.buildInputs ++ linuxOnly.buildInputs;
+            buildInputs =  main.project.buildInputs ++ macOnly.buildInputs ++ linuxOnly.buildInputs ++ [ salt ];
             
             nativeBuildInputs =  main.project.nativeBuildInputs ++ macOnly.nativeBuildInputs ++ linuxOnly.nativeBuildInputs;
             
