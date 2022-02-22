@@ -40,12 +40,12 @@
 # [[ you can add tools for your project right here or at the bottom ]]
 
 
-# [[packages]]
-# load = [ "nvidia-docker",]
-# from = "860b56be91fb874d48e23a950815969a7b832fbc"
+[[packages]]
+load = [ "nvidia-docker",]
+from = "860b56be91fb874d48e23a950815969a7b832fbc"
 
-# [[packages]]
-# load = [ "docker",]
+[[packages]]
+load = [ "docker",]
 
 [[packages]]
 load = [ "zellij",]
