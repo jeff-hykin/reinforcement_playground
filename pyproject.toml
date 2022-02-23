@@ -41,6 +41,8 @@ optuna = "^2.9.1" # see during_start/021_001_get_around_broken_poetry.sh
 json-fix = "^0.1.2"
 stable-baselines3 = "^1.3.0"
 informative-iterator = "0.0.3"
+distro = "^1.7.0"
+carla = "0.9.12"
 
 [tool.poetry.dev-dependencies]
 

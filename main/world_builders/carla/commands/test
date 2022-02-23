@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+python "$FORNIX_FOLDER/main/world_builders/carla/scripts/test_carla.py"

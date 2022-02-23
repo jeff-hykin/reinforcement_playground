@@ -175,7 +175,7 @@ python-versions = "~=3.5"
 
 [[package]]
 name = "carla"
-version = "0.9.13"
+version = "0.9.12"
 description = "Python API for communicating with the CARLA server."
 category = "main"
 optional = false
@@ -347,6 +347,14 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
+name = "distro"
+version = "1.7.0"
+description = "Distro - an OS platform information API"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "entrypoints"
 version = "0.3"
 description = "Discover and load entry points from installed packages."
@@ -401,11 +409,11 @@ dotenv = ["python-dotenv"]
 
 [[package]]
 name = "fsspec"
-version = "2022.1.0"
+version = "2022.2.0"
 description = "File-system specification"
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.7"
 
 [package.dependencies]
 aiohttp = {version = "*", optional = true, markers = "extra == \"http\""}
@@ -1919,7 +1927,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "229f454a533290ee050e104ade7b6dd9093aae3e7d5a838ed9ed5dbeaf0d80ac"
+content-hash = "a39360573ffac26e183e08955a9fa6b6ecc2f907f5b8365e5fa22705570910f4"
 
 [metadata.files]
 absl-py = [
@@ -2042,13 +2050,13 @@ cachetools = [
     {file = "cachetools-4.2.2.tar.gz", hash = "sha256:61b5ed1e22a0924aed1d23b478f37e8d52549ff8a961de2909c69bf950020cff"},
 ]
 carla = [
-    {file = "carla-0.9.13-cp27-cp27mu-manylinux_2_27_x86_64.whl", hash = "sha256:339fcb1e392f3ade1be82b7258de19c533e2efae111e954a6eb174efb296903d"},
-    {file = "carla-0.9.13-cp36-cp36m-manylinux_2_27_x86_64.whl", hash = "sha256:5f065825ce812343bf27a80a19d647b3200b31b44a9e80cea0340e3bd20cdf81"},
-    {file = "carla-0.9.13-cp36-cp36m-win_amd64.whl", hash = "sha256:1210cce213e968a644effd4e2e48458a072481459d073424b05725056ba3d77d"},
-    {file = "carla-0.9.13-cp37-cp37m-manylinux_2_27_x86_64.whl", hash = "sha256:a95d2d4218ea388c863c66b7c2ab3fe49ffefe53999305cfcb6a8107042f79af"},
-    {file = "carla-0.9.13-cp37-cp37m-win_amd64.whl", hash = "sha256:954ca34d5bdd4516ceca353db907fee8cec6630d6b31a732b17dd1554e0f0f94"},
-    {file = "carla-0.9.13-cp38-cp38-manylinux_2_27_x86_64.whl", hash = "sha256:d2bfaea2d6824a2d758cbe813856c69420494f5c97d2a2dfb45653ccf976f1ce"},
-    {file = "carla-0.9.13-cp38-cp38-win_amd64.whl", hash = "sha256:a64ee78fe91137fa7d4828c7fc06d5824bd7312e29e4ea4f31a5d74dd28bff40"},
+    {file = "carla-0.9.12-cp27-cp27mu-manylinux_2_27_x86_64.whl", hash = "sha256:c3ae0dce3f1354b6311fee21a365947b0ff169249993a913904f676046d2d69f"},
+    {file = "carla-0.9.12-cp36-cp36m-manylinux_2_27_x86_64.whl", hash = "sha256:9c19ebf6cbbc535bde4baf9e18c72ab349657b34c4202b9751541e4c0d20b3cc"},
+    {file = "carla-0.9.12-cp36-cp36m-win_amd64.whl", hash = "sha256:dd392a267e14b785a8f65dafef86e05a92201253e9fb4a01e1e262834f20bed2"},
+    {file = "carla-0.9.12-cp37-cp37m-manylinux_2_27_x86_64.whl", hash = "sha256:20c1e1b72034175824d89b2d86b09ae72b4aca09ea25874dc6251f239297251d"},
+    {file = "carla-0.9.12-cp37-cp37m-win_amd64.whl", hash = "sha256:a69f6d84b59e2f805b2a417de98f977fe9efe0cfa733da8d75e20d28892da915"},
+    {file = "carla-0.9.12-cp38-cp38-manylinux_2_27_x86_64.whl", hash = "sha256:1ed11b56c781cd15cbd540cacfb59ad348e0a021d898cfd0ff89a585f144da0b"},
+    {file = "carla-0.9.12-cp38-cp38-win_amd64.whl", hash = "sha256:6d1122c24af4f6375dc6858fbb0309b61c219b101d8c5a540def4c36c4563fe1"},
 ]
 certifi = [
     {file = "certifi-2021.5.30-py2.py3-none-any.whl", hash = "sha256:50b1e4f8446b06f41be7dd6338db18e0990601dce795c2b1686458aa7e8fa7d8"},
@@ -2169,6 +2177,10 @@ defusedxml = [
     {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
     {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
 ]
+distro = [
+    {file = "distro-1.7.0-py3-none-any.whl", hash = "sha256:d596311d707e692c2160c37807f83e3820c5d539d5a83e87cfb6babd8ba3a06b"},
+    {file = "distro-1.7.0.tar.gz", hash = "sha256:151aeccf60c216402932b52e40ee477a939f8d58898927378a02abbe852c1c39"},
+]
 entrypoints = [
     {file = "entrypoints-0.3-py2.py3-none-any.whl", hash = "sha256:589f874b313739ad35be6e0cd7efde2a4e9b6fea91edcc34e58ecbb8dbe56d19"},
     {file = "entrypoints-0.3.tar.gz", hash = "sha256:c70dd71abe5a8c85e55e12c19bd91ccfeec11a6e99044204511f9ed547d48451"},
@@ -2190,8 +2202,8 @@ flask = [
     {file = "Flask-2.0.1.tar.gz", hash = "sha256:1c4c257b1892aec1398784c63791cbaa43062f1f7aeb555c4da961b20ee68f55"},
 ]
 fsspec = [
-    {file = "fsspec-2022.1.0-py3-none-any.whl", hash = "sha256:256e2be44e62430c9ca8dac2e480384b00a3c52aef4e2b0b7204163fdc861d37"},
-    {file = "fsspec-2022.1.0.tar.gz", hash = "sha256:0bdd519bbf4d8c9a1d893a50b5ebacc89acd0e1fe0045d2f7b0e0c1af5990edc"},
+    {file = "fsspec-2022.2.0-py3-none-any.whl", hash = "sha256:eb9c9d9aee49d23028deefffe53e87c55d3515512c63f57e893710301001449a"},
+    {file = "fsspec-2022.2.0.tar.gz", hash = "sha256:20322c659538501f52f6caa73b08b2ff570b7e8ea30a86559721d090e473ad5c"},
 ]
 future = [
     {file = "future-0.18.2.tar.gz", hash = "sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d"},
