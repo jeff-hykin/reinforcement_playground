@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+ps aux | grep "$1" | grep -v "grep" | sd '.*? +(\d+) +.+' '$1' | sudo xargs kill -9 

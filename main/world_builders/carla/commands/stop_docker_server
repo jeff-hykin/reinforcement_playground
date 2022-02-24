@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# force kill all docker run instances
+ps aux | grep "docker run" | grep -v "grep" | sd '.*? +(\d+) +.+' '$1' | sudo xargs kill -9 
+ps aux | grep "CarlaUE4.sh" | grep -v "grep" | sd '.*? +(\d+) +.+' '$1' | sudo xargs kill -9 
