@@ -7,17 +7,15 @@ asttokens @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/
 async-timeout @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/0d/5d/3e/630122e534c1b25e36c3142597c4b0b2e9d3f2e0a9cea9f10ac219f9a7/async_timeout-3.0.1-py3-none-any.whl
 atari-py @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/3a/a8/46/944422e5a258e200472711f0cbba0e56b52001eefacf3eaeb8fb4a24ca/atari_py-0.2.9-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 attrs @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/1a/aa/39/10d6d07084f186f8cf6963cb033440402ad5088bb94d712239170f2ef6/attrs-21.2.0-py2.py3-none-any.whl
-autopage==0.4.0
+autopage @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/6c/83/ec/15bf78181877e6bce7395b988213b2d66a0f21497c9a1e7e4c63f3b0c8/autopage-0.4.0-py3-none-any.whl
 backcall @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/62/2c/f2/bf9c43ca0bcfca41150901227b0d023dc854851b710f82a72f5beaa09b/backcall-0.2.0-py2.py3-none-any.whl
 beautifulsoup4 @ file:///build/beautifulsoup4-4.9.1/dist/beautifulsoup4-4.9.1-py3-none-any.whl
 bidict @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/54/99/06/b1014c524edf52d37d47cb301b6d890fb3a01095ddee50fa9944c72e67/bidict-0.21.3-py3-none-any.whl
-black==21.9b0
 bleach @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/c2/d4/65/1df2e21979f2ef4b2f78653a465a302f5138c7f42c9b2f816d0a5167f4/bleach-4.1.0-py2.py3-none-any.whl
 Bottleneck @ file:///build/Bottleneck-1.3.2/dist/Bottleneck-1.3.2-cp38-cp38-linux_x86_64.whl
-box2d-py==2.3.8
 cachetools @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/b8/bb/dd/ab39d5344a1eb90a476cc415065f1c5e74daecaf87821e82c925ca6aaa/cachetools-4.2.2-py3-none-any.whl
-carla-client-unofficial==0.9.11
-cattrs==1.8.0
+carla==0.9.12
+cattrs==1.10.0
 certifi @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/c4/85/84/f095fd90533096a81def971743d14081337c62ded3cddd449e8774e3e8/certifi-2021.5.30-py2.py3-none-any.whl
 cffi @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/cd/af/ac/97e809a6c87ecc8376a65cfe0aee1fa1aaa92b86e9a26661cf54a3440f/cffi-1.14.6-cp38-cp38-manylinux1_x86_64.whl
 chardet @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/47/b7/82/19c2b887f87f3adbaf4e34c55189388e5132c78f6929d7001a78b0209b/chardet-4.0.0-py2.py3-none-any.whl
@@ -26,21 +24,22 @@ click @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cac
 cliff @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/4d/b7/6e/29a7365abef40a823ae92b2cdbff268565db8bdd8cd634302cfedfe808/cliff-3.10.0-py3-none-any.whl
 cloudpickle @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/3a/af/0c/53d12247f48b024d6d05b09a07319b9be8bc6cc7ab9b941939a7c5c0b0/cloudpickle-1.6.0-py3-none-any.whl
 cmaes==0.8.2
-cmd2 @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/2d/2f/96/8a5a98bed5c898ed9c970440f58e135f615f550cf07cdd8640cd07348b/cmd2-2.3.3-py3-none-any.whl
+cmd2==2.3.3
 colorama @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/b0/f3/a3/cf94f06cbe1d286a25116cfe54d5a75cb1c4b54d15b2b1b4fc03a7f657/colorama-0.4.4-py2.py3-none-any.whl
-colorlog @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/f5/a7/3e/1f1413ec92fc0a7c37b13f3d879599c82cd789f81c76e18089b6925b80/colorlog-6.6.0-py2.py3-none-any.whl
+colorlog==6.6.0
 cycler @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/d7/14/aa/ff6e41cb4937cf2f4250bf871903aa12ae9d22e21f859aece73c8808e3/cycler-0.10.0-py2.py3-none-any.whl
 debugpy @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/36/fe/af/11031cdb2b6e9cf300d78e8eb7f6ae61d40a11207be22cabed53c19973/debugpy-1.4.3-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl
 decorator @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/34/17/0e/2b47ba09c969bda1d9eaefda2d9ccee318289f9e57d361761be4f3ab90/decorator-5.1.0-py3-none-any.whl
 defusedxml @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/15/b0/94/888992ee7b1de9fbc975b6afd17d34f441df6e96172df8d4eba95c9432/defusedxml-0.7.1-py2.py3-none-any.whl
 distlib @ file:///build/distlib-0.3.1/dist/distlib-0.3.1-py3-none-any.whl
+distro==1.7.0
 entrypoints @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/27/67/42/5ca7438658f76c8700ff6c44ea1cf9dc128cf0862adb7de53d3a35266c/entrypoints-0.3-py2.py3-none-any.whl
 et-xmlfile @ file:///build/et_xmlfile-1.0.1/dist/et_xmlfile-1.0.1-py3-none-any.whl
 executing @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/47/0b/c8/af22f800345891662f1e837e7c47093313516dcf6fff8c104909c3450f/executing-0.8.1-py2.py3-none-any.whl
 ez-yaml @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/4b/a3/c3/43bc1d143f4aa2f2e1532a224b797005d6c0049f22efd501b1ab7cc7c9/ez_yaml-1.1.0-py3-none-any.whl
 filelock @ file:///build/filelock-3.0.12/dist/filelock-3.0.12-py3-none-any.whl
 Flask @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/2e/a3/f8/fd1ce322eef1a5dc755e745210f2e85d51e0bc1332f55aa0a6f0ace47f/Flask-2.0.1-py3-none-any.whl
-fsspec @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/a6/70/49/211601ae06be810792ad0181d50e0d94b22d44fd295bbeafef19026201/fsspec-2022.1.0-py3-none-any.whl
+fsspec @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/87/2f/07/52bfa56e747466cf4a7ad295fe921653835352173d38fe0b9e6e08fe12/fsspec-2022.2.0-py3-none-any.whl
 future @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/d9/62/dc/809bb3ddfe360ddc60ebb287ad6b0eaf71aef98937f0ea0c466d44aa19/future-0.18.2.tar.gz
 gdown @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/fa/27/26/b51999524fc23ca7823d0c09c9938cafe3fe4c187fc843ee8f86fffa2d/gdown-3.13.0.tar.gz
 google-auth @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/7f/fe/8c/3b0b80802d984bbf73e991482e6e88c196d8deb2fd45306483de7b67e8/google_auth-1.35.0-py2.py3-none-any.whl
@@ -49,15 +48,14 @@ greenlet @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.
 grpcio @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/25/e4/df/e8bd87ab8afc01a9bf4221bca5da9a9ecc4f77df3f4f166e04713d6f51/grpcio-1.40.0-cp38-cp38-manylinux2014_x86_64.whl
 gym @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/9c/2e/b1/a8ec09ae13674803c74dbac34778c7f596ff420a5e58673bc39ac49d1b/gym-0.18.3.tar.gz
 gym-donkeycar @ git+https://github.com/tawnkramer/gym-donkeycar.git@cc723d19491b14b3ce9e9614d693ff7fdacca8c9
--e git+https://github.com/jeff-hykin/reinforcement_playground@56ddfde6350735a33b51813dc2fa6af417f98f02#egg=gym_unity
-h5py==3.4.0
+gym-unity @ file:///home/jeffhykin/repos/reinforcement_playground/modules/gym-unity
+h5py==3.6.0
 html5lib @ file:///build/html5lib-1.1/dist/html5lib-1.1-py2.py3-none-any.whl
 icecream @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/8e/ef/30/0336228d59c28c03ed25e78458ef4301405e292c514e5ea4486554d9e1/icecream-2.1.1-py2.py3-none-any.whl
 idna @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/a5/7d/f0/56f2a34c99da4534f97d70ca8ce7eace4ad5581a10938c3be412783add/idna-3.2-py3-none-any.whl
 importlib-metadata @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/2c/65/d5/57a9d5d7e4fa51fb44ad97cc93b5ceac223c3b93c6cf4e8ee62a1fca59/importlib_metadata-4.8.1-py3-none-any.whl
-importlib-resources @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/ee/4c/eb/2664cb1195ed4f08e5c07470436d77d74497c851583656c66927effd25/importlib_resources-5.4.0-py3-none-any.whl
+importlib-resources==5.4.0
 informative-iterator @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/f9/de/4a/8f42a44a5168d79cfb31b3bb03ae5359a0f25d6035d4c45b0335511ef3/informative_iterator-0.0.3-py3-none-any.whl
-iniconfig==1.1.1
 ipykernel @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/f4/a2/97/0b967c5d149ef3cbde87b844ad05b0391783a9af93b1eb947f872ae38d/ipykernel-6.4.1-py3-none-any.whl
 ipython @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/40/50/33/ff0c431bf56f4be109c61e812531d8688ee3244ea57d567cc34718def1/ipython-7.27.0-py3-none-any.whl
 ipython-genutils @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/e6/8e/a3/8f37e14310c0072b3fcc4240490bcb42630aa695d069aee89953ebd9f8/ipython_genutils-0.2.0-py2.py3-none-any.whl
@@ -77,18 +75,16 @@ kiwisolver @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home
 llvmlite @ file:///build/llvmlite-0.34.0/dist/llvmlite-0.34.0-cp38-cp38-linux_x86_64.whl
 lxml @ file:///build/source/dist/lxml-4.5.2-cp38-cp38-linux_x86_64.whl
 lz4 @ file:///build/source/dist/lz4-2.1.10-cp38-cp38-linux_x86_64.whl
-Mako @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/d8/66/22/2c814b2182937b9ba5fe20d0c4f11fdd1493d97fce66b33ff056f24939/Mako-1.1.6-py2.py3-none-any.whl
+Mako==1.1.6
 Markdown @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/cd/62/99/4d239f584e3af1e07356c03b28df2aa3a2701d1f49a1f1cc7a935814f8/Markdown-3.3.4-py3-none-any.whl
 MarkupSafe @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/e9/aa/ce/73da3aa2f2d872e5d1cb28a49f7e6e0e76c9e7ba290b034f442badefd2/MarkupSafe-2.0.1-cp38-cp38-manylinux2010_x86_64.whl
 matplotlib @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/f1/ba/09/f02aa5973a2a19e462cfb6cc6b98697ac1558ff242354e83c753720fd0/matplotlib-3.4.3-cp38-cp38-manylinux1_x86_64.whl
 matplotlib-inline @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/99/9e/a7/697624e74ebe7195097dbec4fe8bff67cf73c04390b69235ab5d6433b3/matplotlib_inline-0.1.3-py3-none-any.whl
 mistune @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/d9/d8/5c/8eac14aaa95c3aa81409d56b7423ff6dd88eb398f551c1bf0b8c05b916/mistune-0.8.4-py2.py3-none-any.whl
-mlagents @ file:///home/jeffhykin/repos/reinforcement_playground/modules/mlagents
-mlagents-envs==0.26.0
+mlagents @ file:///home/jeffhykin/repos/reinforcement_playground/modules/ml-agents
+mlagents-envs @ file:///home/jeffhykin/repos/reinforcement_playground/modules/ml-agents-envs
 mock @ file:///build/mock-4.0.2/dist/mock-4.0.2-py3-none-any.whl
-mpi4py==3.1.1
 multidict @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/36/92/90/7beba42c3a6efbfdc30dc864c33286fa23817b3942b21ccaf319f18ed3/multidict-5.1.0-cp38-cp38-manylinux2014_x86_64.whl
-mypy-extensions==0.4.3
 nbclient @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/4a/28/12/0bec26bfe28eff423fdd8b3e3f361ef308eb3a1b77b95c30c126350672/nbclient-0.5.4-py3-none-any.whl
 nbconvert @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/14/5a/ab/1f9a847a16eb9eb4dabd07c50a05f077be50080fc42bb1540243428591/nbconvert-6.1.0-py3-none-any.whl
 nbformat @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/50/21/dd/ed31613a2f0fda01bcb038557b711726da40cbe5b483cf13719918d6b0/nbformat-5.1.3-py3-none-any.whl
@@ -106,19 +102,15 @@ packaging @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/
 pandas @ file:///build/pandas-1.1.1/dist/pandas-1.1.1-cp38-cp38-linux_x86_64.whl
 pandocfilters @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/a0/1a/aa/08b056cf02efdac22abd6440fea5dbb93be4fe8c9c1f33c6d6f8795de7/pandocfilters-1.5.0-py2.py3-none-any.whl
 parso @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/22/e1/fb/1f6342ec76fc3368aca0b5266c38f9a44c03e1003f904397fd31c0df0c/parso-0.8.2-py2.py3-none-any.whl
-pathspec==0.9.0
 pbr @ file:///build/pbr-5.4.5/dist/pbr-5.4.5-py2.py3-none-any.whl
 pexpect @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/c0/05/08/f23ddb8e3d5b19e7cf01eb434220310be2aaf69226bdec78bc53589024/pexpect-4.8.0-py2.py3-none-any.whl
 pickleshare @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/27/b2/0a/93a92c700a1993b2923519262ddf76a629bd459a0597c0ae28bf80c7a6/pickleshare-0.7.5-py2.py3-none-any.whl
 Pillow @ file:///build/Pillow-7.2.0/dist/Pillow-7.2.0-cp38-cp38-linux_x86_64.whl
-platformdirs==2.3.0
-pluggy==1.0.0
 poetry @ file:///build/source/dist/poetry-1.1.0-py2.py3-none-any.whl
 prettytable @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/a7/3d/52/8f78891e562019331c8c1d45b629ea47eb50aac6c8b185bec0b8247600/prettytable-2.5.0-py3-none-any.whl
 prometheus-client @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/00/18/42/94cd084834c473ccb4fc3413137856974fb5a4423d3cfe615faf442dd0/prometheus_client-0.11.0-py2.py3-none-any.whl
 prompt-toolkit @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/49/72/f2/5d1b0ad43dfb0689c7ae8a457baa705bacdaec338077a13f807686fefd/prompt_toolkit-3.0.20-py3-none-any.whl
 protobuf @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/a0/aa/77/0497446169f5845a12c76e198f2ca6136a45487ceb89177a43cd7b99e5/protobuf-3.17.3-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.whl
-psutil==5.8.0
 ptyprocess @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/b5/84/64/9519e6926ac101cbc8d93423b8165f4abac4f8a8e3e099f74d3c7e0e67/ptyprocess-0.7.0-py2.py3-none-any.whl
 pyasn1 @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/a6/f7/5e/59a43ec23ade0888631b3f24244da7f5d5a0b6b40849c86b8c6b4c54d1/pyasn1-0.4.8-py2.py3-none-any.whl
 pyasn1-modules @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/09/f6/56/0e33158234b3e9b9e5d8eb01e7a96670a99ab43b3dbe89b0f129477a59/pyasn1_modules-0.2.8-py2.py3-none-any.whl
@@ -133,7 +125,6 @@ pyparsing @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/
 pyperclip==1.8.2
 pyrsistent @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/ea/be/62/0291d882c12b3d210d26774eed82a79e44322ca990eac532e3b803ad7c/pyrsistent-0.18.0-cp38-cp38-manylinux1_x86_64.whl
 PySocks @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/0d/f3/af/0d5cb110c7ceb17f08017e9fbc5a2e1770cefa6179d7f05b25aaf8ffb2/PySocks-1.7.1-py3-none-any.whl
-pytest==6.2.5
 python-dateutil @ file:///build/python-dateutil-2.8.1/dist/python_dateutil-2.8.1-py2.py3-none-any.whl
 python-engineio @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/09/c1/a4/7e78ebeea16b3e2751d20b3acc78d5400fa223c234be3cde127ded254d/python_engineio-4.2.1-py3-none-any.whl
 python-include @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/e7/ad/1b/3e8d6fb38ff124ee0f3892f5cdfed654f6e717b2bf8adac0e66459b93c/python_include-1.0.0-py3-none-any.whl
@@ -151,7 +142,6 @@ ruamel.yaml.clib @ file:///home/jeffhykin/repos/reinforcement_playground/setting
 scikit-learn @ file:///build/scikit-learn-0.23.2/dist/scikit_learn-0.23.2-cp38-cp38-linux_x86_64.whl
 scikit-video @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/6e/fd/6a/8fea73f623c03c423dc28abb1d26bd3890ad498537bfa978139da7a0c2/scikit_video-1.1.11-py2.py3-none-any.whl
 scipy @ file:///build/scipy-1.5.2/dist/scipy-1.5.2-cp38-cp38-linux_x86_64.whl
-seaborn==0.8.1
 Send2Trash @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/04/75/07/732af573e27a23b54c8ecd612eadc3725f0ce6428aee277184a4d0c780/Send2Trash-1.8.0-py3-none-any.whl
 setuptools-scm @ file:///build/setuptools_scm-4.1.2/dist/setuptools_scm-4.1.2-py2.py3-none-any.whl
 shap @ file:///build/source/dist/shap-0.36.0-cp38-cp38-linux_x86_64.whl
@@ -159,11 +149,11 @@ silver-spectacle @ file:///home/jeffhykin/repos/reinforcement_playground/setting
 simple-namespace @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/ed/8a/c2/fcc5a2950c296eed8a195dc40191d1c869c928c55a509a5ec88cc6924b/simple_namespace-1.0.0-py3-none-any.whl
 six @ file:///build/six-1.15.0/dist/six-1.15.0-py2.py3-none-any.whl
 slicer @ file:///build/slicer-0.0.4/dist/slicer-0.0.4-py3-none-any.whl
-slick-siphon==0.1.1
+slick-siphon @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/9b/0b/31/0a5a088f869bcdd5a4c0ccc3dd04b2293aeb2e753cb8cf66c7e8b37bbe/slick_siphon-0.1.1-py3-none-any.whl
 soupsieve @ file:///build/soupsieve-2.0.1/dist/soupsieve-2.0.1-py3-none-any.whl
 SQLAlchemy @ file:///build/SQLAlchemy-1.3.19/dist/SQLAlchemy-1.3.19-cp38-cp38-linux_x86_64.whl
 stable-baselines3 @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/02/4b/fe/dd458bab308462417c2ee886cef8256a8857e6b13a089b514557e0b172/stable_baselines3-1.3.0-py3-none-any.whl
-stevedore @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/82/96/8f/769496af3fa03915fec94bbaeb607e781a9e941a9b3a224d544e47849a/stevedore-3.5.0-py3-none-any.whl
+stevedore==3.5.0
 super-hash @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/51/2f/ae/61d5c9275663dd3b37767f76c052de2db4d0059d5ab81cc198f523b1e9/super_hash-1.0.5-py3-none-any.whl
 super-map @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/39/c3/01/da0317bf4cde188d28e5a3d8d9473c7e1e62dc8145e895ecd30d28abba/super_map-1.2.0-py3-none-any.whl
 tables @ file:///build/tables-3.6.1/dist/tables-3.6.1-cp38-cp38-linux_x86_64.whl
@@ -173,8 +163,6 @@ tensorboard-plugin-wit @ file:///home/jeffhykin/repos/reinforcement_playground/s
 terminado @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/99/c0/03/31feee159a5291c183f98d53f6b00d169c3e4a21feb6a570ea1b34b066/terminado-0.12.1-py3-none-any.whl
 testpath @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/99/c6/0c/2256a0fa1dbfdfee5595aa75497e3967a6a234852e7e76050fe51d18ed/testpath-0.5.0-py3-none-any.whl
 threadpoolctl @ file:///build/source/dist/threadpoolctl-2.1.0-py3-none-any.whl
-toml==0.10.2
-tomli==1.2.1
 torch @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/28/ed/48/107ecbadfc9339b80a881d5671f58ee18a8060be3672debbc3a780f56a/torch-1.8.1-cp38-cp38-manylinux1_x86_64.whl
 torchmetrics @ file:///home/jeffhykin/repos/reinforcement_playground/settings/home/.cache/pypoetry/artifacts/12/5b/88/6b180c7f914b1f7da20dee4c52485e21f2236a601ce17baf03d9e9c37c/torchmetrics-0.5.1-py3-none-any.whl
 -e git+https://github.com/jeff-hykin/imbalanced-dataset-sampler@b1fb899685872a7dd08bf94945b32cce32402341#egg=torchsampler
