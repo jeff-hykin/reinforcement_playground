@@ -5,3 +5,5 @@ optuna==2.9.1
 ./modules/ml-agents
 
 ./modules/ml-agents-envs
+
+./modules/carla-gym-wrapper
