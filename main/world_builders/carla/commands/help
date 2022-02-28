@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+echo '
+    1. Install nvidia docker outside of the enviornment
+    2. Start the docker server outside the environment
+'
