@@ -1,0 +1,1 @@
+export PYTHONPATH="$PYTHONPATH:$FORNIX_FOLDER/repos/carla/PythonAPI/carla"

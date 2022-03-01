@@ -1,4 +1,6 @@
+import gym
 import carla_env
+import sys
 
 carla_env.register(
     id='CarlaEnv-state-town01-v1',
@@ -17,4 +19,5 @@ carla_env.register(
     }
 )
 
-
+env = gym.make('CarlaEnv-pixel-v1')
+env.reset()
