@@ -1,5 +1,6 @@
-defaultFrom = "7e9b0dff974c89e070da1ad85713ff3c20b0ca97" # this is a commit hash on the nixpkgs repo on github for the stable version 21.05
+defaultFrom = "c82b46413401efa740a0b994f52e9903a4f6dcd5" # this is a commit hash on the nixpkgs repo on github for the stable version 21.05
 
 [config]
 allowUnfree = true
+cudaSupport = true
 permittedInsecurePackages = [ "openssl-1.0.2u",]

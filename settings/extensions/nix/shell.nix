@@ -38,6 +38,29 @@
             main
         );
         
+        # torch = (builtins.import
+        #     (fetchTarball "https://github.com/jeff-hykin/pytorch_nixpkg/archive/77961dce25528445a7e4e448652754079deb6f73.tar.gz")
+        #     {
+        #         pkgs = main.packages // {
+        #             cudnn_cudatoolkit_11_1 = main.packages.cudnn_cudatoolkit_11_1;
+        #         };
+        #     }
+        # );
+        magma = (main.packages.magma.override
+            ({
+                cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_1;
+            })
+        );
+        nccl_cudatoolkit_11_1 = (builtins.import
+            (builtins.fetchTarball 
+                ({
+                    url = "https://github.com/NixOS/nixpkgs/archive/bed08131cd29a85f19716d9351940bdc34834492.tar.gz";
+                })
+            )
+            ({})
+        ).nccl_cudatoolkit_11;
+
+        
         # 
         # Linux Only
         #
@@ -45,6 +68,17 @@
             buildInputs = [
                 nixgl.auto.nixGLNvidia
                 main.packages.cudaPackages.cudatoolkit_11_1
+                main.packages.cudnn_cudatoolkit_11_1
+                (main.packages.python38Packages.pytorchWithCuda.override 
+                    ({
+                        cudaSupport = true;
+                        cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_1;
+                        cudnn = main.packages.cudnn_cudatoolkit_11_1;
+                        nccl = nccl_cudatoolkit_11_1;
+                        magma = magma;
+                    })
+                )
+                # (torch { name = "torch";})
             ];
             nativeBuildInputs = [];
             shellCode = ''
@@ -52,11 +86,83 @@
                 then
                     true # add important (LD_LIBRARY_PATH, PATH, etc) nix-Linux code here
                     export CUDA_PATH="${main.packages.cudaPackages.cudatoolkit_11_1}"
+                    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.linuxPackages.nvidia_x11}/lib:${main.packages.ncurses5}/lib:/run/opengl-driver/lib"
+                    export EXTRA_LDFLAGS="$EXTRA_CCFLAGS:-L/lib -L${main.packages.linuxPackages.nvidia_x11}/lib"
+                    export LD_LIBRARY_PATH="$(${nixgl.auto.nixGLNvidia}/bin/nixGLNvidia-470.86 printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
                     export EXTRA_CCFLAGS="$EXTRA_CCFLAGS:-I/usr/include"
                     export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
                     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.ncurses}/lib:/run/opengl-driver/lib"
+                    
+                    export LD_LIBRARY_PATH="${main.packages.hdf5}:$LD_LIBRARY_PATH"
+                    export LD_LIBRARY_PATH="${main.packages.openmpi}/lib:$LD_LIBRARY_PATH"
+                    export LD_LIBRARY_PATH="${main.packages.python38}/lib:$LD_LIBRARY_PATH"
+                    export LD_LIBRARY_PATH="${main.packages.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
+                    export LD_LIBRARY_PATH="${main.packages.zlib}/lib:$LD_LIBRARY_PATH"
+
+                    # CUDA and magma path
+                    export LD_LIBRARY_PATH="${main.packages.cudaPackages.cudatoolkit_11_1}/lib:${main.packages.cudnn_cudatoolkit_11_1}/lib:${magma}/lib:$LD_LIBRARY_PATH"
                 fi
             '';
+            # for python with CUDA 
+            # 1. install cuda drivers on the main machine then
+            # 2. include the following inside the shellCode if statement above
+            #     export CUDA_PATH="${main.packages.cudatoolkit}"
+            #     export EXTRA_LDFLAGS="-L/lib -L${main.packages.linuxPackages.nvidia_x11}/lib"
+            #     export EXTRA_CCFLAGS="-I/usr/include"
+            #     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.linuxPackages.nvidia_x11}/lib:${main.packages.ncurses5}/lib:/run/opengl-driver/lib"
+            #     export LD_LIBRARY_PATH="$(${main.packages.nixGLNvidia}/bin/nixGLNvidia printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
+            #     export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
+            # 3. then add the following to the nix.toml file
+            #    # 
+            #    # Nvidia
+            #    # 
+            #    [[packages]]
+            #    load = [ "nixGLNvidia",]
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #    # see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
+            #    from = { fetchGit = { url = "https://github.com/guibou/nixGL", rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e" }, }
+            # 
+            #    [[packages]]
+            #    load = [ "pkgconfig",]
+            #    asNativeBuildInput = true
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            # 
+            #    [[packages]]
+            #    load = [ "cudatoolkit",]
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #
+            #    [[packages]]
+            #    load = [ "libconfig",]
+            #    asNativeBuildInput = true
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #
+            #    [[packages]]
+            #    load = [ "cmake",]
+            #    asNativeBuildInput = true
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #
+            #    [[packages]]
+            #    load = [ "libGLU",]
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #
+            #    [[packages]]
+            #    load = [ "linuxPackages", "nvidia_x11",]
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #
+            #    [[packages]]
+            #    load = [ "stdenv", "cc",]
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #
+            # 4. if you want opencv with cuda add the following to the nix.toml
+            #    # 
+            #    # opencv
+            #    # 
+            #    [[packages]]
+            #    onlyIf = [ [ "stdenv", "isLinux",],]
+            #    load = [ "opencv4",]
+            #    override = { enableGtk3 = true, enableFfmpeg = true, enableCuda = true, enableUnfree = true, }
+            #    # see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
+            #    from = { fetchGit = { url = "https://github.com/NixOS/nixpkgs/", rev = "a332da8588aeea4feb9359d23f58d95520899e3c" }, options = { config = { allowUnfree = true } }, }
         }) else emptyOptions;
         
         # 

@@ -83,29 +83,34 @@ load = [ "mpi",] # for the spinningup AI repo
 load = [ "curl",]
 
 [[packages]]
-load = [ "black",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
-
-[[packages]]
-load = [ "poetry",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
-
-[[packages]]
 load = [ "python38",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
+
+[[packages]]
+load = [ "python38Packages", "black",]
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
+
+[[packages]]
+load = [ "python38Packages", "poetry",]
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 load = [ "python38Packages", "setuptools",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 load = [ "python38Packages", "pybullet",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 onlyIf = [ [ "stdenv", "isLinux",],]
+
+# [[packages]]
+# load = [ "python38Packages", "pytorch",]
+# from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
+# onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]]
 load = [ "python38Packages", "pyopengl",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 # 
 # Nvidia
@@ -122,10 +127,10 @@ from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 
 # [[packages]]
 # onlyIf = [ [ "stdenv", "isLinux",],]
-# load = [ "opencv4",]
+# load = [ "python38Packages", "opencv4",]
 # override = { enableGtk3 = true, enableFfmpeg = true, enableCuda = true, enableUnfree = true, }
-# # see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-# from = { fetchGit = { url = "https://github.com/NixOS/nixpkgs/", rev = "a332da8588aeea4feb9359d23f58d95520899e3c" }, options = { config = { allowUnfree = true } }, }
+# see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
+# from = { fetchGit = { url = "https://github.com/NixOS/nixpkgs/", rev = "c82b46413401efa740a0b994f52e9903a4f6dcd5" }, options = { config = { allowUnfree = true } }, }
 
 [[packages]]
 load = [ "python38Packages", "pip",]
@@ -133,11 +138,11 @@ from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 load = [ "python38Packages", "virtualenv",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 load = [ "python38Packages", "wheel",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 load = [ "python38Packages", "shap",]
@@ -151,7 +156,7 @@ from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 onlyIf = [ [ "stdenv", "isLinux",],]
 load = [ "glib",]
 asNativeBuildInput = true
-from = "528d35bec0cb976a06cc0e8487c6e5136400b16b"
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 onlyIf = [ [ "stdenv", "isLinux",],]
