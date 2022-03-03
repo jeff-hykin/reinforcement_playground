@@ -42,19 +42,19 @@
         #     (fetchTarball "https://github.com/jeff-hykin/pytorch_nixpkg/archive/77961dce25528445a7e4e448652754079deb6f73.tar.gz")
         #     {
         #         pkgs = main.packages // {
-        #             cudnn_cudatoolkit_11_1 = main.packages.cudnn_cudatoolkit_11_1;
+        #             cudnn_cudatoolkit_11_2 = main.packages.cudnn_cudatoolkit_11_2;
         #         };
         #     }
         # );
         magma = (main.packages.magma.override
             ({
-                cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_1;
+                cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_2;
             })
         );
-        nccl_cudatoolkit_11_1 = (builtins.import
+        nccl_cudatoolkit_11_2 = (builtins.import
             (builtins.fetchTarball 
                 ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/bed08131cd29a85f19716d9351940bdc34834492.tar.gz";
+                    url = "https://github.com/NixOS/nixpkgs/archive/2cdd608fab0af07647da29634627a42852a8c97f.tar.gz";
                 })
             )
             ({})
@@ -67,14 +67,14 @@
         linuxOnly = if main.stdenv.isLinux then ({
             buildInputs = [
                 nixgl.auto.nixGLNvidia
-                main.packages.cudaPackages.cudatoolkit_11_1
-                main.packages.cudnn_cudatoolkit_11_1
+                main.packages.cudaPackages.cudatoolkit_11_2
+                main.packages.cudnn_cudatoolkit_11_2
                 (main.packages.python38Packages.pytorchWithCuda.override 
                     ({
                         cudaSupport = true;
-                        cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_1;
-                        cudnn = main.packages.cudnn_cudatoolkit_11_1;
-                        nccl = nccl_cudatoolkit_11_1;
+                        cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_2;
+                        cudnn = main.packages.cudnn_cudatoolkit_11_2;
+                        nccl = nccl_cudatoolkit_11_2;
                         magma = magma;
                     })
                 )
@@ -85,7 +85,7 @@
                 if [[ "$OSTYPE" == "linux-gnu" ]] 
                 then
                     true # add important (LD_LIBRARY_PATH, PATH, etc) nix-Linux code here
-                    export CUDA_PATH="${main.packages.cudaPackages.cudatoolkit_11_1}"
+                    export CUDA_PATH="${main.packages.cudaPackages.cudatoolkit_11_2}"
                     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.linuxPackages.nvidia_x11}/lib:${main.packages.ncurses5}/lib:/run/opengl-driver/lib"
                     export EXTRA_LDFLAGS="$EXTRA_CCFLAGS:-L/lib -L${main.packages.linuxPackages.nvidia_x11}/lib"
                     export LD_LIBRARY_PATH="$(${nixgl.auto.nixGLNvidia}/bin/nixGLNvidia-470.86 printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
@@ -100,7 +100,7 @@
                     export LD_LIBRARY_PATH="${main.packages.zlib}/lib:$LD_LIBRARY_PATH"
 
                     # CUDA and magma path
-                    export LD_LIBRARY_PATH="${main.packages.cudaPackages.cudatoolkit_11_1}/lib:${main.packages.cudnn_cudatoolkit_11_1}/lib:${magma}/lib:$LD_LIBRARY_PATH"
+                    export LD_LIBRARY_PATH="${main.packages.cudaPackages.cudatoolkit_11_2}/lib:${main.packages.cudnn_cudatoolkit_11_2}/lib:${magma}/lib:$LD_LIBRARY_PATH"
                 fi
             '';
             # for python with CUDA 
