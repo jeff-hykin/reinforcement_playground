@@ -104,7 +104,7 @@ from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 onlyIf = [ [ "stdenv", "isLinux",],]
 
 # [[packages]]
-# load = [ "python38Packages", "pytorch",]
+# load = [ "python38Packages", "pytorchWithCuda",]
 # from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 # onlyIf = [ [ "stdenv", "isLinux",],]
 
