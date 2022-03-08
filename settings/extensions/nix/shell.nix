@@ -59,6 +59,27 @@
             )
             ({})
         ).nccl_cudatoolkit_11;
+           
+        pytorchWithCudaUnpatched = (builtins.import
+            # 
+            # older version with pytorch 1.8.1: 141439f6f11537ee349a58aaf97a5a5fc072365c
+            # 
+            (builtins.fetchTarball 
+                ({
+                    url = "https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz";
+                })
+            )
+            ({})
+        ).python38Packages.pytorchWithCuda;
+        pytorchWithCuda = (pytorchWithCudaUnpatched.override 
+            ({
+                cudaSupport = true;
+                cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_2;
+                cudnn = main.packages.cudnn_cudatoolkit_11_2;
+                nccl = nccl_cudatoolkit_11_2;
+                magma = magma;
+            })
+        );
 
         
         # 
@@ -69,15 +90,7 @@
                 nixgl.auto.nixGLNvidia
                 main.packages.cudaPackages.cudatoolkit_11_2
                 main.packages.cudnn_cudatoolkit_11_2
-                (main.packages.python38Packages.pytorchWithCuda.override 
-                    ({
-                        cudaSupport = true;
-                        cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_2;
-                        cudnn = main.packages.cudnn_cudatoolkit_11_2;
-                        nccl = nccl_cudatoolkit_11_2;
-                        magma = magma;
-                    })
-                )
+                pytorchWithCuda
                 # (torch { name = "torch";})
             ];
             nativeBuildInputs = [];
