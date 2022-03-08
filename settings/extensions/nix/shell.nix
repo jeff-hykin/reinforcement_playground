@@ -59,19 +59,6 @@
             )
             ({})
         ).nccl_cudatoolkit_11;
-        
-        pytorchWithCuda = (builtins.import
-            # 
-            # older version with pytorch 1.8.1
-            # 
-            (builtins.fetchTarball 
-                ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/141439f6f11537ee349a58aaf97a5a5fc072365c.tar.gz";
-                })
-            )
-            ({})
-            
-        ).python38Packages.pytorchWithCuda;
 
         
         # 
@@ -82,7 +69,7 @@
                 nixgl.auto.nixGLNvidia
                 main.packages.cudaPackages.cudatoolkit_11_2
                 main.packages.cudnn_cudatoolkit_11_2
-                (pytorchWithCuda.override 
+                (main.packages.python38Packages.pytorchWithCuda.override 
                     ({
                         cudaSupport = true;
                         cudatoolkit = main.packages.cudaPackages.cudatoolkit_11_2;
