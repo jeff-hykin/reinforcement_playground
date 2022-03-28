@@ -7,6 +7,8 @@ authors = [""]
 [tool.poetry.dependencies]
 python = ">=3.7,<3.10"
 pip = "20.1.1"
+notebook = "6.4.8"
+jupyterthemes = "0.20.0"
 
 [tool.poetry.dev-dependencies]
 
