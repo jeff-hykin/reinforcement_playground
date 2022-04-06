@@ -1,0 +1,6 @@
+# if jt doesnt exist
+if [ -z "$(command -v "jt")" ]
+then
+    poetry add jupyterthemes
+fi
+jt -t onedork -fs 95 -altp -tfs 11 -nfs 115 -cellw 88% -T
