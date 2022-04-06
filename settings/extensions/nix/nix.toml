@@ -39,11 +39,6 @@
 
 # [[ you can add tools for your project right here or at the bottom ]]
 
-
-[[packages]]
-load = [ "nvidia-docker",]
-from = "860b56be91fb874d48e23a950815969a7b832fbc"
-
 [[packages]]
 load = [ "docker",]
 
@@ -63,12 +58,15 @@ load = [ "llvmPackages","openmp",]
 
 [[packages]] # for carla
 load = [ "xdg-user-dirs",]
+onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]] # for carla
 load = [ "xdg-utils",]
+onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]] # for carla
 load = [ "xorg", "xhost",]
+onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]]
 load = [ "freetype",]
@@ -170,6 +168,11 @@ asNativeBuildInput = true
 onlyIf = [ [ "stdenv", "isDarwin",],]
 
 [[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "AVFoundation" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
 load = [ "darwin", "apple_sdk", "frameworks", "AppKit" ]
 asNativeBuildInput = true
 onlyIf = [ [ "stdenv", "isDarwin",],]
@@ -181,6 +184,11 @@ onlyIf = [ [ "stdenv", "isDarwin",],]
 
 [[packages]]
 load = [ "darwin", "apple_sdk", "frameworks", "Accounts" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "Security" ]
 asNativeBuildInput = true
 onlyIf = [ [ "stdenv", "isDarwin",],]
 
@@ -200,13 +208,13 @@ load = [ "libkrb5",]
 # 
 
 [[packages]]
-load = [ "fd",]
-
-[[packages]]
 load = [ "ncurses5",]
 
 [[packages]]
 load = [ "openssh",]
+
+[[packages]]
+load = [ "fd",]
 
 [[packages]]
 load = [ "sd",]

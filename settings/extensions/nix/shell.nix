@@ -10,261 +10,91 @@
     # NOTE: some things (like setuptools) just don't show up in the 
     # search results for some reason, and you just have to guess and check 🙃 
 
-{
+# Lets setup some definitions
+let
     # 
     # load most things from the nix.toml
     # 
-    main ? (builtins.import
+    main = (builtins.import
         (builtins.getEnv
             ("__FORNIX_NIX_MAIN_CODE_PATH")
         )
-    ),
-}:
-    # Lets setup some definitions
-    let        
-        # 
-        # sources
-        # 
-        nixgl = (builtins.import
-            (fetchTarball "https://github.com/guibou/nixGL/archive/17658df1e17a64bc23ee5c93cfa9e8b663a4ac81.tar.gz")
-            {}
-        );
-        pkgsWithTorch_1_8_1 = (builtins.import
-            (builtins.fetchTarball 
+    );
+    
+    # just a helper
+    emptyOptions = ({
+        buildInputs = [];
+        nativeBuildInputs = [];
+        shellHook = "";
+    });
+    
+    # 
+    # Linux Only
+    #
+    linuxOnly = if main.stdenv.isLinux then ({
+        buildInputs = [];
+        nativeBuildInputs = [];
+        shellHook = ''
+            if [[ "$OSTYPE" == "linux-gnu" ]] 
+            then
+                true # add important (LD_LIBRARY_PATH, PATH, etc) nix-Linux code here
+                export EXTRA_CCFLAGS="$EXTRA_CCFLAGS:-I/usr/include"
+            fi
+        '';
+    }) else emptyOptions;
+    
+    # 
+    # Mac Only
+    # 
+    macOnly = if main.stdenv.isDarwin then ({
+        buildInputs = [];
+        nativeBuildInputs = [];
+        shellHook = ''
+            if [[ "$OSTYPE" = "darwin"* ]] 
+            then
+                true # add important nix-MacOS code here
+                export EXTRA_CCFLAGS="$EXTRA_CCFLAGS:-I/usr/include:${main.packages.darwin.apple_sdk.frameworks.CoreServices}/Library/Frameworks/CoreServices.framework/Headers/"
+            fi
+        '';
+    }) else emptyOptions;
+    
+# using the above definitions
+in
+    # 
+    # create a shell
+    # 
+    (main.packages.mkShell
+        (main.mergeMixins
+            [
+                main.project
+                linuxOnly
+                macOnly
+                (main.importMixin 
+                    "salt.nix"
+                )
+                (main.importMixin 
+                    "cuda.nix"
+                )
+                # an "inline" mixin (this is what each mixin looks like)
                 ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/141439f6f11537ee349a58aaf97a5a5fc072365c.tar.gz";
-                })
-            )
-            ({})
-        );
-        pkgsWithTorch_1_9_0 = (builtins.import
-            (builtins.fetchTarball 
-                ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz";
-                })
-            )
-            ({})
-        );
-        pkgsWithNcclCudaToolkit_11_2 =  (builtins.import
-            (builtins.fetchTarball 
-                ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/2cdd608fab0af07647da29634627a42852a8c97f.tar.gz";
-                })
-            )
-            ({})
-        );
-        pkgsWithWorkingShap =  (builtins.import
-            (builtins.fetchTarball 
-                ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/3f50332bc4913a56ad216ca01f5d0bd24277a6b2.tar.gz";
-                })
-            )
-            ({})
-        );
-        
-        # 
-        # 
-        # packages
-        # 
-        # 
-        python = pkgsWithTorch_1_9_0.python38;
-        pythonPackages = pkgsWithTorch_1_9_0.python38Packages;
-        selectedCommonPythonPackages = [
-            pythonPackages.black
-            pythonPackages.poetry
-            pythonPackages.setuptools
-            pythonPackages.pyopengl
-            pythonPackages.pip
-            pythonPackages.virtualenv
-            pythonPackages.wheel
-            pythonPackages.numpy
-            pkgsWithWorkingShap.python38Packages.shap
-        ];
-        
-        # 
-        # for pytorch
-        # 
-        cudaStuff = (
-            let 
-                cudatoolkit = pkgsWithTorch_1_9_0.cudaPackages.cudatoolkit_11_2;
-                cudnn = pkgsWithTorch_1_9_0.cudnn_cudatoolkit_11_2;
-                nccl = pkgsWithNcclCudaToolkit_11_2.nccl_cudatoolkit_11;
-                magma = (pkgsWithTorch_1_9_0.magma.override
-                    ({
-                        cudatoolkit = cudatoolkit;
-                    })
-                );
-                pytorchWithCuda = (pythonPackages.pytorchWithCuda.override 
-                    ({
-                        cudaSupport = true;
-                        cudatoolkit = cudatoolkit;
-                        cudnn = cudnn;
-                        nccl = nccl;
-                        magma = magma;
-                    })
-                );
-                nvidia_x11 = pkgsWithTorch_1_9_0.linuxPackages.nvidia_x11;
-            in
-                # return all this stuff
-                {
-                    cudatoolkit = cudatoolkit;
-                    cudnn = cudnn;
-                    magma = magma;
-                    nccl = nccl;
-                    pytorchWithCuda = pytorchWithCuda;
-                    nvidia_x11 = nvidia_x11;
-                    pythonPackages = pkgsWithTorch_1_9_0.python38Packages;
-                }
-        );
-        
-        # just a helper
-        emptyOptions = ({
-            buildInputs = [];
-            nativeBuildInputs = [];
-            shellCode = "";
-        });
-        
-        # 
-        # Linux Only
-        #
-        linuxOnly = if main.stdenv.isLinux then ({
-            buildInputs = selectedCommonPythonPackages ++ [
-                pythonPackages.pybullet
-                nixgl.auto.nixGLNvidia
-                cudaStuff.cudatoolkit
-                cudaStuff.cudnn
-                cudaStuff.pytorchWithCuda
-            ];
-            nativeBuildInputs = [];
-            shellCode = ''
-                if [[ "$OSTYPE" == "linux-gnu" ]] 
-                then
-                    true # add important (LD_LIBRARY_PATH, PATH, etc) nix-Linux code here
-                    export CUDA_PATH="${cudaStuff.cudatoolkit}"
-                    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${cudaStuff.nvidia_x11}/lib"
-                    export EXTRA_LDFLAGS="$EXTRA_CCFLAGS:-L/lib -L${cudaStuff.nvidia_x11}/lib"
-                    export LD_LIBRARY_PATH="$(${nixgl.auto.nixGLNvidia}/bin/nixGLNvidia-470.86 printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
-                    export EXTRA_CCFLAGS="$EXTRA_CCFLAGS:-I/usr/include"
-                    export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
-                    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/run/opengl-driver/lib"
+                    # inside that shell, make sure to use these packages
+                    buildInputs = [];
                     
-                    export LD_LIBRARY_PATH="${main.packages.hdf5}:$LD_LIBRARY_PATH"
-                    export LD_LIBRARY_PATH="${main.packages.openmpi}/lib:$LD_LIBRARY_PATH"
-                    export LD_LIBRARY_PATH="${main.packages.python38}/lib:$LD_LIBRARY_PATH"
-                    export LD_LIBRARY_PATH="${main.packages.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
-                    export LD_LIBRARY_PATH="${main.packages.zlib}/lib:$LD_LIBRARY_PATH"
-
-                    # CUDA and magma path
-                    export LD_LIBRARY_PATH="${cudaStuff.cudatoolkit}/lib:${cudaStuff.cudnn}/lib:${cudaStuff.magma}/lib:$LD_LIBRARY_PATH"
-                fi
-            '';
-            # for python with CUDA 
-            # 1. install cuda drivers on the main machine then
-            # 2. include the following inside the shellCode if statement above
-            #     export CUDA_PATH="${main.packages.cudatoolkit}"
-            #     export EXTRA_LDFLAGS="-L/lib -L${cudaStuff.nvidia_x11}/lib"
-            #     export EXTRA_CCFLAGS="-I/usr/include"
-            #     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${cudaStuff.nvidia_x11}/lib:${main.packages.ncurses5}/lib:/run/opengl-driver/lib"
-            #     export LD_LIBRARY_PATH="$(${main.packages.nixGLNvidia}/bin/nixGLNvidia printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
-            #     export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
-            # 3. then add the following to the nix.toml file
-            #    # 
-            #    # Nvidia
-            #    # 
-            #    [[packages]]
-            #    load = [ "nixGLNvidia",]
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #    # see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-            #    from = { fetchGit = { url = "https://github.com/guibou/nixGL", rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e" }, }
-            # 
-            #    [[packages]]
-            #    load = [ "pkgconfig",]
-            #    asNativeBuildInput = true
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            # 
-            #    [[packages]]
-            #    load = [ "cudatoolkit",]
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #
-            #    [[packages]]
-            #    load = [ "libconfig",]
-            #    asNativeBuildInput = true
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #
-            #    [[packages]]
-            #    load = [ "cmake",]
-            #    asNativeBuildInput = true
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #
-            #    [[packages]]
-            #    load = [ "libGLU",]
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #
-            #    [[packages]]
-            #    load = [ "linuxPackages", "nvidia_x11",]
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #
-            #    [[packages]]
-            #    load = [ "stdenv", "cc",]
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #
-            # 4. if you want opencv with cuda add the following to the nix.toml
-            #    # 
-            #    # opencv
-            #    # 
-            #    [[packages]]
-            #    onlyIf = [ [ "stdenv", "isLinux",],]
-            #    load = [ "opencv4",]
-            #    override = { enableGtk3 = true, enableFfmpeg = true, enableCuda = true, enableUnfree = true, }
-            #    # see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-            #    from = { fetchGit = { url = "https://github.com/NixOS/nixpkgs/", rev = "a332da8588aeea4feb9359d23f58d95520899e3c" }, options = { config = { allowUnfree = true } }, }
-        }) else emptyOptions;
-        
-        # 
-        # Mac Only
-        # 
-        macOnly = if main.stdenv.isDarwin then ({
-            buildInputs = selectedCommonPythonPackages ++ [
-                pythonPackages.torch
-            ];
-            nativeBuildInputs = [];
-            shellCode = ''
-                if [[ "$OSTYPE" = "darwin"* ]] 
-                then
-                    true # add important nix-MacOS code here
-                    export EXTRA_CCFLAGS="$EXTRA_CCFLAGS:-I/usr/include:${main.packages.darwin.apple_sdk.frameworks.CoreServices}/Library/Frameworks/CoreServices.framework/Headers/"
-                fi
-            '';
-        }) else emptyOptions;
-        
-    # using the above definitions
-    in
-        # 
-        # create a shell
-        # 
-        main.packages.mkShell {
-            # inside that shell, make sure to use these packages
-            buildInputs =  main.project.buildInputs ++ macOnly.buildInputs ++ linuxOnly.buildInputs;
-            
-            nativeBuildInputs =  main.project.nativeBuildInputs ++ macOnly.nativeBuildInputs ++ linuxOnly.nativeBuildInputs;
-            
-            # run some bash code before starting up the shell
-            shellHook = ''
-                ${main.project.protectHomeShellCode}
-                if [ "$FORNIX_DEBUG" = "true" ]; then
-                    echo "starting: 'shellHook' inside the 'settings/extensions/nix/shell.nix' file"
-                fi
-                ${linuxOnly.shellCode}
-                ${macOnly.shellCode}
-                
-                # provide access to ncurses for nice terminal interactions
-                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.ncurses5}/lib"
-                export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
-                
-                if [ "$FORNIX_DEBUG" = "true" ]; then
-                    echo "finished: 'shellHook' inside the 'settings/extensions/nix/shell.nix' file"
-                    echo ""
-                    echo "Tools/Commands mentioned in 'settings/extensions/nix/nix.toml' are now available/installed"
-                fi
-            '';
-        }
+                    nativeBuildInputs = [];
+                    
+                    # run some bash code before starting up the shell
+                    shellHook = ''
+                        # provide access to ncurses for nice terminal interactions
+                        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${main.packages.ncurses5}/lib"
+                        export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
+                        
+                        if [ "$FORNIX_DEBUG" = "true" ]; then
+                            echo "finished: 'shellHook' inside the 'settings/extensions/nix/shell.nix' file"
+                            echo ""
+                            echo "Tools/Commands mentioned in 'settings/extensions/nix/nix.toml' are now available/installed"
+                        fi
+                    '';
+                })
+            ]
+        )
+    )
