@@ -1,4 +1,4 @@
-from tools.stat_tools import confirmed_outstandingly_low, increasingly_strict_confidence, probability_of_belonging_if_bellcurve, average, standard_deviation, probabilitity_of_at_least_one
+from tools.stat_tools import confirmed_outstandingly_low, confidence_interval_adjusted_for_sample_size, probability_of_belonging_if_bellcurve, average, standard_deviation, probabilitity_of_at_least_one
 import scipy.stats as stats
 from statistics import median
 
@@ -10,10 +10,10 @@ def is_significantly_below_other_curves(current_curve, curves, log=False):
     existing_items = tuple(sum(each[0:len(current_curve)]) for each in curves)
     item = sum(current_curve)
     
-    confidence_from_rewards_so_far = increasingly_strict_confidence(
+    confidence_from_rewards_so_far = confidence_interval_adjusted_for_sample_size(
         sample_size=len(current_curve),
     )
-    confidence_from_existing_items = increasingly_strict_confidence(
+    confidence_from_existing_items = confidence_interval_adjusted_for_sample_size(
         sample_size=len(existing_items)
     )
     
