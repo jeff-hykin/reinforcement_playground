@@ -153,15 +153,16 @@ def recursive_splits(a_list, branching_factor=2, min_size=2, max_proportion=0.65
         splits.append(tuple(bundle(a_list, bundle_size=bundle_size)))
     return tuple(reversed(splits))
 
-def increasingly_strict_confidence(
+def confidence_interval_adjusted_for_sample_size(
         sample_size,
-        shortest_interval=0.3, # this means when the sample is big, there will be a 30% confidence interval requirement
-        strictness_rate=1,  # bigger=get to the shortest_interval faster. at strictness_rate=1, sample_size=30, confidence will be around 95%
+        confidence_interval_given_infinite_samples=0.3, # this means when the sample is big (as in approaches infinity), there will be a 30% confidence interval requirement
+        relevance_of_sample_size=1, # bigger means more-likely-to-reject 
     ):
+    strictness_rate = 1/relevance_of_sample_size
     # starts at maximum = 1
     # as x gets bigger 
-    # approches shortest_interval
-    slowness = 0.006 * strictness_rate # the 0.006 was solved-for to make confidence ~95% for sample size of 30
+    # approches confidence_interval_given_infinite_samples
+    slowness = 0.006 * strictness_rate # the 0.006 was solved-for to make confidence ~95% for sample size of 30 when strictness_rate=1
     offsetter = 2 # anything smaller than this will have a 100% confindence interval (e.g. any/all results are within the interval)
     if sample_size <= offsetter:
         return 1
@@ -170,18 +171,18 @@ def increasingly_strict_confidence(
         streched_out_curve           = shifted_to_the_right * slowness 
         scaled_from_one_half_to_zero = 2/( 1 + math.exp(streched_out_curve) )
         # range is 1^
-        new_range = 1 - shortest_interval
+        new_range = 1 - confidence_interval_given_infinite_samples
         rescaled_curve = scaled_from_one_half_to_zero * new_range
-        shifted_up     = rescaled_curve + shortest_interval
+        shifted_up     = rescaled_curve + confidence_interval_given_infinite_samples
         return shifted_up
 
-def confirmed_outstandingly_low(item, existing_items, shortest_interval=0.3, strictness_rate=1):
+def confirmed_outstandingly_low(item, existing_items, confidence_interval_given_infinite_samples=0.3, relevance_of_sample_size=1):
     purified_existing_items = tuple(to_pure(each) for each in existing_items)
     
-    confidence_needed = increasingly_strict_confidence(
+    confidence_needed = confidence_interval_adjusted_for_sample_size(
         sample_size=len(purified_existing_items),
-        shortest_interval=shortest_interval,
-        strictness_rate=strictness_rate,
+        confidence_interval_given_infinite_samples=confidence_interval_given_infinite_samples,
+        relevance_of_sample_size=relevance_of_sample_size,
     )
     the_mean = average(purified_existing_items)
     standard_deviation_amount = standard_deviation(purified_existing_items)
