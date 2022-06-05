@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+cd "$FORNIX_FOLDER/repos/stable-baselines"
+sh ./scripts/run_tests.sh
