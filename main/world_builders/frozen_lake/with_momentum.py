@@ -163,7 +163,7 @@ class FrozenLakeEnv(Env):
         render_mode: Optional[str] = None,
         desc=None,
         map_name="4x4",
-        is_slippery=True,
+        is_slippery=False,
     ):
         if desc is None and map_name is None:
             desc = generate_random_map()
