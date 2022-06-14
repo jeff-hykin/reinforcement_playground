@@ -173,13 +173,15 @@ class FrozenLakeEnv(Env):
         self.nrow, self.ncol = nrow, ncol = desc.shape
         self.reward_range = (0, 1)
 
-        nA = 4
-        nS = nrow * ncol
+        number_of_actions = 4
+        number_of_states = nrow * ncol
+        
+        self.action_history = []
 
         self.initial_state_distrib = np.array(desc == b"S").astype("float64").ravel()
         self.initial_state_distrib /= self.initial_state_distrib.sum()
 
-        self.P = {s: {a: [] for a in range(nA)} for s in range(nS)}
+        self.P = {s: {a: [] for a in range(number_of_actions)} for s in range(number_of_states)}
 
         def to_s(row, col):
             return row * ncol + col
@@ -220,34 +222,48 @@ class FrozenLakeEnv(Env):
                         else:
                             li.append((1.0, *update_probability_matrix(row, col, a)))
 
-        self.observation_space = spaces.Discrete(nS)
-        self.action_space = spaces.Discrete(nA)
+        self.observation_space = spaces.Discrete(number_of_states)
+        self.action_space = spaces.Discrete(number_of_actions)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
         self.renderer = Renderer(self.render_mode, self._render)
 
         # pygame utils
-        self.window_size = (min(64 * ncol, 512), min(64 * nrow, 512))
-        self.window_surface = None
-        self.clock = None
-        self.hole_img = None
+        self.window_size      = (min(64 * ncol, 512), min(64 * nrow, 512))
+        self.window_surface   = None
+        self.clock            = None
+        self.hole_img         = None
         self.cracked_hole_img = None
-        self.ice_img = None
-        self.elf_images = None
-        self.goal_img = None
-        self.start_img = None
+        self.ice_img          = None
+        self.elf_images       = None
+        self.goal_img         = None
+        self.start_img        = None
+    
+    def _compute_momentum_change_penalty(self):
+        if len(self.action_history) <= 1:
+            return 0
+        else:
+            # same action has no penalty
+            if bytes(self.action_history[-1]) == bytes(self.action_history[-2]):
+                return 0
+            # changing momentum has a penalty
+            else:
+                return -0.1
 
-    def step(self, a):
-        transitions = self.P[self.s][a]
-        i = categorical_sample([t[0] for t in transitions], self.np_random)
-        p, s, r, d = transitions[i]
-        self.s = s
-        self.lastaction = a
+    def step(self, action):
+        self.action_history.append(action)
+        
+        transitions = self.P[self.s][action]
+        index = categorical_sample([t[0] for t in transitions], self.np_random)
+        p, next_state, reward, debug = transitions[index]
+        reward = reward - self._compute_momentum_change_penalty()
+        self.s = next_state
+        self.lastaction = action
 
         self.renderer.render_step()
 
-        return (int(s), r, d, {"prob": p})
+        return (int(next_state), reward, debug, {"prob": p})
 
     def reset(
         self,
