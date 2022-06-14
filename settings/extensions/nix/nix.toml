@@ -40,6 +40,12 @@
 # [[ you can add tools for your project right here or at the bottom ]]
 
 [[packages]]
+load = [ "cmake",]
+
+[[packages]]
+load = [ "SDL2",]
+
+[[packages]]
 load = [ "docker",]
 
 [[packages]]
@@ -184,11 +190,6 @@ onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]]
 load = [ "libconfig",]
-asNativeBuildInput = true
-onlyIf = [ [ "stdenv", "isLinux",],]
-
-[[packages]]
-load = [ "cmake",]
 asNativeBuildInput = true
 onlyIf = [ [ "stdenv", "isLinux",],]
 

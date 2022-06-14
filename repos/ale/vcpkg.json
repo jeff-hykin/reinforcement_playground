@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
+  "name": "arcade-learning-environment",
+  "version": "0.7.5",
+  "dependencies": [
+    "zlib"
+  ],
+  "features": {
+    "sdl": {
+      "description": "Enable SDL, this enables display and audio support.",
+      "dependencies": [ "sdl2" ]
+    }
+  },
+  "builtin-baseline": "aebb363eaa0b658beb19cbefdd5aa2f9cbc14f1e",
+  "overrides": [
+    { "name": "sdl2", "version": "2.0.16" }
+  ]
+}

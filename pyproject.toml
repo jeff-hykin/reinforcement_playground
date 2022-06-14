@@ -51,6 +51,7 @@ pandas = "^1.4.1"
 Shapely = "1.8"
 networkx = "2.7"
 atari-py = "0.2.9"
+jupyterthemes = "0.20.0"
 
 [tool.poetry.dev-dependencies]
 
