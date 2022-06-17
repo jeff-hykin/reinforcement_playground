@@ -63,111 +63,7 @@ def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymE
 
 
 class BaseAlgorithm(ABC):
-    def __init__(
-        self,
-        policy: Type[BasePolicy],
-        env: Union[GymEnv, str, None],
-        learning_rate: Union[float, Schedule],
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        tensorboard_log: Optional[str] = None,
-        verbose: int = 0,
-        device: Union[th.device, str] = "auto",
-        support_multi_env: bool = False,
-        create_eval_env: bool = False,
-        monitor_wrapper: bool = True,
-        seed: Optional[int] = None,
-        use_sde: bool = False,
-        sde_sample_freq: int = -1,
-        supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
-    ):
-        if isinstance(policy, str):
-            self.policy_class = self._get_policy_from_name(policy)
-        else:
-            self.policy_class = policy
-
-        self.device = get_device(device)
-        if verbose > 0:
-            print(f"Using {self.device} device")
-
-        self.env = None  # type: Optional[GymEnv]
-        # get VecNormalize object if needed
-        self._vec_normalize_env = unwrap_vec_normalize(env)
-        self.verbose = verbose
-        self.policy_kwargs = {} if policy_kwargs is None else policy_kwargs
-        self.observation_space = None  # type: Optional[gym.spaces.Space]
-        self.action_space = None  # type: Optional[gym.spaces.Space]
-        self.n_envs = None
-        self.num_timesteps = 0
-        # Used for updating schedules
-        self._total_timesteps = 0
-        # Used for computing fps, it is updated at each call of learn()
-        self._num_timesteps_at_start = 0
-        self.eval_env = None
-        self.seed = seed
-        self.action_noise = None  # type: Optional[ActionNoise]
-        self.start_time = None
-        self.policy = None
-        self.learning_rate = learning_rate
-        self.tensorboard_log = tensorboard_log
-        self.lr_schedule = None  # type: Optional[Schedule]
-        self._last_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-        self._last_episode_starts = None  # type: Optional[np.ndarray]
-        # When using VecNormalize:
-        self._last_original_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-        self._episode_num = 0
-        # Used for gSDE only
-        self.use_sde = use_sde
-        self.sde_sample_freq = sde_sample_freq
-        # Track the training progress remaining (from 1 to 0)
-        # this is used to update the learning rate
-        self._current_progress_remaining = 1
-        # Buffers for logging
-        self.ep_info_buffer = None  # type: Optional[deque]
-        self.ep_success_buffer = None  # type: Optional[deque]
-        # For logging (and TD3 delayed updates)
-        self._n_updates = 0  # type: int
-        # The logger object
-        self._logger = None  # type: Logger
-        # Whether the user passed a custom logger or not
-        self._custom_logger = False
-
-        # Create and wrap the env if needed
-        if env is not None:
-            if isinstance(env, str):
-                if create_eval_env:
-                    self.eval_env = maybe_make_env(env, self.verbose)
-
-            env = maybe_make_env(env, self.verbose)
-            env = self._wrap_env(env, self.verbose, monitor_wrapper)
-
-            self.observation_space = env.observation_space
-            self.action_space = env.action_space
-            self.n_envs = env.num_envs
-            self.env = env
-
-            if supported_action_spaces is not None:
-                assert isinstance(self.action_space, supported_action_spaces), (
-                    f"The algorithm only supports {supported_action_spaces} as action spaces "
-                    f"but {self.action_space} was provided"
-                )
-
-            if not support_multi_env and self.n_envs > 1:
-                raise ValueError(
-                    "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
-                )
-
-            # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
-            if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
-                raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
-
-            if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
-                raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
-
-            if isinstance(self.action_space, gym.spaces.Box):
-                assert np.all(
-                    np.isfinite(np.array([self.action_space.low, self.action_space.high]))
-                ), "Continuous action space must have a finite lower and upper bound"
-
+    
     @staticmethod
     def _wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
         """ "
@@ -762,52 +658,52 @@ class BaseAlgorithm(ABC):
 
 class OffPolicyAlgorithm(BaseAlgorithm):
     """
-    The base for Off-Policy algorithms (ex: SAC/TD3)
+        The base for Off-Policy algorithms (ex: SAC/TD3)
 
-    :param policy: Policy object
-    :param env: The environment to learn from
-                (if registered in Gym, can be str. Can be None for loading trained models)
-    :param learning_rate: learning rate for the optimizer,
-        it can be a function of the current progress remaining (from 1 to 0)
-    :param buffer_size: size of the replay buffer
-    :param learning_starts: how many steps of the model to collect transitions for before learning starts
-    :param batch_size: Minibatch size for each gradient update
-    :param tau: the soft update coefficient ("Polyak update", between 0 and 1)
-    :param gamma: the discount factor
-    :param train_freq: Update the model every ``train_freq`` steps. Alternatively pass a tuple of frequency and unit
-        like ``(5, "step")`` or ``(2, "episode")``.
-    :param gradient_steps: How many gradient steps to do after each rollout (see ``train_freq``)
-        Set to ``-1`` means to do as many gradient steps as steps done in the environment
-        during the rollout.
-    :param action_noise: the action noise type (None by default), this can help
-        for hard exploration problem. Cf common.noise for the different action noise type.
-    :param replay_buffer_class: Replay buffer class to use (for instance ``HerReplayBuffer``).
-        If ``None``, it will be automatically selected.
-    :param replay_buffer_kwargs: Keyword arguments to pass to the replay buffer on creation.
-    :param optimize_memory_usage: Enable a memory efficient variant of the replay buffer
-        at a cost of more complexity.
-        See https://github.com/DLR-RM/stable-baselines3/issues/37#issuecomment-637501195
-    :param policy_kwargs: Additional arguments to be passed to the policy on creation
-    :param tensorboard_log: the log location for tensorboard (if None, no logging)
-    :param verbose: The verbosity level: 0 none, 1 training information, 2 debug
-    :param device: Device on which the code should run.
-        By default, it will try to use a Cuda compatible device and fallback to cpu
-        if it is not possible.
-    :param support_multi_env: Whether the algorithm supports training
-        with multiple environments (as in A2C)
-    :param create_eval_env: Whether to create a second environment that will be
-        used for evaluating the agent periodically. (Only available when passing string for the environment)
-    :param monitor_wrapper: When creating an environment, whether to wrap it
-        or not in a Monitor wrapper.
-    :param seed: Seed for the pseudo random generators
-    :param use_sde: Whether to use State Dependent Exploration (SDE)
-        instead of action noise exploration (default: False)
-    :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
-        Default: -1 (only sample at the beginning of the rollout)
-    :param use_sde_at_warmup: Whether to use gSDE instead of uniform sampling
-        during the warm up phase (before learning starts)
-    :param sde_support: Whether the model support gSDE or not
-    :param supported_action_spaces: The action spaces supported by the algorithm.
+        :param policy: Policy object
+        :param env: The environment to learn from
+                    (if registered in Gym, can be str. Can be None for loading trained models)
+        :param learning_rate: learning rate for the optimizer,
+            it can be a function of the current progress remaining (from 1 to 0)
+        :param buffer_size: size of the replay buffer
+        :param learning_starts: how many steps of the model to collect transitions for before learning starts
+        :param batch_size: Minibatch size for each gradient update
+        :param tau: the soft update coefficient ("Polyak update", between 0 and 1)
+        :param gamma: the discount factor
+        :param train_freq: Update the model every ``train_freq`` steps. Alternatively pass a tuple of frequency and unit
+            like ``(5, "step")`` or ``(2, "episode")``.
+        :param gradient_steps: How many gradient steps to do after each rollout (see ``train_freq``)
+            Set to ``-1`` means to do as many gradient steps as steps done in the environment
+            during the rollout.
+        :param action_noise: the action noise type (None by default), this can help
+            for hard exploration problem. Cf common.noise for the different action noise type.
+        :param replay_buffer_class: Replay buffer class to use (for instance ``HerReplayBuffer``).
+            If ``None``, it will be automatically selected.
+        :param replay_buffer_kwargs: Keyword arguments to pass to the replay buffer on creation.
+        :param optimize_memory_usage: Enable a memory efficient variant of the replay buffer
+            at a cost of more complexity.
+            See https://github.com/DLR-RM/stable-baselines3/issues/37#issuecomment-637501195
+        :param policy_kwargs: Additional arguments to be passed to the policy on creation
+        :param tensorboard_log: the log location for tensorboard (if None, no logging)
+        :param verbose: The verbosity level: 0 none, 1 training information, 2 debug
+        :param device: Device on which the code should run.
+            By default, it will try to use a Cuda compatible device and fallback to cpu
+            if it is not possible.
+        :param support_multi_env: Whether the algorithm supports training
+            with multiple environments (as in A2C)
+        :param create_eval_env: Whether to create a second environment that will be
+            used for evaluating the agent periodically. (Only available when passing string for the environment)
+        :param monitor_wrapper: When creating an environment, whether to wrap it
+            or not in a Monitor wrapper.
+        :param seed: Seed for the pseudo random generators
+        :param use_sde: Whether to use State Dependent Exploration (SDE)
+            instead of action noise exploration (default: False)
+        :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
+            Default: -1 (only sample at the beginning of the rollout)
+        :param use_sde_at_warmup: Whether to use gSDE instead of uniform sampling
+            during the warm up phase (before learning starts)
+        :param sde_support: Whether the model support gSDE or not
+        :param supported_action_spaces: The action spaces supported by the algorithm.
     """
 
     def __init__(
@@ -840,23 +736,96 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         sde_support: bool = True,
         supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
     ):
+        if True:
+            if isinstance(policy, str):
+                self.policy_class = self._get_policy_from_name(policy)
+            else:
+                self.policy_class = policy
 
-        super().__init__(
-            policy=policy,
-            env=env,
-            learning_rate=learning_rate,
-            policy_kwargs=policy_kwargs,
-            tensorboard_log=tensorboard_log,
-            verbose=verbose,
-            device=device,
-            support_multi_env=support_multi_env,
-            create_eval_env=create_eval_env,
-            monitor_wrapper=monitor_wrapper,
-            seed=seed,
-            use_sde=use_sde,
-            sde_sample_freq=sde_sample_freq,
-            supported_action_spaces=supported_action_spaces,
-        )
+            self.device = get_device(device)
+            if verbose > 0:
+                print(f"Using {self.device} device")
+
+            self.env = None  # type: Optional[GymEnv]
+            # get VecNormalize object if needed
+            self._vec_normalize_env = unwrap_vec_normalize(env)
+            self.verbose = verbose
+            self.policy_kwargs = {} if policy_kwargs is None else policy_kwargs
+            self.observation_space = None  # type: Optional[gym.spaces.Space]
+            self.action_space = None  # type: Optional[gym.spaces.Space]
+            self.n_envs = None
+            self.num_timesteps = 0
+            # Used for updating schedules
+            self._total_timesteps = 0
+            # Used for computing fps, it is updated at each call of learn()
+            self._num_timesteps_at_start = 0
+            self.eval_env = None
+            self.seed = seed
+            self.action_noise = None  # type: Optional[ActionNoise]
+            self.start_time = None
+            self.policy = None
+            self.learning_rate = learning_rate
+            self.tensorboard_log = tensorboard_log
+            self.lr_schedule = None  # type: Optional[Schedule]
+            self._last_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+            self._last_episode_starts = None  # type: Optional[np.ndarray]
+            # When using VecNormalize:
+            self._last_original_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+            self._episode_num = 0
+            # Used for gSDE only
+            self.use_sde = use_sde
+            self.sde_sample_freq = sde_sample_freq
+            # Track the training progress remaining (from 1 to 0)
+            # this is used to update the learning rate
+            self._current_progress_remaining = 1
+            # Buffers for logging
+            self.ep_info_buffer = None  # type: Optional[deque]
+            self.ep_success_buffer = None  # type: Optional[deque]
+            # For logging (and TD3 delayed updates)
+            self._n_updates = 0  # type: int
+            # The logger object
+            self._logger = None  # type: Logger
+            # Whether the user passed a custom logger or not
+            self._custom_logger = False
+
+            # Create and wrap the env if needed
+            if env is not None:
+                if isinstance(env, str):
+                    if create_eval_env:
+                        self.eval_env = maybe_make_env(env, self.verbose)
+
+                env = maybe_make_env(env, self.verbose)
+                env = self._wrap_env(env, self.verbose, monitor_wrapper)
+
+                self.observation_space = env.observation_space
+                self.action_space = env.action_space
+                self.n_envs = env.num_envs
+                self.env = env
+
+                if supported_action_spaces is not None:
+                    assert isinstance(self.action_space, supported_action_spaces), (
+                        f"The algorithm only supports {supported_action_spaces} as action spaces "
+                        f"but {self.action_space} was provided"
+                    )
+
+                if not support_multi_env and self.n_envs > 1:
+                    raise ValueError(
+                        "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
+                    )
+
+                # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
+                if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
+                    raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
+
+                if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
+                    raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
+
+                if isinstance(self.action_space, gym.spaces.Box):
+                    assert np.all(
+                        np.isfinite(np.array([self.action_space.low, self.action_space.high]))
+                    ), "Continuous action space must have a finite lower and upper bound"
+
+
         self.buffer_size = buffer_size
         self.batch_size = batch_size
         self.learning_starts = learning_starts
