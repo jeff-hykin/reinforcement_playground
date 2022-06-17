@@ -1,5 +1,6 @@
 gym-donkeycar @ git+https://github.com/tawnkramer/gym-donkeycar.git@cc723d19491b14b3ce9e9614d693ff7fdacca8c9
 optuna==2.9.1
+jupyterthemes==0.20.0
 ./modules/gym-unity
 
 ./modules/ml-agents
