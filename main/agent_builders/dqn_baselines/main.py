@@ -408,7 +408,26 @@ class GenericTools:
             params=self.get_parameters(),
             pytorch_variables=pytorch_variables,
         )
-        
+    
+    def _dump_logs(self) -> None:
+        """
+        Write log.
+        """
+        time_elapsed = time.time() - self.start_time
+        fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time_elapsed + 1e-8))
+        self.logger.record("time/episodes", self._episode_num, exclude="tensorboard")
+        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+            self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+            self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+        self.logger.record("time/fps", fps)
+        self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
+        self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+
+        if len(self.ep_success_buffer) > 0:
+            self.logger.record("rollout/success_rate", safe_mean(self.ep_success_buffer))
+        # Pass the number of timesteps for tensorboard
+        self.logger.dump(step=self.num_timesteps)
+
 class DQN(GenericTools):
     """
         Deep Q-Network (DQN)
@@ -471,8 +490,6 @@ class DQN(GenericTools):
         #     :param gradient_steps: How many gradient steps to do after each rollout (see ``train_freq``)
         #         Set to ``-1`` means to do as many gradient steps as steps done in the environment
         #         during the rollout.
-        #     :param action_noise: the action noise type (None by default), this can help
-        #         for hard exploration problem. Cf common.noise for the different action noise type.
         #     :param replay_buffer_class: Replay buffer class to use (for instance ``HerReplayBuffer``).
         #         If ``None``, it will be automatically selected.
         #     :param replay_buffer_kwargs: Keyword arguments to pass to the replay buffer on creation.
@@ -555,7 +572,6 @@ class DQN(GenericTools):
         device                 : Union[th.device , str]      = "auto"   , 
         _init_setup_model      : bool                        = True     , 
     ):
-        action_noise            = None  # No action noise
         sde_support             = False
         supported_action_spaces = (gym.spaces.Discrete,)
         support_multi_env       = True
@@ -568,7 +584,6 @@ class DQN(GenericTools):
                 self.observation_space           = None  # Optional[gym.spaces.Space]
                 self.action_space                = None  # Optional[gym.spaces.Space]
                 self.n_envs                      = None
-                self.action_noise                = None  # Optional[ActionNoise]
                 self.start_time                  = None
                 self.policy                      = None
                 self.lr_schedule                 = None  # Optional[Schedule]
@@ -614,7 +629,6 @@ class DQN(GenericTools):
             self.tau                   = tau
             self.gamma                 = gamma
             self.gradient_steps        = gradient_steps
-            self.action_noise          = action_noise
             self.optimize_memory_usage = optimize_memory_usage
             self.train_freq            = train_freq # Save train freq parameter, will be converted later to TrainFreq object
             self.replay_buffer_class   = replay_buffer_class
@@ -861,7 +875,6 @@ class DQN(GenericTools):
             rollout = self.collect_rollouts(
                 self.env,
                 train_freq=self.train_freq,
-                action_noise=self.action_noise,
                 callback=callback,
                 learning_starts=self.learning_starts,
                 replay_buffer=self.replay_buffer,
@@ -1013,9 +1026,6 @@ class DQN(GenericTools):
             self.ep_info_buffer = deque(maxlen=100)
             self.ep_success_buffer = deque(maxlen=100)
 
-        if self.action_noise is not None:
-            self.action_noise.reset()
-
         if reset_num_timesteps:
             self.num_timesteps = 0
             self._episode_num = 0
@@ -1050,7 +1060,6 @@ class DQN(GenericTools):
     def _sample_action(
         self,
         learning_starts: int,
-        action_noise: Optional[ActionNoise] = None,
         n_envs: int = 1,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -1059,9 +1068,6 @@ class DQN(GenericTools):
         or sampling a random action (from a uniform distribution over the action space)
         or by adding noise to the deterministic output.
 
-        :param action_noise: Action noise that will be used for exploration
-            Required for deterministic policy (e.g. TD3). This can also be used
-            in addition to the stochastic policy for SAC.
         :param learning_starts: Number of steps before learning for the warm-up phase.
         :param n_envs:
         :return: action to take in the environment
@@ -1082,10 +1088,6 @@ class DQN(GenericTools):
         if isinstance(self.action_space, gym.spaces.Box):
             scaled_action = self.policy.scale_action(unscaled_action)
 
-            # Add noise to the action (improve exploration)
-            if action_noise is not None:
-                scaled_action = np.clip(scaled_action + action_noise(), -1, 1)
-
             # We store the scaled action in the buffer
             buffer_action = scaled_action
             action = self.policy.unscale_action(scaled_action)
@@ -1094,25 +1096,6 @@ class DQN(GenericTools):
             buffer_action = unscaled_action
             action = buffer_action
         return action, buffer_action
-
-    def _dump_logs(self) -> None:
-        """
-        Write log.
-        """
-        time_elapsed = time.time() - self.start_time
-        fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time_elapsed + 1e-8))
-        self.logger.record("time/episodes", self._episode_num, exclude="tensorboard")
-        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
-            self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-            self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
-        self.logger.record("time/fps", fps)
-        self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
-        self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
-
-        if len(self.ep_success_buffer) > 0:
-            self.logger.record("rollout/success_rate", safe_mean(self.ep_success_buffer))
-        # Pass the number of timesteps for tensorboard
-        self.logger.dump(step=self.num_timesteps)
 
     def _store_transition(
         self,
@@ -1185,7 +1168,6 @@ class DQN(GenericTools):
         callback: BaseCallback,
         train_freq: TrainFreq,
         replay_buffer: ReplayBuffer,
-        action_noise: Optional[ActionNoise] = None,
         learning_starts: int = 0,
         log_interval: Optional[int] = None,
     ) -> RolloutReturn:
@@ -1200,9 +1182,6 @@ class DQN(GenericTools):
             Either ``TrainFreq(<n>, TrainFrequencyUnit.STEP)``
             or ``TrainFreq(<n>, TrainFrequencyUnit.EPISODE)``
             with ``<n>`` being an integer greater than 0.
-        :param action_noise: Action noise that will be used for exploration
-            Required for deterministic policy (e.g. TD3). This can also be used
-            in addition to the stochastic policy for SAC.
         :param learning_starts: Number of steps before learning for the warm-up phase.
         :param replay_buffer:
         :param log_interval: Log data every ``log_interval`` episodes
@@ -1219,16 +1198,12 @@ class DQN(GenericTools):
         if env.num_envs > 1:
             assert train_freq.unit == TrainFrequencyUnit.STEP, "You must use only one env when doing episodic training."
 
-        # Vectorize action noise if needed
-        if action_noise is not None and env.num_envs > 1 and not isinstance(action_noise, VectorizedActionNoise):
-            action_noise = VectorizedActionNoise(action_noise, env.num_envs)
-
         callback.on_rollout_start()
         continue_training = True
 
         while should_collect_more_steps(train_freq, num_collected_steps, num_collected_episodes):
             # Select action randomly or according to policy
-            actions, buffer_actions = self._sample_action(learning_starts, action_noise, env.num_envs)
+            actions, buffer_actions = self._sample_action(learning_starts, env.num_envs)
 
             # Rescale and perform action
             new_obs, rewards, dones, infos = env.step(actions)
@@ -1272,10 +1247,6 @@ class DQN(GenericTools):
                     # Update stats
                     num_collected_episodes += 1
                     self._episode_num += 1
-
-                    if action_noise is not None:
-                        kwargs = dict(indices=[idx]) if env.num_envs > 1 else {}
-                        action_noise.reset(**kwargs)
 
                     # Log training infos
                     if log_interval is not None and self._episode_num % log_interval == 0:
