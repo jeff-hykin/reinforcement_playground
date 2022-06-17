@@ -66,6 +66,73 @@ def correctness_check(self, policy, supported_action_spaces):
             np.isfinite(np.array([self.action_space.low, self.action_space.high]))
         ), "Continuous action space must have a finite lower and upper bound"
 
+
+def generate_replay_buffer(env, observation_space, action_space, n_envs, buffer_class, buffer, buffer_size, device, buffer_kwargs, optimize_memory_usage):
+    # Use DictReplayBuffer if needed
+    if buffer_class is None:
+        buffer_class = DictReplayBuffer     if isinstance(observation_space, gym.spaces.Dict)     else ReplayBuffer
+    elif buffer_class == HerReplayBuffer:
+        assert env is not None, "You must pass an environment when using `HerReplayBuffer`"
+        buffer = HerReplayBuffer(
+            env,
+            buffer_size,
+            device=device,
+            # If using offline sampling, we need a classic replay buffer too
+            buffer=(None if buffer_kwargs.get("online_sampling", True) else DictReplayBuffer(
+                buffer_size,
+                observation_space,
+                action_space,
+                device=device,
+                optimize_memory_usage=optimize_memory_usage,
+            )),
+            **buffer_kwargs,
+        )
+    if buffer is None:
+        buffer = buffer_class(
+            buffer_size,
+            observation_space,
+            action_space,
+            device=device,
+            n_envs=n_envs,
+            optimize_memory_usage=optimize_memory_usage,
+            **buffer_kwargs,
+        )
+    return buffer
+
+def ensure_train_frequency_object(train_freq):
+    """
+    Convert `train_freq` parameter (int or tuple)
+    to a TrainFreq object.
+    """
+    if not isinstance(train_freq, TrainFreq):
+
+        # The value of the train frequency will be checked later
+        if not isinstance(train_freq, tuple):
+            train_freq = (train_freq, "step")
+
+        try:
+            train_freq = (train_freq[0], TrainFrequencyUnit(train_freq[1]))
+        except ValueError:
+            raise ValueError(f"The unit of the `train_freq` must be either 'step' or 'episode' not '{train_freq[1]}'!")
+
+        if not isinstance(train_freq[0], int):
+            raise ValueError(f"The frequency of `train_freq` must be an integer and not {train_freq[0]}")
+
+        train_freq = TrainFreq(*train_freq)
+    
+    return train_freq
+
+def number_of_envs_warning(n_envs, target_update_interval):
+    # Account for multiple environments
+    # each call to step() corresponds to n_envs transitions
+    if n_envs > 1 and n_envs > target_update_interval:
+        warnings.warn(
+            "The number of environments used is greater than the target network "
+            f"update interval ({n_envs} > {target_update_interval}), "
+            "therefore the target network will be updated after each call to env.step() "
+            f"which corresponds to {n_envs} steps."
+        )
+    
 class DQN:
     """
         Deep Q-Network (DQN)
@@ -273,8 +340,8 @@ class DQN:
             self.gradient_steps        = gradient_steps
             self.action_noise          = action_noise
             self.optimize_memory_usage = optimize_memory_usage
-            self.replay_buffer_class   = replay_buffer_class
             self.train_freq            = train_freq # Save train freq parameter, will be converted later to TrainFreq object
+            self.replay_buffer_class   = replay_buffer_class
             self.replay_buffer_kwargs  = {} if replay_buffer_kwargs is None else replay_buffer_kwargs
 
         self.exploration_schedule    = None # Linear schedule will be defined in `_setup_model()`
@@ -292,84 +359,18 @@ class DQN:
 
     def _setup_model(self) -> None:
         """Create networks, buffer and optimizers."""
-        self.lr_schedule = get_schedule_fn(self.learning_rate)
         self.set_random_seed(self.seed)
 
-        # Use DictReplayBuffer if needed
-        if self.replay_buffer_class is None:
-            if isinstance(self.observation_space, gym.spaces.Dict):
-                self.replay_buffer_class = DictReplayBuffer
-            else:
-                self.replay_buffer_class = ReplayBuffer
-
-        elif self.replay_buffer_class == HerReplayBuffer:
-            assert self.env is not None, "You must pass an environment when using `HerReplayBuffer`"
-
-            # If using offline sampling, we need a classic replay buffer too
-            if self.replay_buffer_kwargs.get("online_sampling", True):
-                replay_buffer = None
-            else:
-                replay_buffer = DictReplayBuffer(
-                    self.buffer_size,
-                    self.observation_space,
-                    self.action_space,
-                    device=self.device,
-                    optimize_memory_usage=self.optimize_memory_usage,
-                )
-
-            self.replay_buffer = HerReplayBuffer(
-                self.env,
-                self.buffer_size,
-                device=self.device,
-                replay_buffer=replay_buffer,
-                **self.replay_buffer_kwargs,
-            )
-
-        if self.replay_buffer is None:
-            self.replay_buffer = self.replay_buffer_class(
-                self.buffer_size,
-                self.observation_space,
-                self.action_space,
-                device=self.device,
-                n_envs=self.n_envs,
-                optimize_memory_usage=self.optimize_memory_usage,
-                **self.replay_buffer_kwargs,
-            )
-
-        self.policy = self.policy_class(  # pytype:disable=not-instantiable
-            self.observation_space,
-            self.action_space,
-            self.lr_schedule,
-            **self.policy_kwargs,  # pytype:disable=not-instantiable
-        )
-        self.policy = self.policy.to(self.device)
-
-        # Convert train freq parameter to TrainFreq object
-        self._convert_train_freq()
+        self.train_freq             = ensure_train_frequency_object(self.train_freq) # Convert parameter to object
+        self.lr_schedule            = get_schedule_fn(self.learning_rate) # ensure its a schedule object
+        self.exploration_schedule   = get_linear_fn(self.exploration_initial_eps, self.exploration_final_eps, self.exploration_fraction)
+        self.replay_buffer          = generate_replay_buffer(self.env, self.observation_space, self.action_space, self.n_envs, self.replay_buffer_class, self.replay_buffer, self.buffer_size, self.device, self.replay_buffer_kwargs, self.optimize_memory_usage)
+        self.policy                 = self.policy_class(self.observation_space, self.action_space, self.lr_schedule, **self.policy_kwargs).to(self.device)
+        self.q_net                  = self.policy.q_net
+        self.q_net_target           = self.policy.q_net_target
+        self.target_update_interval = max(self.target_update_interval // self.n_envs, 1)    if self.n_envs > 1     else self.target_update_interval
         
-        self._create_aliases()
-        self._create_aliases()
-        self.exploration_schedule = get_linear_fn(
-            self.exploration_initial_eps,
-            self.exploration_final_eps,
-            self.exploration_fraction,
-        )
-        # Account for multiple environments
-        # each call to step() corresponds to n_envs transitions
-        if self.n_envs > 1:
-            if self.n_envs > self.target_update_interval:
-                warnings.warn(
-                    "The number of environments used is greater than the target network "
-                    f"update interval ({self.n_envs} > {self.target_update_interval}), "
-                    "therefore the target network will be updated after each call to env.step() "
-                    f"which corresponds to {self.n_envs} steps."
-                )
-
-            self.target_update_interval = max(self.target_update_interval // self.n_envs, 1)
-
-    def _create_aliases(self) -> None:
-        self.q_net = self.policy.q_net
-        self.q_net_target = self.policy.q_net_target
+        number_of_envs_warning(self.n_envs, self.target_update_interval)
 
     def _on_step(self) -> None:
         """
@@ -1014,27 +1015,7 @@ class DQN:
         # User defined logger
         self._custom_logger = True
     
-    def _convert_train_freq(self) -> None:
-        """
-        Convert `train_freq` parameter (int or tuple)
-        to a TrainFreq object.
-        """
-        if not isinstance(self.train_freq, TrainFreq):
-            train_freq = self.train_freq
-
-            # The value of the train frequency will be checked later
-            if not isinstance(train_freq, tuple):
-                train_freq = (train_freq, "step")
-
-            try:
-                train_freq = (train_freq[0], TrainFrequencyUnit(train_freq[1]))
-            except ValueError:
-                raise ValueError(f"The unit of the `train_freq` must be either 'step' or 'episode' not '{train_freq[1]}'!")
-
-            if not isinstance(train_freq[0], int):
-                raise ValueError(f"The frequency of `train_freq` must be an integer and not {train_freq[0]}")
-
-            self.train_freq = TrainFreq(*train_freq)
+    
 
     def save_replay_buffer(self, path: Union[str, pathlib.Path, io.BufferedIOBase]) -> None:
         """
