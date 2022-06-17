@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import deque
 from copy import deepcopy
 from time import time
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union, Iterable
 import io
 import pathlib
 import time
@@ -45,19 +45,26 @@ from super_map import LazyDict
 from tools.debug import debug, ic
 from tools.agent_skeleton import Skeleton
 
-def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymEnv]:
-    """If env is a string, make the environment; otherwise, return env.
+def correctness_check(self, policy, supported_action_spaces):
+    if supported_action_spaces is not None:
+        assert isinstance(self.action_space, supported_action_spaces), (
+            f"The algorithm only supports {supported_action_spaces} as action spaces "
+            f"but {self.action_space} was provided"
+        )
 
-    :param env: The environment to learn from.
-    :param verbose: logging verbosity
-    :return A Gym (vector) environment.
-    """
-    if isinstance(env, str):
-        if verbose >= 1:
-            print(f"Creating environment from the given name '{env}'")
-        env = gym.make(env)
-    return env
+    if not support_multi_env and self.n_envs > 1:
+        raise ValueError(
+            "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
+        )
 
+    # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
+    if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
+        raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
+
+    if isinstance(self.action_space, gym.spaces.Box):
+        assert np.all(
+            np.isfinite(np.array([self.action_space.low, self.action_space.high]))
+        ), "Continuous action space must have a finite lower and upper bound"
 
 class DQN:
     """
@@ -142,12 +149,6 @@ class DQN:
         #     :param monitor_wrapper: When creating an environment, whether to wrap it
         #         or not in a Monitor wrapper.
         #     :param seed: Seed for the pseudo random generators
-        #     :param use_sde: Whether to use State Dependent Exploration (SDE)
-        #         instead of action noise exploration (default: False)
-        #     :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
-        #         Default: -1 (only sample at the beginning of the rollout)
-        #     :param use_sde_at_warmup: Whether to use gSDE instead of uniform sampling
-        #         during the warm up phase (before learning starts)
         #     :param sde_support: Whether the model support gSDE or not
         #     :param supported_action_spaces: The action spaces supported by the algorithm.
         # """
@@ -173,10 +174,6 @@ class DQN:
             # :param monitor_wrapper: When creating an environment, whether to wrap it
             #     or not in a Monitor wrapper.
             # :param seed: Seed for the pseudo random generators
-            # :param use_sde: Whether to use generalized State Dependent Exploration (gSDE)
-            #     instead of action noise exploration (default: False)
-            # :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
-            #     Default: -1 (only sample at the beginning of the rollout)
             # :param supported_action_spaces: The action spaces supported by the algorithm.
             # """
     
@@ -188,204 +185,114 @@ class DQN:
     }
     
     def __init__(
-        self,
-        policy: Union[str, Type[DQNPolicy]],
-        env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule] = 1e-4,
-        buffer_size: int = 1_000_000,  # 1e6
-        learning_starts: int = 50000,
-        batch_size: int = 32,
-        tau: float = 1.0,
-        gamma: float = 0.99,
-        train_freq: Union[int, Tuple[int, str]] = 4,
-        gradient_steps: int = 1,
-        replay_buffer_class: Optional[ReplayBuffer] = None,
-        replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
-        optimize_memory_usage: bool = False,
-        target_update_interval: int = 10000,
-        exploration_fraction: float = 0.1,
-        exploration_initial_eps: float = 1.0,
-        exploration_final_eps: float = 0.05,
-        max_grad_norm: float = 10,
-        tensorboard_log: Optional[str] = None,
-        create_eval_env: bool = False,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        verbose: int = 0,
-        seed: Optional[int] = None,
-        device: Union[th.device, str] = "auto",
-        _init_setup_model: bool = True,
+        self, 
+        policy                 : Union[str, Type[DQNPolicy]], 
+        env                    : Union[GymEnv, str], 
+        learning_rate          : Union[float, Schedule]      = 1e-4     , 
+        buffer_size            : int                         = 1_000_000, # 1e6
+        learning_starts        : int                         = 50000    , 
+        batch_size             : int                         = 32       , 
+        tau                    : float                       = 1.0      , 
+        gamma                  : float                       = 0.99     , 
+        train_freq             : Union[int, Tuple[int, str]] = 4        , 
+        gradient_steps         : int                         = 1        , 
+        replay_buffer_class    : Optional[ReplayBuffer]      = None     , 
+        replay_buffer_kwargs   : Optional[Dict[str, Any]]    = None     , 
+        optimize_memory_usage  : bool                        = False    , 
+        target_update_interval : int                         = 10000    , 
+        exploration_fraction   : float                       = 0.1      , 
+        exploration_initial_eps: float                       = 1.0      , 
+        exploration_final_eps  : float                       = 0.05     , 
+        max_grad_norm          : float                       = 10       , 
+        tensorboard_log        : Optional[str]               = None     , 
+        create_eval_env        : bool                        = False    , 
+        policy_kwargs          : Optional[Dict[str, Any]]    = None     , 
+        verbose                : int                         = 0        , 
+        seed                   : Optional[int]               = None     , 
+        device                 : Union[th.device , str]      = "auto"   , 
+        _init_setup_model      : bool                        = True     , 
     ):
-
         action_noise            = None  # No action noise
         sde_support             = False
         supported_action_spaces = (gym.spaces.Discrete,)
         support_multi_env       = True
         monitor_wrapper         = True
-        use_sde                 = False
-        sde_sample_freq         = -1
-        use_sde_at_warmup       = False
         
-        if True:
-            if True:
-                if isinstance(policy, str):
-                    self.policy_class = self._get_policy_from_name(policy)
-                else:
-                    self.policy_class = policy
-
-                self.device = get_device(device)
-                if verbose > 0:
-                    print(f"Using {self.device} device")
-
-                self.env = None  # type: Optional[GymEnv]
-                # get VecNormalize object if needed
-                self._vec_normalize_env = unwrap_vec_normalize(env)
-                self.verbose = verbose
-                self.policy_kwargs = {} if policy_kwargs is None else policy_kwargs
-                self.observation_space = None  # type: Optional[gym.spaces.Space]
-                self.action_space = None  # type: Optional[gym.spaces.Space]
-                self.n_envs = None
-                self.num_timesteps = 0
-                # Used for updating schedules
-                self._total_timesteps = 0
-                # Used for computing fps, it is updated at each call of learn()
-                self._num_timesteps_at_start = 0
-                self.eval_env = None
-                self.seed = seed
-                self.action_noise = None  # type: Optional[ActionNoise]
-                self.start_time = None
-                self.policy = None
-                self.learning_rate = learning_rate
-                self.tensorboard_log = tensorboard_log
-                self.lr_schedule = None  # type: Optional[Schedule]
-                self._last_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-                self._last_episode_starts = None  # type: Optional[np.ndarray]
-                # When using VecNormalize:
-                self._last_original_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-                self._episode_num = 0
-                # Used for gSDE only
-                self.use_sde = use_sde
-                self.sde_sample_freq = sde_sample_freq
-                # Track the training progress remaining (from 1 to 0)
-                # this is used to update the learning rate
-                self._current_progress_remaining = 1
-                # Buffers for logging
-                self.ep_info_buffer = None  # type: Optional[deque]
-                self.ep_success_buffer = None  # type: Optional[deque]
-                # For logging (and TD3 delayed updates)
-                self._n_updates = 0  # type: int
-                # The logger object
-                self._logger = None  # type: Logger
-                # Whether the user passed a custom logger or not
-                self._custom_logger = False
+        if True: # OffPolicyAlgorithm
+            if True: # BaseAlgorithm
+                self.env                         = None  
+                self.eval_env                    = None
+                self.observation_space           = None  # Optional[gym.spaces.Space]
+                self.action_space                = None  # Optional[gym.spaces.Space]
+                self.n_envs                      = None
+                self.action_noise                = None  # Optional[ActionNoise]
+                self.start_time                  = None
+                self.policy                      = None
+                self.lr_schedule                 = None  # Optional[Schedule]
+                self._last_obs                   = None  # Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+                self._last_episode_starts        = None  # Optional[np.ndarray]
+                self._last_original_obs          = None  # When using VecNormalize                        : 
+                self.ep_info_buffer              = None  # Buffers for logging, Optional[deque]
+                self.ep_success_buffer           = None  # Buffers for logging, Optional[deque]
+                self._logger                     = None  
+                self._episode_num                = 0
+                self._current_progress_remaining = 1     # Track the training progress remaining (from 1 to 0), this is used to update the learning rate
+                self._n_updates                  = 0     # For logging (and TD3 delayed updates): int
+                self.num_timesteps               = 0
+                self._total_timesteps            = 0 # Used for updating schedules
+                self._num_timesteps_at_start     = 0 # Used for computing fps , it is updated at each call of learn()
+                self._custom_logger              = False
+                self.verbose                     = verbose
+                self.learning_rate               = learning_rate
+                self.seed                        = seed
+                self.tensorboard_log             = tensorboard_log
+                self.policy_kwargs               = {} if policy_kwargs is None else policy_kwargs
+                self.policy_class                = policy       if not isinstance(policy, str)    else     self.policy_aliases[policy_name]
+                self.device                      = get_device(device); print(f"Using {self.device} device") if verbose > 0 else None
+                self._vec_normalize_env          = unwrap_vec_normalize(env)
 
                 # Create and wrap the env if needed
                 if env is not None:
-                    if isinstance(env, str):
-                        if create_eval_env:
-                            self.eval_env = maybe_make_env(env, self.verbose)
+                    self.env               = gym.make(env)   if isinstance(env, str)                       else  env
+                    self.eval_env          = self.env        if isinstance(env, str) and create_eval_env   else  None
+                    self.env               = self._wrap_env(env, self.verbose, monitor_wrapper)
+                    self.observation_space = self.env.observation_space
+                    self.action_space      = self.env.action_space
+                    self.n_envs            = self.env.num_envs
+                    
+                    correctness_check(self, policy, supported_action_spaces)
 
-                    env = maybe_make_env(env, self.verbose)
-                    env = self._wrap_env(env, self.verbose, monitor_wrapper)
-
-                    self.observation_space = env.observation_space
-                    self.action_space = env.action_space
-                    self.n_envs = env.num_envs
-                    self.env = env
-
-                    if supported_action_spaces is not None:
-                        assert isinstance(self.action_space, supported_action_spaces), (
-                            f"The algorithm only supports {supported_action_spaces} as action spaces "
-                            f"but {self.action_space} was provided"
-                        )
-
-                    if not support_multi_env and self.n_envs > 1:
-                        raise ValueError(
-                            "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
-                        )
-
-                    # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
-                    if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
-                        raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
-
-                    if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
-                        raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
-
-                    if isinstance(self.action_space, gym.spaces.Box):
-                        assert np.all(
-                            np.isfinite(np.array([self.action_space.low, self.action_space.high]))
-                        ), "Continuous action space must have a finite lower and upper bound"
-
-
-            self.buffer_size = buffer_size
-            self.batch_size = batch_size
-            self.learning_starts = learning_starts
-            self.tau = tau
-            self.gamma = gamma
-            self.gradient_steps = gradient_steps
-            self.action_noise = action_noise
+            self._episode_storage      = None
+            self.actor                 = None  # type: Optional[th.nn.Module]
+            self.replay_buffer         = None  # type: Optional[ReplayBuffer]
+            self.buffer_size           = buffer_size
+            self.batch_size            = batch_size
+            self.learning_starts       = learning_starts
+            self.tau                   = tau
+            self.gamma                 = gamma
+            self.gradient_steps        = gradient_steps
+            self.action_noise          = action_noise
             self.optimize_memory_usage = optimize_memory_usage
-            self.replay_buffer_class = replay_buffer_class
-            if replay_buffer_kwargs is None:
-                replay_buffer_kwargs = {}
-            self.replay_buffer_kwargs = replay_buffer_kwargs
-            self._episode_storage = None
+            self.replay_buffer_class   = replay_buffer_class
+            self.train_freq            = train_freq # Save train freq parameter, will be converted later to TrainFreq object
+            self.replay_buffer_kwargs  = {} if replay_buffer_kwargs is None else replay_buffer_kwargs
 
-            # Save train freq parameter, will be converted later to TrainFreq object
-            self.train_freq = train_freq
-
-            self.actor = None  # type: Optional[th.nn.Module]
-            self.replay_buffer = None  # type: Optional[ReplayBuffer]
-            # Update policy keyword arguments
-            if sde_support:
-                self.policy_kwargs["use_sde"] = self.use_sde
-            # For gSDE only
-            self.use_sde_at_warmup = use_sde_at_warmup
-
-        super().__init__(
-            policy,
-            env,
-            learning_rate,
-            buffer_size,
-            learning_starts,
-            batch_size,
-            tau,
-            gamma,
-            train_freq,
-            gradient_steps,
-            action_noise=None,  # No action noise
-            replay_buffer_class=replay_buffer_class,
-            replay_buffer_kwargs=replay_buffer_kwargs,
-            policy_kwargs=policy_kwargs,
-            tensorboard_log=tensorboard_log,
-            verbose=verbose,
-            device=device,
-            create_eval_env=create_eval_env,
-            seed=seed,
-            sde_support=False,
-            optimize_memory_usage=optimize_memory_usage,
-            supported_action_spaces=(gym.spaces.Discrete,),
-            support_multi_env=True,
-        )
-
+        self.exploration_schedule    = None # Linear schedule will be defined in `_setup_model()`
+        self.q_net                   = None
+        self.q_net_target            = None
+        self._n_calls                = 0 # For updating the target network with multiple envs: 
+        self.exploration_rate        = 0.0 # "epsilon" for the epsilon-greedy exploration
         self.exploration_initial_eps = exploration_initial_eps
-        self.exploration_final_eps = exploration_final_eps
-        self.exploration_fraction = exploration_fraction
-        self.target_update_interval = target_update_interval
-        # For updating the target network with multiple envs:
-        self._n_calls = 0
-        self.max_grad_norm = max_grad_norm
-        # "epsilon" for the epsilon-greedy exploration
-        self.exploration_rate = 0.0
-        # Linear schedule will be defined in `_setup_model()`
-        self.exploration_schedule = None
-        self.q_net, self.q_net_target = None, None
+        self.exploration_final_eps   = exploration_final_eps
+        self.exploration_fraction    = exploration_fraction
+        self.target_update_interval  = target_update_interval
+        self.max_grad_norm           = max_grad_norm
 
-        if _init_setup_model:
-            self._setup_model()
+        if _init_setup_model: self._setup_model()
 
     def _setup_model(self) -> None:
         """Create networks, buffer and optimizers."""
-        self._setup_lr_schedule()
+        self.lr_schedule = get_schedule_fn(self.learning_rate)
         self.set_random_seed(self.seed)
 
         # Use DictReplayBuffer if needed
@@ -894,10 +801,6 @@ class DQN:
                 # See https://github.com/DLR-RM/stable-baselines3/issues/391
                 recursive_setattr(model, name + ".data", pytorch_variables[name].data)
 
-        # Sample gSDE exploration matrix, so it uses the right device
-        # see issue #44
-        if model.use_sde:
-            model.policy.reset_noise()  # pytype: disable=attribute-error
         return model
 
     def get_parameters(self) -> Dict[str, Dict]:
@@ -1004,10 +907,6 @@ class DQN:
         return callback
 
 
-    def _setup_lr_schedule(self) -> None:
-        """Transform to callable if needed."""
-        self.lr_schedule = get_schedule_fn(self.learning_rate)
-
     def _update_current_progress_remaining(self, num_timesteps: int, total_timesteps: int) -> None:
         """
         Compute current progress remaining (starts from 1 and ends to 0)
@@ -1033,23 +932,6 @@ class DQN:
         for optimizer in optimizers:
             update_learning_rate(optimizer, self.lr_schedule(self._current_progress_remaining))
 
-
-    def _get_policy_from_name(self, policy_name: str) -> Type[BasePolicy]:
-        """
-        Get a policy class from its name representation.
-
-        The goal here is to standardize policy naming, e.g.
-        all algorithms can call upon "MlpPolicy" or "CnnPolicy",
-        and they receive respective policies that work for them.
-
-        :param policy_name: Alias of the policy
-        :return: A policy class (type)
-        """
-
-        if policy_name in self.policy_aliases:
-            return self.policy_aliases[policy_name]
-        else:
-            raise ValueError(f"Policy {policy_name} unknown")
 
     @property
     def logger(self) -> Logger:
@@ -1269,7 +1151,7 @@ class DQN:
             The two differs when the action space is not normalized (bounds are not [-1, 1]).
         """
         # Select action randomly or according to policy
-        if self.num_timesteps < learning_starts and not (self.use_sde and self.use_sde_at_warmup):
+        if self.num_timesteps < learning_starts:
             # Warmup phase
             unscaled_action = np.array([self.action_space.sample() for _ in range(n_envs)])
         else:
@@ -1308,8 +1190,6 @@ class DQN:
         self.logger.record("time/fps", fps)
         self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
         self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
-        if self.use_sde:
-            self.logger.record("train/std", (self.actor.get_std()).mean().item())
 
         if len(self.ep_success_buffer) > 0:
             self.logger.record("rollout/success_rate", safe_mean(self.ep_success_buffer))
@@ -1425,17 +1305,10 @@ class DQN:
         if action_noise is not None and env.num_envs > 1 and not isinstance(action_noise, VectorizedActionNoise):
             action_noise = VectorizedActionNoise(action_noise, env.num_envs)
 
-        if self.use_sde:
-            self.actor.reset_noise(env.num_envs)
-
         callback.on_rollout_start()
         continue_training = True
 
         while should_collect_more_steps(train_freq, num_collected_steps, num_collected_episodes):
-            if self.use_sde and self.sde_sample_freq > 0 and num_collected_steps % self.sde_sample_freq == 0:
-                # Sample a new noise matrix
-                self.actor.reset_noise(env.num_envs)
-
             # Select action randomly or according to policy
             actions, buffer_actions = self._sample_action(learning_starts, action_noise, env.num_envs)
 
