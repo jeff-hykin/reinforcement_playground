@@ -132,7 +132,73 @@ def number_of_envs_warning(n_envs, target_update_interval):
             "therefore the target network will be updated after each call to env.step() "
             f"which corresponds to {n_envs} steps."
         )
+
+def init_random_seed(seed=None, envs=[], device=None, action_space=None):
+    """
+    Set the seed of the pseudo-random generators
+    (python, numpy, pytorch, gym, action_space)
+
+    :param seed:
+    """
+    from stable_baselines3.common.utils import set_random_seed
     
+    if seed is None:
+        return
+    set_random_seed(seed, using_cuda=device.type == th.device("cuda").type)
+    action_space.seed(seed)
+    for env in envs:
+        # TODO: shouldnt all the action spaces be seeded?
+        if env is not None:
+           env.seed(seed)
+
+
+def wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
+    """ "
+    Wrap environment with the appropriate wrappers if needed.
+    For instance, to have a vectorized environment
+    or to re-order the image channels.
+
+    :param env:
+    :param verbose:
+    :param monitor_wrapper: Whether to wrap the env in a ``Monitor`` when possible.
+    :return: The wrapped environment.
+    """
+    if env is None:
+        return None
+    
+    if not isinstance(env, VecEnv):
+        if not is_wrapped(env, Monitor) and monitor_wrapper:
+            if verbose >= 1: print("Wrapping the env with a `Monitor` wrapper")
+            env = Monitor(env)
+        
+        if verbose >= 1: print("Wrapping the env in a DummyVecEnv.")
+        env = DummyVecEnv([lambda: env])
+
+    # Make sure that dict-spaces are not nested (not supported)
+    check_for_nested_spaces(env.observation_space)
+
+    if not is_vecenv_wrapped(env, VecTransposeImage):
+        wrap_with_vectranspose = False
+        if isinstance(env.observation_space, gym.spaces.Dict):
+            # If even one of the keys is a image-space in need of transpose, apply transpose
+            # If the image spaces are not consistent (for instance one is channel first,
+            # the other channel last), VecTransposeImage will throw an error
+            for space in env.observation_space.spaces.values():
+                wrap_with_vectranspose = wrap_with_vectranspose or (
+                    is_image_space(space) and not is_image_space_channels_first(space)
+                )
+        else:
+            wrap_with_vectranspose = is_image_space(env.observation_space) and not is_image_space_channels_first(
+                env.observation_space
+            )
+
+        if wrap_with_vectranspose:
+            if verbose >= 1:
+                print("Wrapping the env in a VecTransposeImage.")
+            env = VecTransposeImage(env)
+
+    return env
+        
 class DQN:
     """
         Deep Q-Network (DQN)
@@ -322,7 +388,7 @@ class DQN:
                 if env is not None:
                     self.env               = gym.make(env)   if isinstance(env, str)                       else  env
                     self.eval_env          = self.env        if isinstance(env, str) and create_eval_env   else  None
-                    self.env               = self._wrap_env(env, self.verbose, monitor_wrapper)
+                    self.env               = wrap_env(env, self.verbose, monitor_wrapper)
                     self.observation_space = self.env.observation_space
                     self.action_space      = self.env.action_space
                     self.n_envs            = self.env.num_envs
@@ -354,12 +420,36 @@ class DQN:
         self.exploration_fraction    = exploration_fraction
         self.target_update_interval  = target_update_interval
         self.max_grad_norm           = max_grad_norm
+        
+        self.torch_save_params = ( ["policy", "policy.optimizer"], [] )
+        self._get_torch_save_params = lambda : self.torch_save_params
+        self.get_env                = lambda : self.env # for backwards compatibility
+        self.get_vec_normalize_env  = lambda : self._vec_normalize_env
+        self.get_parameters         = lambda : { name: recursive_getattr(self, name).state_dict() for name in self.torch_save_params[0] }
 
         if _init_setup_model: self._setup_model()
 
+
+    @property
+    def logger(self) -> Logger:
+        return self._logger
+    
+    def set_logger(self, logger):
+        self._logger = logger
+        self._custom_logger = True
+    
+    @staticmethod
+    def _wrap_env(*args, **kwargs):
+        return wrap_env(*args, **kwargs)
+    
     def _setup_model(self) -> None:
         """Create networks, buffer and optimizers."""
-        self.set_random_seed(self.seed)
+        init_random_seed(
+            seed=self.seed,
+            envs=[ self.env, self.eval_env ],
+            device=None,
+            action_space=None,
+        )
 
         self.train_freq             = ensure_train_frequency_object(self.train_freq) # Convert parameter to object
         self.lr_schedule            = get_schedule_fn(self.learning_rate) # ensure its a schedule object
@@ -574,59 +664,6 @@ class DQN:
 
         return self
 
-    def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
-        """
-        Get the name of the torch variables that will be saved with
-        PyTorch ``th.save``, ``th.load`` and ``state_dicts`` instead of the default
-        pickling strategy. This is to handle device placement correctly.
-
-        Names can point to specific variables under classes, e.g.
-        "policy.optimizer" would point to ``optimizer`` object of ``self.policy``
-        if this object.
-
-        :return:
-            List of Torch variables whose state dicts to save (e.g. th.nn.Modules),
-            and list of other Torch variables to store with ``th.save``.
-        """
-        state_dicts = ["policy", "policy.optimizer"]
-
-        return state_dicts, []
-
-    def _update_info_buffer(self, infos: List[Dict[str, Any]], dones: Optional[np.ndarray] = None) -> None:
-        """
-        Retrieve reward, episode length, episode success and update the buffer
-        if using Monitor wrapper or a GoalEnv.
-
-        :param infos: List of additional information about the transition.
-        :param dones: Termination signals
-        """
-        if dones is None:
-            dones = np.array([False] * len(infos))
-        for idx, info in enumerate(infos):
-            maybe_ep_info = info.get("episode")
-            maybe_is_success = info.get("is_success")
-            if maybe_ep_info is not None:
-                self.ep_info_buffer.extend([maybe_ep_info])
-            if maybe_is_success is not None and dones[idx]:
-                self.ep_success_buffer.append(maybe_is_success)
-
-    def get_env(self) -> Optional[VecEnv]:
-        """
-        Returns the current environment (can be None if not defined).
-
-        :return: The current environment
-        """
-        return self.env
-
-    def get_vec_normalize_env(self) -> Optional[VecNormalize]:
-        """
-        Return the ``VecNormalize`` wrapper of the training env
-        if it exists.
-
-        :return: The ``VecNormalize`` env.
-        """
-        return self._vec_normalize_env
-
     def set_env(self, env: GymEnv, force_reset: bool = True) -> None:
         """
         Checks the validity of the environment, and if it is coherent, set it as the current environment.
@@ -642,7 +679,7 @@ class DQN:
         """
         # if it is not a VecEnv, make it a VecEnv
         # and do other transformations (dict obs, image transpose) if needed
-        env = self._wrap_env(env, self.verbose)
+        env = wrap_env(env, self.verbose)
         # Check that the observation spaces match
         check_for_correct_spaces(env, self.observation_space, self.action_space)
         # Update VecNormalize object
@@ -656,22 +693,6 @@ class DQN:
 
         self.n_envs = env.num_envs
         self.env = env
-
-    def set_random_seed(self, seed: Optional[int] = None) -> None:
-        """
-        Set the seed of the pseudo-random generators
-        (python, numpy, pytorch, gym, action_space)
-
-        :param seed:
-        """
-        if seed is None:
-            return
-        set_random_seed(seed, using_cuda=self.device.type == th.device("cuda").type)
-        self.action_space.seed(seed)
-        if self.env is not None:
-            self.env.seed(seed)
-        if self.eval_env is not None:
-            self.eval_env.seed(seed)
 
     def set_parameters(
         self,
@@ -698,9 +719,8 @@ class DQN:
             _, params, _ = load_from_zip_file(load_path_or_dict, device=device)
 
         # Keep track which objects were updated.
-        # `_get_torch_save_params` returns [params, other_pytorch_variables].
         # We are only interested in former here.
-        objects_needing_update = set(self._get_torch_save_params()[0])
+        objects_needing_update = set(self.torch_save_params[0])
         updated_objects = set()
 
         for name in params:
@@ -800,7 +820,7 @@ class DQN:
 
         if env is not None:
             # Wrap first if needed
-            env = cls._wrap_env(env, data["verbose"])
+            env = wrap_env(env, data["verbose"])
             # Check if given env is valid
             check_for_correct_spaces(env, data["observation_space"], data["action_space"])
             # Discard `_last_obs`, this will force the env to reset before training
@@ -844,21 +864,6 @@ class DQN:
 
         return model
 
-    def get_parameters(self) -> Dict[str, Dict]:
-        """
-        Return the parameters of the agent. This includes parameters from different networks, e.g.
-        critics (value functions) and policies (pi functions).
-
-        :return: Mapping of from names of the objects to PyTorch state-dicts.
-        """
-        state_dicts_names, _ = self._get_torch_save_params()
-        params = {}
-        for name in state_dicts_names:
-            attr = recursive_getattr(self, name)
-            # Retrieve state dict
-            params[name] = attr.state_dict()
-        return params
-
     def save(
         self,
         path: Union[str, pathlib.Path, io.BufferedIOBase],
@@ -884,7 +889,7 @@ class DQN:
         if include is not None:
             exclude = exclude.difference(include)
 
-        state_dicts_names, torch_variable_names = self._get_torch_save_params()
+        state_dicts_names, torch_variable_names = self.torch_save_params
         all_pytorch_variables = state_dicts_names + torch_variable_names
         for torch_var in all_pytorch_variables:
             # We need to get only the name of the top most module as we'll remove that
@@ -946,139 +951,6 @@ class DQN:
 
         callback.init_callback(self)
         return callback
-
-
-    def _update_current_progress_remaining(self, num_timesteps: int, total_timesteps: int) -> None:
-        """
-        Compute current progress remaining (starts from 1 and ends to 0)
-
-        :param num_timesteps: current number of timesteps
-        :param total_timesteps:
-        """
-        self._current_progress_remaining = 1.0 - float(num_timesteps) / float(total_timesteps)
-
-
-    @property
-    def logger(self) -> Logger:
-        """Getter for the logger object."""
-        return self._logger
-    
-    def _get_eval_env(self, eval_env: Optional[GymEnv]) -> Optional[GymEnv]:
-        """
-        Return the environment that will be used for evaluation.
-
-        :param eval_env:)
-        :return:
-        """
-        if eval_env is None:
-            eval_env = self.eval_env
-
-        if eval_env is not None:
-            eval_env = self._wrap_env(eval_env, self.verbose)
-            assert eval_env.num_envs == 1
-        return eval_env
-
-
-    @staticmethod
-    def _wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
-        """ "
-        Wrap environment with the appropriate wrappers if needed.
-        For instance, to have a vectorized environment
-        or to re-order the image channels.
-
-        :param env:
-        :param verbose:
-        :param monitor_wrapper: Whether to wrap the env in a ``Monitor`` when possible.
-        :return: The wrapped environment.
-        """
-        if not isinstance(env, VecEnv):
-            if not is_wrapped(env, Monitor) and monitor_wrapper:
-                if verbose >= 1:
-                    print("Wrapping the env with a `Monitor` wrapper")
-                env = Monitor(env)
-            if verbose >= 1:
-                print("Wrapping the env in a DummyVecEnv.")
-            env = DummyVecEnv([lambda: env])
-
-        # Make sure that dict-spaces are not nested (not supported)
-        check_for_nested_spaces(env.observation_space)
-
-        if not is_vecenv_wrapped(env, VecTransposeImage):
-            wrap_with_vectranspose = False
-            if isinstance(env.observation_space, gym.spaces.Dict):
-                # If even one of the keys is a image-space in need of transpose, apply transpose
-                # If the image spaces are not consistent (for instance one is channel first,
-                # the other channel last), VecTransposeImage will throw an error
-                for space in env.observation_space.spaces.values():
-                    wrap_with_vectranspose = wrap_with_vectranspose or (
-                        is_image_space(space) and not is_image_space_channels_first(space)
-                    )
-            else:
-                wrap_with_vectranspose = is_image_space(env.observation_space) and not is_image_space_channels_first(
-                    env.observation_space
-                )
-
-            if wrap_with_vectranspose:
-                if verbose >= 1:
-                    print("Wrapping the env in a VecTransposeImage.")
-                env = VecTransposeImage(env)
-
-        return env
-
-    def set_logger(self, logger: Logger) -> None:
-        """
-        Setter for for logger object.
-
-        .. warning::
-
-          When passing a custom logger object,
-          this will overwrite ``tensorboard_log`` and ``verbose`` settings
-          passed to the constructor.
-        """
-        self._logger = logger
-        # User defined logger
-        self._custom_logger = True
-    
-    
-
-    def save_replay_buffer(self, path: Union[str, pathlib.Path, io.BufferedIOBase]) -> None:
-        """
-        Save the replay buffer as a pickle file.
-
-        :param path: Path to the file where the replay buffer should be saved.
-            if path is a str or pathlib.Path, the path is automatically created if necessary.
-        """
-        assert self.replay_buffer is not None, "The replay buffer is not defined"
-        save_to_pkl(path, self.replay_buffer, self.verbose)
-
-    def load_replay_buffer(
-        self,
-        path: Union[str, pathlib.Path, io.BufferedIOBase],
-        truncate_last_traj: bool = True,
-    ) -> None:
-        """
-        Load a replay buffer from a pickle file.
-
-        :param path: Path to the pickled replay buffer.
-        :param truncate_last_traj: When using ``HerReplayBuffer`` with online sampling:
-            If set to ``True``, we assume that the last trajectory in the replay buffer was finished
-            (and truncate it).
-            If set to ``False``, we assume that we continue the same trajectory (same episode).
-        """
-        self.replay_buffer = load_from_pkl(path, self.verbose)
-        assert isinstance(self.replay_buffer, ReplayBuffer), "The replay buffer must inherit from ReplayBuffer class"
-
-        # Backward compatibility with SB3 < 2.1.0 replay buffer
-        # Keep old behavior: do not handle timeout termination separately
-        if not hasattr(self.replay_buffer, "handle_timeout_termination"):  # pragma: no cover
-            self.replay_buffer.handle_timeout_termination = False
-            self.replay_buffer.timeouts = np.zeros_like(self.replay_buffer.dones)
-
-        if isinstance(self.replay_buffer, HerReplayBuffer):
-            assert self.env is not None, "You must pass an environment at load time when using `HerReplayBuffer`"
-            self.replay_buffer.set_env(self.get_env())
-            if truncate_last_traj:
-                self.replay_buffer.truncate_last_trajectory()
 
     def _setup_learn(
         self,
@@ -1165,7 +1037,7 @@ class DQN:
         if eval_env is not None and self.seed is not None:
             eval_env.seed(self.seed)
 
-        eval_env = self._get_eval_env(eval_env)
+        eval_env = wrap_env(eval_env or self.eval_env, self.verbose)
 
         # Configure logger's outputs if no logger was passed
         if not self._custom_logger:
@@ -1371,13 +1243,24 @@ class DQN:
             if callback.on_step() is False:
                 return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training=False)
 
-            # Retrieve reward and episode length if using Monitor wrapper
-            self._update_info_buffer(infos, dones)
+            # 
+            # update info buffer
+            # 
+            if dones is None:
+                dones = np.array([False] * len(infos))
+            for idx, info in enumerate(infos):
+                maybe_ep_info = info.get("episode")
+                maybe_is_success = info.get("is_success")
+                if maybe_ep_info is not None:
+                    self.ep_info_buffer.extend([maybe_ep_info])
+                if maybe_is_success is not None and dones[idx]:
+                    self.ep_success_buffer.append(maybe_is_success)
 
             # Store data in replay buffer (normalized action and unnormalized observation)
             self._store_transition(replay_buffer, buffer_actions, new_obs, rewards, dones, infos)
 
-            self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
+            # (starts from 1 and ends to 0)
+            self._current_progress_remaining = 1.0 - float(self.num_timesteps) / float(self._total_timesteps)
 
             # For DQN, check if the target network should be updated
             # and update the exploration schedule
