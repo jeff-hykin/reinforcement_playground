@@ -66,7 +66,6 @@ def correctness_check(self, policy, support_multi_env, supported_action_spaces):
             np.isfinite(np.array([self.action_space.low, self.action_space.high]))
         ), "Continuous action space must have a finite lower and upper bound"
 
-
 def generate_replay_buffer(env, observation_space, action_space, n_envs, buffer_class, buffer, buffer_size, device, buffer_kwargs, optimize_memory_usage):
     # Use DictReplayBuffer if needed
     if buffer_class is None:
@@ -151,7 +150,6 @@ def init_random_seed(seed=None, envs=[], device=None, action_space=None):
         if env is not None:
            env.seed(seed)
 
-
 def wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
     """ "
     Wrap environment with the appropriate wrappers if needed.
@@ -198,8 +196,220 @@ def wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> Vec
             env = VecTransposeImage(env)
 
     return env
+
+class GenericTools:
+    @classmethod
+    def load(
+        cls,
+        path: Union[str, pathlib.Path, io.BufferedIOBase],
+        env: Optional[GymEnv] = None,
+        device: Union[th.device, str] = "auto",
+        custom_objects: Optional[Dict[str, Any]] = None,
+        print_system_info: bool = False,
+        force_reset: bool = True,
+        **kwargs,
+    ) -> "BaseAlgorithm":
+        """
+        Load the model from a zip-file.
+        Warning: ``load`` re-creates the model from scratch, it does not update it in-place!
+        For an in-place load use ``set_parameters`` instead.
+
+        :param path: path to the file (or a file-like) where to
+            load the agent from
+        :param env: the new environment to run the loaded model on
+            (can be None if you only need prediction from a trained model) has priority over any saved environment
+        :param device: Device on which the code should run.
+        :param custom_objects: Dictionary of objects to replace
+            upon loading. If a variable is present in this dictionary as a
+            key, it will not be deserialized and the corresponding item
+            will be used instead. Similar to custom_objects in
+            ``keras.models.load_model``. Useful when you have an object in
+            file that can not be deserialized.
+        :param print_system_info: Whether to print system info from the saved model
+            and the current system info (useful to debug loading issues)
+        :param force_reset: Force call to ``reset()`` before training
+            to avoid unexpected behavior.
+            See https://github.com/DLR-RM/stable-baselines3/issues/597
+        :param kwargs: extra arguments to change the model when loading
+        :return: new model instance with loaded parameters
+        """
+        if print_system_info:
+            print("== CURRENT SYSTEM INFO ==")
+            get_system_info()
+
+        data, params, pytorch_variables = load_from_zip_file(
+            path, device=device, custom_objects=custom_objects, print_system_info=print_system_info
+        )
+
+        # Remove stored device information and replace with ours
+        if "policy_kwargs" in data:
+            if "device" in data["policy_kwargs"]:
+                del data["policy_kwargs"]["device"]
+
+        if "policy_kwargs" in kwargs and kwargs["policy_kwargs"] != data["policy_kwargs"]:
+            raise ValueError(
+                f"The specified policy kwargs do not equal the stored policy kwargs."
+                f"Stored kwargs: {data['policy_kwargs']}, specified kwargs: {kwargs['policy_kwargs']}"
+            )
+
+        if "observation_space" not in data or "action_space" not in data:
+            print("The observation_space and action_space were not given, can't verify new environments")
+
+        elif env is not None:
+            # Wrap first if needed
+            env = wrap_env(env, data["verbose"])
+            # Check if given env is valid
+            check_for_correct_spaces(env, data["observation_space"], data["action_space"])
+            # Discard `_last_obs`, this will force the env to reset before training
+            # See issue https://github.com/DLR-RM/stable-baselines3/issues/597
+            if force_reset and data is not None:
+                data["_last_obs"] = None
+        else:
+            # Use stored env, if one exists. If not, continue as is (can be used for predict)
+            if "env" in data:
+                env = data["env"]
+
+        # noinspection PyArgumentList
+        model = cls(  # pytype: disable=not-instantiable,wrong-keyword-args
+            policy=data["policy_class"],
+            env=env,
+            device=device,
+            _init_setup_model=False,  # pytype: disable=not-instantiable,wrong-keyword-args
+        )
+
+        # load parameters
+        model.__dict__.update(data)
+        model.__dict__.update(kwargs)
+        model._setup_model()
         
-class DQN:
+        # 
+        # put state_dicts back in place
+        # 
+        if True:
+            # Load parameters from a given zip-file or a nested dictionary containing parameters for
+            # different modules (see ``get_parameters``).
+
+            # :param load_path_or_iter: Location of the saved data (path or file-like, see ``save``), or a nested
+            #     dictionary containing nn.Module parameters used by the policy. The dictionary maps
+            #     object names to a state-dictionary returned by ``torch.nn.Module.state_dict()``.
+            # :param exact_match: If True, the given parameters should include parameters for each
+            #     module and each of their parameters, otherwise raises an Exception. If set to False, this
+            #     can be used to update only specific parameters.
+            # :param device: Device on which the code should run.
+            exact_match = True
+
+            # Keep track which objects were updated.
+            # We are only interested in former here.
+            objects_needing_update = set(model.torch_save_params[0])
+            updated_objects = set()
+
+            for name in params:
+                attr = None
+                try:
+                    attr = recursive_getattr(model, name)
+                except Exception:
+                    # What errors recursive_getattr could throw? KeyError, but
+                    # possible something else too (e.g. if key is an int?).
+                    # Catch anything for now.
+                    raise ValueError(f"Key {name} is an invalid object name.")
+
+                if isinstance(attr, th.optim.Optimizer):
+                    # Optimizers do not support "strict" keyword...
+                    # Seems like they will just replace the whole
+                    # optimizer state with the given one.
+                    # On top of this, optimizer state-dict
+                    # seems to change (e.g. first ``optim.step()``),
+                    # which makes comparing state dictionary keys
+                    # invalid (there is also a nesting of dictionaries
+                    # with lists with dictionaries with ...), adding to the
+                    # mess.
+                    #
+                    # TL;DR: We might not be able to reliably say
+                    # if given state-dict is missing keys.
+                    #
+                    # Solution: Just load the state-dict as is, and trust
+                    # the user has provided a sensible state dictionary.
+                    attr.load_state_dict(params[name])
+                else:
+                    # Assume attr is th.nn.Module
+                    attr.load_state_dict(params[name], strict=exact_match)
+                updated_objects.add(name)
+
+            if exact_match and updated_objects != objects_needing_update:
+                raise ValueError(
+                    "Names of parameters do not match agents' parameters: "
+                    f"expected {objects_needing_update}, got {updated_objects}"
+                )
+
+        # put other pytorch variables back in place
+        if pytorch_variables is not None:
+            for name in pytorch_variables:
+                # Skip if PyTorch variable was not defined (to ensure backward compatibility).
+                # This happens when using SAC/TQC.
+                # SAC has an entropy coefficient which can be fixed or optimized.
+                # If it is optimized, an additional PyTorch variable `log_ent_coef` is defined,
+                # otherwise it is initialized to `None`.
+                if pytorch_variables[name] is None:
+                    continue
+                # Set the data attribute directly to avoid issue when using optimizers
+                # See https://github.com/DLR-RM/stable-baselines3/issues/391
+                recursive_setattr(model, name + ".data", pytorch_variables[name].data)
+
+        return model
+
+    def save(
+        self,
+        path: Union[str, pathlib.Path, io.BufferedIOBase],
+        exclude: Optional[Iterable[str]] = None,
+        include: Optional[Iterable[str]] = None,
+    ) -> None:
+        """
+        Save all the attributes of the object and the model parameters in a zip-file.
+
+        :param path: path to the file where the rl agent should be saved
+        :param exclude: name of parameters that should be excluded in addition to the default ones
+        :param include: name of parameters that might be excluded but should be included anyway
+        """
+        # Copy parameter list so we don't mutate the original dict
+        data = self.__dict__.copy()
+
+        # Exclude is union of specified parameters (if any) and standard exclusions
+        if exclude is None:
+            exclude = []
+        exclude = set(exclude).union(self.excluded_save_params)
+
+        # Do not exclude params if they are specifically included
+        if include is not None:
+            exclude = exclude.difference(include)
+
+        state_dicts_names, torch_variable_names = self.torch_save_params
+        all_pytorch_variables = state_dicts_names + torch_variable_names
+        for torch_var in all_pytorch_variables:
+            # We need to get only the name of the top most module as we'll remove that
+            var_name = torch_var.split(".")[0]
+            # Any params that are in the save vars must not be saved by data
+            exclude.add(var_name)
+
+        # Remove parameter entries of parameters which are to be excluded
+        for param_name in exclude:
+            data.pop(param_name, None)
+
+        # Build dict of torch variables
+        pytorch_variables = None
+        if torch_variable_names is not None:
+            pytorch_variables = {}
+            for name in torch_variable_names:
+                attr = recursive_getattr(self, name)
+                pytorch_variables[name] = attr
+
+        save_to_zip_file(
+            path,
+            data=data,
+            params=self.get_parameters(),
+            pytorch_variables=pytorch_variables,
+        )
+        
+class DQN(GenericTools):
     """
         Deep Q-Network (DQN)
 
@@ -367,7 +577,7 @@ class DQN:
                 self._last_original_obs          = None  # When using VecNormalize                        : 
                 self.ep_info_buffer              = None  # Buffers for logging, Optional[deque]
                 self.ep_success_buffer           = None  # Buffers for logging, Optional[deque]
-                self._logger                     = None  
+                self.logger                      = None  
                 self._episode_num                = 0
                 self._current_progress_remaining = 1     # Track the training progress remaining (from 1 to 0), this is used to update the learning rate
                 self._n_updates                  = 0     # For logging (and TD3 delayed updates): int
@@ -426,22 +636,31 @@ class DQN:
         self.get_env                = lambda : self.env # for backwards compatibility
         self.get_vec_normalize_env  = lambda : self._vec_normalize_env
         self.get_parameters         = lambda : { name: recursive_getattr(self, name).state_dict() for name in self.torch_save_params[0] }
+        self.excluded_save_params  = [
+            "policy",
+            "device",
+            "env",
+            "eval_env",
+            "replay_buffer",
+            "rollout_buffer",
+            "_vec_normalize_env",
+            "_episode_storage",
+            "_custom_logger",
+            "_last_obs",
+            "logger",
+            "_get_torch_save_params",
+            "get_env",
+            "get_vec_normalize_env",
+            "get_parameters",
+            
+            
+            "q_net",
+            "q_net_target",
+        ]
 
         if _init_setup_model: self._setup_model()
 
 
-    @property
-    def logger(self) -> Logger:
-        return self._logger
-    
-    def set_logger(self, logger):
-        self._logger = logger
-        self._custom_logger = True
-    
-    @staticmethod
-    def _wrap_env(*args, **kwargs):
-        return wrap_env(*args, **kwargs)
-    
     def _setup_model(self) -> None:
         """Create networks, buffer and optimizers."""
         init_random_seed(
@@ -497,7 +716,7 @@ class DQN:
     # 
     # update learning rate
     # 
-    def _update_learning_rate(self, optimizers) -> None:
+    def update_learning_rate(self, optimizers) -> None:
         """
             Update the optimizers learning rate using the current learning rate schedule
             and the current progress remaining (from 1 to 0).
@@ -528,7 +747,7 @@ class DQN:
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update learning rate according to schedule
-        self._update_learning_rate(self.policy.optimizer)
+        self.update_learning_rate(self.policy.optimizer)
 
         losses = []
         for _ in range(gradient_steps):
@@ -694,226 +913,6 @@ class DQN:
         self.n_envs = env.num_envs
         self.env = env
 
-    def set_parameters(
-        self,
-        load_path_or_dict: Union[str, Dict[str, Dict]],
-        exact_match: bool = True,
-        device: Union[th.device, str] = "auto",
-    ) -> None:
-        """
-        Load parameters from a given zip-file or a nested dictionary containing parameters for
-        different modules (see ``get_parameters``).
-
-        :param load_path_or_iter: Location of the saved data (path or file-like, see ``save``), or a nested
-            dictionary containing nn.Module parameters used by the policy. The dictionary maps
-            object names to a state-dictionary returned by ``torch.nn.Module.state_dict()``.
-        :param exact_match: If True, the given parameters should include parameters for each
-            module and each of their parameters, otherwise raises an Exception. If set to False, this
-            can be used to update only specific parameters.
-        :param device: Device on which the code should run.
-        """
-        params = None
-        if isinstance(load_path_or_dict, dict):
-            params = load_path_or_dict
-        else:
-            _, params, _ = load_from_zip_file(load_path_or_dict, device=device)
-
-        # Keep track which objects were updated.
-        # We are only interested in former here.
-        objects_needing_update = set(self.torch_save_params[0])
-        updated_objects = set()
-
-        for name in params:
-            attr = None
-            try:
-                attr = recursive_getattr(self, name)
-            except Exception:
-                # What errors recursive_getattr could throw? KeyError, but
-                # possible something else too (e.g. if key is an int?).
-                # Catch anything for now.
-                raise ValueError(f"Key {name} is an invalid object name.")
-
-            if isinstance(attr, th.optim.Optimizer):
-                # Optimizers do not support "strict" keyword...
-                # Seems like they will just replace the whole
-                # optimizer state with the given one.
-                # On top of this, optimizer state-dict
-                # seems to change (e.g. first ``optim.step()``),
-                # which makes comparing state dictionary keys
-                # invalid (there is also a nesting of dictionaries
-                # with lists with dictionaries with ...), adding to the
-                # mess.
-                #
-                # TL;DR: We might not be able to reliably say
-                # if given state-dict is missing keys.
-                #
-                # Solution: Just load the state-dict as is, and trust
-                # the user has provided a sensible state dictionary.
-                attr.load_state_dict(params[name])
-            else:
-                # Assume attr is th.nn.Module
-                attr.load_state_dict(params[name], strict=exact_match)
-            updated_objects.add(name)
-
-        if exact_match and updated_objects != objects_needing_update:
-            raise ValueError(
-                "Names of parameters do not match agents' parameters: "
-                f"expected {objects_needing_update}, got {updated_objects}"
-            )
-
-    @classmethod
-    def load(
-        cls,
-        path: Union[str, pathlib.Path, io.BufferedIOBase],
-        env: Optional[GymEnv] = None,
-        device: Union[th.device, str] = "auto",
-        custom_objects: Optional[Dict[str, Any]] = None,
-        print_system_info: bool = False,
-        force_reset: bool = True,
-        **kwargs,
-    ) -> "BaseAlgorithm":
-        """
-        Load the model from a zip-file.
-        Warning: ``load`` re-creates the model from scratch, it does not update it in-place!
-        For an in-place load use ``set_parameters`` instead.
-
-        :param path: path to the file (or a file-like) where to
-            load the agent from
-        :param env: the new environment to run the loaded model on
-            (can be None if you only need prediction from a trained model) has priority over any saved environment
-        :param device: Device on which the code should run.
-        :param custom_objects: Dictionary of objects to replace
-            upon loading. If a variable is present in this dictionary as a
-            key, it will not be deserialized and the corresponding item
-            will be used instead. Similar to custom_objects in
-            ``keras.models.load_model``. Useful when you have an object in
-            file that can not be deserialized.
-        :param print_system_info: Whether to print system info from the saved model
-            and the current system info (useful to debug loading issues)
-        :param force_reset: Force call to ``reset()`` before training
-            to avoid unexpected behavior.
-            See https://github.com/DLR-RM/stable-baselines3/issues/597
-        :param kwargs: extra arguments to change the model when loading
-        :return: new model instance with loaded parameters
-        """
-        if print_system_info:
-            print("== CURRENT SYSTEM INFO ==")
-            get_system_info()
-
-        data, params, pytorch_variables = load_from_zip_file(
-            path, device=device, custom_objects=custom_objects, print_system_info=print_system_info
-        )
-
-        # Remove stored device information and replace with ours
-        if "policy_kwargs" in data:
-            if "device" in data["policy_kwargs"]:
-                del data["policy_kwargs"]["device"]
-
-        if "policy_kwargs" in kwargs and kwargs["policy_kwargs"] != data["policy_kwargs"]:
-            raise ValueError(
-                f"The specified policy kwargs do not equal the stored policy kwargs."
-                f"Stored kwargs: {data['policy_kwargs']}, specified kwargs: {kwargs['policy_kwargs']}"
-            )
-
-        if "observation_space" not in data or "action_space" not in data:
-            raise KeyError("The observation_space and action_space were not given, can't verify new environments")
-
-        if env is not None:
-            # Wrap first if needed
-            env = wrap_env(env, data["verbose"])
-            # Check if given env is valid
-            check_for_correct_spaces(env, data["observation_space"], data["action_space"])
-            # Discard `_last_obs`, this will force the env to reset before training
-            # See issue https://github.com/DLR-RM/stable-baselines3/issues/597
-            if force_reset and data is not None:
-                data["_last_obs"] = None
-        else:
-            # Use stored env, if one exists. If not, continue as is (can be used for predict)
-            if "env" in data:
-                env = data["env"]
-
-        # noinspection PyArgumentList
-        model = cls(  # pytype: disable=not-instantiable,wrong-keyword-args
-            policy=data["policy_class"],
-            env=env,
-            device=device,
-            _init_setup_model=False,  # pytype: disable=not-instantiable,wrong-keyword-args
-        )
-
-        # load parameters
-        model.__dict__.update(data)
-        model.__dict__.update(kwargs)
-        model._setup_model()
-
-        # put state_dicts back in place
-        model.set_parameters(params, exact_match=True, device=device)
-
-        # put other pytorch variables back in place
-        if pytorch_variables is not None:
-            for name in pytorch_variables:
-                # Skip if PyTorch variable was not defined (to ensure backward compatibility).
-                # This happens when using SAC/TQC.
-                # SAC has an entropy coefficient which can be fixed or optimized.
-                # If it is optimized, an additional PyTorch variable `log_ent_coef` is defined,
-                # otherwise it is initialized to `None`.
-                if pytorch_variables[name] is None:
-                    continue
-                # Set the data attribute directly to avoid issue when using optimizers
-                # See https://github.com/DLR-RM/stable-baselines3/issues/391
-                recursive_setattr(model, name + ".data", pytorch_variables[name].data)
-
-        return model
-
-    def save(
-        self,
-        path: Union[str, pathlib.Path, io.BufferedIOBase],
-        exclude: Optional[Iterable[str]] = None,
-        include: Optional[Iterable[str]] = None,
-    ) -> None:
-        """
-        Save all the attributes of the object and the model parameters in a zip-file.
-
-        :param path: path to the file where the rl agent should be saved
-        :param exclude: name of parameters that should be excluded in addition to the default ones
-        :param include: name of parameters that might be excluded but should be included anyway
-        """
-        # Copy parameter list so we don't mutate the original dict
-        data = self.__dict__.copy()
-
-        # Exclude is union of specified parameters (if any) and standard exclusions
-        if exclude is None:
-            exclude = []
-        exclude = set(exclude).union(self._excluded_save_params())
-
-        # Do not exclude params if they are specifically included
-        if include is not None:
-            exclude = exclude.difference(include)
-
-        state_dicts_names, torch_variable_names = self.torch_save_params
-        all_pytorch_variables = state_dicts_names + torch_variable_names
-        for torch_var in all_pytorch_variables:
-            # We need to get only the name of the top most module as we'll remove that
-            var_name = torch_var.split(".")[0]
-            # Any params that are in the save vars must not be saved by data
-            exclude.add(var_name)
-
-        # Remove parameter entries of parameters which are to be excluded
-        for param_name in exclude:
-            data.pop(param_name, None)
-
-        # Build dict of torch variables
-        pytorch_variables = None
-        if torch_variable_names is not None:
-            pytorch_variables = {}
-            for name in torch_variable_names:
-                attr = recursive_getattr(self, name)
-                pytorch_variables[name] = attr
-
-        # Build dict of state_dicts
-        params_to_save = self.get_parameters()
-
-        save_to_zip_file(path, data=data, params=params_to_save, pytorch_variables=pytorch_variables)
-
     def _init_callback(
         self,
         callback: MaybeCallback,
@@ -1041,7 +1040,7 @@ class DQN:
 
         # Configure logger's outputs if no logger was passed
         if not self._custom_logger:
-            self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
+            self.logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
 
         # Create eval callback if needed
         callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
@@ -1318,11 +1317,24 @@ if __name__ == "__main__":
     model.learn(total_timesteps=10_000)
 
     obs = env.reset()
-    for i in range(1000):
+    for i in range(10):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
         env.render()
         if done:
             obs = env.reset()
-
+    
+    path = "model.ignore"
+    model.save(path)
+    model = DQN.load(path)
+    print(f'''loaded model''')
+    
+    obs = env.reset()
+    for i in range(500):
+        action, _states = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        env.render()
+        if done:
+            obs = env.reset()
+    
     env.close()
