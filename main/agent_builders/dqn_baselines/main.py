@@ -31,7 +31,7 @@ from stable_baselines3.common.save_util import load_from_pkl, save_to_pkl
 from stable_baselines3.common.save_util import load_from_zip_file, recursive_getattr, recursive_setattr, save_to_zip_file
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, RolloutReturn, Schedule, TrainFreq, TrainFrequencyUnit
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import check_for_correct_spaces, get_device, get_schedule_fn, get_system_info, set_random_seed, update_learning_rate
+from stable_baselines3.common.utils import check_for_correct_spaces, get_device, get_schedule_fn, get_system_info, set_random_seed, zip_strict
 from stable_baselines3.common.utils import get_linear_fn, is_vectorized_observation, polyak_update
 from stable_baselines3.common.utils import safe_mean, should_collect_more_steps
 from stable_baselines3.common.vec_env import DummyVecEnv,VecEnv,VecNormalize,VecTransposeImage,is_vecenv_wrapped,unwrap_vec_normalize
@@ -45,7 +45,7 @@ from super_map import LazyDict
 from tools.debug import debug, ic
 from tools.agent_skeleton import Skeleton
 
-def correctness_check(self, policy, supported_action_spaces):
+def correctness_check(self, policy, support_multi_env, supported_action_spaces):
     if supported_action_spaces is not None:
         assert isinstance(self.action_space, supported_action_spaces), (
             f"The algorithm only supports {supported_action_spaces} as action spaces "
@@ -314,7 +314,7 @@ class DQN:
                 self.seed                        = seed
                 self.tensorboard_log             = tensorboard_log
                 self.policy_kwargs               = {} if policy_kwargs is None else policy_kwargs
-                self.policy_class                = policy       if not isinstance(policy, str)    else     self.policy_aliases[policy_name]
+                self.policy_class                = policy       if not isinstance(policy, str)    else     self.policy_aliases[policy]
                 self.device                      = get_device(device); print(f"Using {self.device} device") if verbose > 0 else None
                 self._vec_normalize_env          = unwrap_vec_normalize(env)
 
@@ -327,7 +327,7 @@ class DQN:
                     self.action_space      = self.env.action_space
                     self.n_envs            = self.env.num_envs
                     
-                    correctness_check(self, policy, supported_action_spaces)
+                    correctness_check(self, policy, support_multi_env, supported_action_spaces)
 
             self._episode_storage      = None
             self.actor                 = None  # type: Optional[th.nn.Module]
@@ -376,18 +376,58 @@ class DQN:
         """
         Update the exploration rate and target network if needed.
         This method is called in ``collect_rollouts()`` after each step in the environment.
+        
+        Method called after each step in the environment.
+        It is meant to trigger DQN target network update
+        but can be used for other purposes
         """
-            # """
-            # Method called after each step in the environment.
-            # It is meant to trigger DQN target network update
-            # but can be used for other purposes
-            # """
+        # 
+        # UPDATE WEIGHTS CHECK
+        # 
         self._n_calls += 1
         if self._n_calls % self.target_update_interval == 0:
-            polyak_update(self.q_net.parameters(), self.q_net_target.parameters(), self.tau)
-
+            # polyak_update(self.q_net.parameters(), self.q_net_target.parameters(), self.tau)
+            params = self.q_net_target.parameters()
+            target_params = self.q_net_target.parameters()
+            with th.no_grad():
+                for param, target_param in zip_strict(params, target_params): # zip does not raise an exception if length of parameters does not match.
+                    target_param.data.mul_(1 - self.tau)
+                    th.add(target_param.data, param.data, alpha=self.tau, out=target_param.data)
+        
+        # 
+        # exploration update
+        # 
         self.exploration_rate = self.exploration_schedule(self._current_progress_remaining)
+        
+        # 
+        # logging
+        # 
         self.logger.record("rollout/exploration_rate", self.exploration_rate)
+    
+    # 
+    # update learning rate
+    # 
+    def _update_learning_rate(self, optimizers) -> None:
+        """
+            Update the optimizers learning rate using the current learning rate schedule
+            and the current progress remaining (from 1 to 0).
+
+            :param optimizers:
+                An optimizer or a list of optimizers.
+        """
+        # 
+        # logging
+        # 
+        self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
+        
+        # make iterable
+        optimizers = [optimizers]  if not isinstance(optimizers, list) else optimizers
+        
+        # update them
+        for optimizer in optimizers:
+            learning_rate = self.lr_schedule(self._current_progress_remaining)
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = learning_rate
     
     def train(self, gradient_steps: int, batch_size: int = 100) -> None:
         """
@@ -917,22 +957,6 @@ class DQN:
         """
         self._current_progress_remaining = 1.0 - float(num_timesteps) / float(total_timesteps)
 
-    def _update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
-        """
-        Update the optimizers learning rate using the current learning rate schedule
-        and the current progress remaining (from 1 to 0).
-
-        :param optimizers:
-            An optimizer or a list of optimizers.
-        """
-        # Log the current learning rate
-        self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
-
-        if not isinstance(optimizers, list):
-            optimizers = [optimizers]
-        for optimizer in optimizers:
-            update_learning_rate(optimizer, self.lr_schedule(self._current_progress_remaining))
-
 
     @property
     def logger(self) -> Logger:
@@ -1068,8 +1092,19 @@ class DQN:
         tb_log_name: str = "run",
     ) -> Tuple[int, BaseCallback]:
         """
-        cf `BaseAlgorithm`.
+        Initialize different variables needed for training.
+
+        :param total_timesteps: The total number of samples (env steps) to train on
+        :param eval_env: Environment to use for evaluation.
+        :param callback: Callback(s) called at every step with state of the algorithm.
+        :param eval_freq: How many steps between evaluations
+        :param n_eval_episodes: How many episodes to play per evaluation
+        :param log_path: Path to a folder where the evaluations will be saved
+        :param reset_num_timesteps: Whether to reset or not the ``num_timesteps`` attribute
+        :param tb_log_name: the name of the run for tensorboard log
+        :return:
         """
+        
         # Prevent continuity issue by truncating trajectory
         # when using memory efficient replay buffer
         # see https://github.com/DLR-RM/stable-baselines3/issues/46
@@ -1098,17 +1133,48 @@ class DQN:
             # Go to the previous index
             pos = (replay_buffer.pos - 1) % replay_buffer.buffer_size
             replay_buffer.dones[pos] = True
+        
+        
+        self.start_time = time.time()
 
-        return super()._setup_learn(
-            total_timesteps,
-            eval_env,
-            callback,
-            eval_freq,
-            n_eval_episodes,
-            log_path,
-            reset_num_timesteps,
-            tb_log_name,
-        )
+        if self.ep_info_buffer is None or reset_num_timesteps:
+            # Initialize buffers if they don't exist, or reinitialize if resetting counters
+            self.ep_info_buffer = deque(maxlen=100)
+            self.ep_success_buffer = deque(maxlen=100)
+
+        if self.action_noise is not None:
+            self.action_noise.reset()
+
+        if reset_num_timesteps:
+            self.num_timesteps = 0
+            self._episode_num = 0
+        else:
+            # Make sure training timesteps are ahead of the internal counter
+            total_timesteps += self.num_timesteps
+        self._total_timesteps = total_timesteps
+        self._num_timesteps_at_start = self.num_timesteps
+
+        # Avoid resetting the environment when calling ``.learn()`` consecutive times
+        if reset_num_timesteps or self._last_obs is None:
+            self._last_obs = self.env.reset()  # pytype: disable=annotation-type-mismatch
+            self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
+            # Retrieve unnormalized observation for saving into the buffer
+            if self._vec_normalize_env is not None:
+                self._last_original_obs = self._vec_normalize_env.get_original_obs()
+
+        if eval_env is not None and self.seed is not None:
+            eval_env.seed(self.seed)
+
+        eval_env = self._get_eval_env(eval_env)
+
+        # Configure logger's outputs if no logger was passed
+        if not self._custom_logger:
+            self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
+
+        # Create eval callback if needed
+        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
+
+        return total_timesteps, callback
 
     def _sample_action(
         self,
@@ -1358,3 +1424,22 @@ class Agent(Skeleton):
         self.settings= LazyDict(
                 training=True,
             ).merge(settings)
+
+
+if __name__ == "__main__":
+    import gym
+
+    env = gym.make("CartPole-v1")
+
+    model = DQN("MlpPolicy", env, verbose=1)
+    model.learn(total_timesteps=10_000)
+
+    obs = env.reset()
+    for i in range(1000):
+        action, _states = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        env.render()
+        if done:
+            obs = env.reset()
+
+    env.close()
