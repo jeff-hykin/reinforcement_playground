@@ -150,22 +150,15 @@ def init_random_seed(seed=None, envs=[], device=None, action_space=None):
         if env is not None:
            env.seed(seed)
 
-def wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
-    """ "
-    Wrap environment with the appropriate wrappers if needed.
-    For instance, to have a vectorized environment
-    or to re-order the image channels.
-
-    :param env:
-    :param verbose:
-    :param monitor_wrapper: Whether to wrap the env in a ``Monitor`` when possible.
-    :return: The wrapped environment.
-    """
+def setup_env(env: GymEnv, seed=None, verbose=0, should_wrap_with_monitor=True) -> VecEnv:
     if env is None:
         return None
     
+    # convert strings to envs
+    env = env if not isinstance(env, str) else gym.make(env)
+    
     if not isinstance(env, VecEnv):
-        if not is_wrapped(env, Monitor) and monitor_wrapper:
+        if not is_wrapped(env, Monitor) and should_wrap_with_monitor:
             if verbose >= 1: print("Wrapping the env with a `Monitor` wrapper")
             env = Monitor(env)
         
@@ -194,8 +187,13 @@ def wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> Vec
             if verbose >= 1:
                 print("Wrapping the env in a VecTransposeImage.")
             env = VecTransposeImage(env)
-
+    
+    if seed is not None:
+        env.seed(seed)
+        env.action_space.seed(seed)
+    
     return env
+
 
 class GenericTools:
     @classmethod
@@ -506,8 +504,6 @@ class DQN(GenericTools):
         #         with multiple environments (as in A2C)
         #     :param create_eval_env: Whether to create a second environment that will be
         #         used for evaluating the agent periodically. (Only available when passing string for the environment)
-        #     :param monitor_wrapper: When creating an environment, whether to wrap it
-        #         or not in a Monitor wrapper.
         #     :param seed: Seed for the pseudo random generators
         #     :param sde_support: Whether the model support gSDE or not
         #     :param supported_action_spaces: The action spaces supported by the algorithm.
@@ -531,8 +527,6 @@ class DQN(GenericTools):
             #     with multiple environments (as in A2C)
             # :param create_eval_env: Whether to create a second environment that will be
             #     used for evaluating the agent periodically. (Only available when passing string for the environment)
-            # :param monitor_wrapper: When creating an environment, whether to wrap it
-            #     or not in a Monitor wrapper.
             # :param seed: Seed for the pseudo random generators
             # :param supported_action_spaces: The action spaces supported by the algorithm.
             # """
@@ -575,7 +569,6 @@ class DQN(GenericTools):
         sde_support             = False
         supported_action_spaces = (gym.spaces.Discrete,)
         support_multi_env       = True
-        monitor_wrapper         = True
         
         if True: # OffPolicyAlgorithm
             if True: # BaseAlgorithm
@@ -611,9 +604,8 @@ class DQN(GenericTools):
 
                 # Create and wrap the env if needed
                 if env is not None:
-                    self.env               = gym.make(env)   if isinstance(env, str)                       else  env
-                    self.eval_env          = self.env        if isinstance(env, str) and create_eval_env   else  None
-                    self.env               = wrap_env(env, self.verbose, monitor_wrapper)
+                    self.env               = setup_env(env, self.seed, self.verbose)
+                    self.eval_env          = setup_env(env, self.seed, self.verbose)   if isinstance(env, str) and create_eval_env   else  None
                     self.observation_space = self.env.observation_space
                     self.action_space      = self.env.action_space
                     self.n_envs            = self.env.num_envs
@@ -830,6 +822,49 @@ class DQN(GenericTools):
         else:
             action, state = self.policy.predict(observation, state, episode_start, deterministic)
         return action, state
+        
+    # def when_mission_starts(self):
+    #     log_path              = None
+    #     self._num_timesteps_at_start = 0
+    # 
+    #     # Prevent continuity issue by truncating trajectory
+    #     # when using memory efficient replay buffer
+    #     # see https://github.com/DLR-RM/stable-baselines3/issues/46
+    # 
+    #     # Special case when using HerReplayBuffer
+    #     replay_buffer = self.replay_buffer.replay_buffer    if isinstance(self.replay_buffer, HerReplayBuffer)    else self.replay_buffer
+    #     truncate_last_traj = (
+    #         self.optimize_memory_usage
+    #         and replay_buffer is not None
+    #         and (replay_buffer.full or replay_buffer.pos > 0)
+    #     )
+    #     if truncate_last_traj:
+    #         warnings.warn(
+    #             "The last trajectory in the replay buffer will be truncated, "
+    #             "see https://github.com/DLR-RM/stable-baselines3/issues/46."
+    #             "You should use `optimize_memory_usage=False`"
+    #             "to avoid that issue."
+    #         )
+    #         # Go to the previous index
+    #         pos = (replay_buffer.pos - 1) % replay_buffer.buffer_size
+    #         replay_buffer.dones[pos] = True
+    # 
+    # 
+    #     self.start_time = time.time()
+    # 
+    #     # 
+    #     # Initialize/reset buffers
+    #     # 
+    #     if self.ep_info_buffer is None:
+    #         self.ep_info_buffer = deque(maxlen=100)
+    #         self.ep_success_buffer = deque(maxlen=100)
+    # 
+    #     # 
+    #     # keep track of timesteps
+    #     # 
+    #     if not reset_num_timesteps:
+    #         # Make sure training timesteps are ahead of the internal counter
+    #         self._total_timesteps += self.num_timesteps # FIXME: this does not make sense to me
 
     def learn(
         self,
@@ -857,20 +892,88 @@ class DQN(GenericTools):
         :param reset_num_timesteps: whether or not to reset the current timestep number (used in logging)
         :return: the trained model
         """
+        log_path              = eval_log_path
+        self._total_timesteps = total_timesteps
         
-        total_timesteps, callback = self._setup_learn(
-            total_timesteps,
-            eval_env,
-            callback,
-            eval_freq,
-            n_eval_episodes,
-            eval_log_path,
-            reset_num_timesteps,
-            tb_log_name,
+        # Prevent continuity issue by truncating trajectory
+        # when using memory efficient replay buffer
+        # see https://github.com/DLR-RM/stable-baselines3/issues/46
+
+        # Special case when using HerReplayBuffer
+        replay_buffer = self.replay_buffer.replay_buffer    if isinstance(self.replay_buffer, HerReplayBuffer)    else self.replay_buffer
+        truncate_last_traj = (
+            self.optimize_memory_usage
+            and reset_num_timesteps
+            and replay_buffer is not None
+            and (replay_buffer.full or replay_buffer.pos > 0)
         )
+        if truncate_last_traj:
+            warnings.warn(
+                "The last trajectory in the replay buffer will be truncated, "
+                "see https://github.com/DLR-RM/stable-baselines3/issues/46."
+                "You should use `reset_num_timesteps=False` or `optimize_memory_usage=False`"
+                "to avoid that issue."
+            )
+            # Go to the previous index
+            pos = (replay_buffer.pos - 1) % replay_buffer.buffer_size
+            replay_buffer.dones[pos] = True
+        
+        
+        self.start_time = time.time()
+        
+        # 
+        # Initialize/reset buffers
+        # 
+        if self.ep_info_buffer is None or reset_num_timesteps:
+            self.ep_info_buffer = deque(maxlen=100)
+            self.ep_success_buffer = deque(maxlen=100)
+        
+        # 
+        # keep track of timesteps
+        # 
+        if not reset_num_timesteps:
+            # Make sure training timesteps are ahead of the internal counter
+            self._total_timesteps += self.num_timesteps 
+        else:
+            self.num_timesteps = 0
+            self._episode_num = 0
+        
+        self._num_timesteps_at_start = self.num_timesteps
+        
+        # 
+        # Avoid resetting the environment when calling ``.learn()`` consecutive times
+        # 
+        if reset_num_timesteps or self._last_obs is None:
+            self._last_obs = self.env.reset()
+            self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
+            # Retrieve unnormalized observation for saving into the buffer
+            if self._vec_normalize_env is not None:
+                self._last_original_obs = self._vec_normalize_env.get_original_obs()
 
+        # 
+        # wrap the eval env
+        # 
+        eval_env = setup_env(eval_env, self.seed, self.verbose) or self.eval_env
+        
+        # 
+        # setup logger
+        # 
+        if not self._custom_logger:
+            self.logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
+        
+        # 
+        # setup callback
+        # 
+        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
+        
+        
+        # 
+        # 
+        # runtime
+        # 
+        # 
+        
         callback.on_training_start(locals(), globals())
-
         while self.num_timesteps < total_timesteps:
             rollout = self.collect_rollouts(
                 self.env,
@@ -964,98 +1067,7 @@ class DQN(GenericTools):
         callback.init_callback(self)
         return callback
 
-    def _setup_learn(
-        self,
-        total_timesteps: int,
-        eval_env: Optional[GymEnv],
-        callback: MaybeCallback = None,
-        eval_freq: int = 10000,
-        n_eval_episodes: int = 5,
-        log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
-        tb_log_name: str = "run",
-    ) -> Tuple[int, BaseCallback]:
-        """
-        Initialize different variables needed for training.
-
-        :param total_timesteps: The total number of samples (env steps) to train on
-        :param eval_env: Environment to use for evaluation.
-        :param callback: Callback(s) called at every step with state of the algorithm.
-        :param eval_freq: How many steps between evaluations
-        :param n_eval_episodes: How many episodes to play per evaluation
-        :param log_path: Path to a folder where the evaluations will be saved
-        :param reset_num_timesteps: Whether to reset or not the ``num_timesteps`` attribute
-        :param tb_log_name: the name of the run for tensorboard log
-        :return:
-        """
-        
-        # Prevent continuity issue by truncating trajectory
-        # when using memory efficient replay buffer
-        # see https://github.com/DLR-RM/stable-baselines3/issues/46
-
-        # Special case when using HerReplayBuffer,
-        # the classic replay buffer is inside it when using offline sampling
-        if isinstance(self.replay_buffer, HerReplayBuffer):
-            replay_buffer = self.replay_buffer.replay_buffer
-        else:
-            replay_buffer = self.replay_buffer
-
-        truncate_last_traj = (
-            self.optimize_memory_usage
-            and reset_num_timesteps
-            and replay_buffer is not None
-            and (replay_buffer.full or replay_buffer.pos > 0)
-        )
-
-        if truncate_last_traj:
-            warnings.warn(
-                "The last trajectory in the replay buffer will be truncated, "
-                "see https://github.com/DLR-RM/stable-baselines3/issues/46."
-                "You should use `reset_num_timesteps=False` or `optimize_memory_usage=False`"
-                "to avoid that issue."
-            )
-            # Go to the previous index
-            pos = (replay_buffer.pos - 1) % replay_buffer.buffer_size
-            replay_buffer.dones[pos] = True
-        
-        
-        self.start_time = time.time()
-
-        if self.ep_info_buffer is None or reset_num_timesteps:
-            # Initialize buffers if they don't exist, or reinitialize if resetting counters
-            self.ep_info_buffer = deque(maxlen=100)
-            self.ep_success_buffer = deque(maxlen=100)
-
-        if reset_num_timesteps:
-            self.num_timesteps = 0
-            self._episode_num = 0
-        else:
-            # Make sure training timesteps are ahead of the internal counter
-            total_timesteps += self.num_timesteps
-        self._total_timesteps = total_timesteps
-        self._num_timesteps_at_start = self.num_timesteps
-
-        # Avoid resetting the environment when calling ``.learn()`` consecutive times
-        if reset_num_timesteps or self._last_obs is None:
-            self._last_obs = self.env.reset()  # pytype: disable=annotation-type-mismatch
-            self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
-            # Retrieve unnormalized observation for saving into the buffer
-            if self._vec_normalize_env is not None:
-                self._last_original_obs = self._vec_normalize_env.get_original_obs()
-
-        if eval_env is not None and self.seed is not None:
-            eval_env.seed(self.seed)
-
-        eval_env = wrap_env(eval_env or self.eval_env, self.verbose)
-
-        # Configure logger's outputs if no logger was passed
-        if not self._custom_logger:
-            self.logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
-
-        # Create eval callback if needed
-        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
-
-        return total_timesteps, callback
+    
 
     def _sample_action(
         self,
