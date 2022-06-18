@@ -1,16 +1,15 @@
 import torch
 import torch.nn as nn
 import random
-from tqdm import tqdm
 import pickle 
 import gym
 import numpy as np
-import collections 
-import cv2
 import time
 
-from world_builders.frozen_lake.with_momentum import FrozenLakeEnv as Env
+# from world_builders.frozen_lake.with_momentum import FrozenLakeEnv as Env
+from world_builders.cart_pole.environment import Env
 from agent_builders.dqn_primitive.main import Agent
+from tools.runtimes import traditional_runtime
 
 from informative_iterator import ProgressBar
 
@@ -28,21 +27,9 @@ def run(number_of_episodes_for_training=1000, number_of_episodes_for_testing=100
     # 
     # training
     # 
-    mr_bond.when_mission_starts()
-    for progress, episode_index in ProgressBar(range(number_of_episodes_for_training)):
+    for progress, (episode_index, timestep_index, agent.observation, agent.reward, agent.episode_is_over) in ProgressBar(traditional_runtime(agent=agent, env=env)):
+        pass
         
-        mr_bond.observation     = env.reset()
-        mr_bond.when_episode_starts(episode_index)
-        timestep_index = -1
-        while not mr_bond.episode_is_over:
-            timestep_index += 1
-            
-            mr_bond.when_timestep_starts(timestep_index)
-            mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
-            mr_bond.when_timestep_ends(timestep_index)
-            
-        mr_bond.when_episode_ends(episode_index)
-    mr_bond.when_mission_ends()
     
     # 
     # testing
