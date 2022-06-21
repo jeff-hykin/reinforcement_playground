@@ -6,22 +6,19 @@ import gym
 import numpy as np
 import time
 
-from world_builders.frozen_lake.environment import Env
+# from world_builders.frozen_lake.environment import Env
 # from world_builders.cart_pole.environment import Env
-# from world_builders.fight_fire.world import World
+from world_builders.fight_fire.world import World
 from agent_builders.dqn_primitive.main import Agent
 from tools.runtimes import traditional_runtime
 
 from informative_iterator import ProgressBar
 
-
-# world = World(grid_size=5)
-# env = world.Player()
+world = World(grid_size=3)
+Env = world.Player
 
 def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_testing=1_000_000):
     env = Env()
-    print(f'''env.observation_space = {env.observation_space}''')
-    print(f'''env.action_space = {env.action_space}''')
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,

@@ -158,6 +158,8 @@ class World:
             
             def perform_action(self, action):
                 self.previous_observation = deepcopy(self.observation)
+                for each_key, each_value in layers_enum.items():
+                    setattr(self.previous_observation, each_key, self.previous_observation[each_value])
                 self.previous_action = deepcopy(action)
                 world.request_change(self, action)
             
@@ -205,6 +207,9 @@ class World:
         return 
     
     def request_change(world, player, change):
+        if change == World.reset:
+            world.reset()
+            return True
         # 
         # compute changes
         # 
