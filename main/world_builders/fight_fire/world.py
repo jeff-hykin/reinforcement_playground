@@ -13,6 +13,7 @@ import torch
 from blissful_basics import Object, product
 from super_map import LazyDict
 from torch import tensor
+from super_hash import super_hash
 
 from gym import Env, spaces, utils
 
@@ -126,10 +127,10 @@ class World:
         class Player(Env):
             reward_range = (0,100)
             actions = LazyDict(dict(
-                LEFT  = 0,
-                DOWN  = 1,
-                RIGHT = 2,
-                UP    = 3,
+                LEFT  = "LEFT",
+                DOWN  = "DOWN",
+                RIGHT = "RIGHT",
+                UP    = "UP",
             ))
             action_space      = spaces.Discrete(len(actions))
             observation_space = spaces.Discrete(world.number_of_grid_states)
@@ -150,12 +151,16 @@ class World:
                 
             
             def check_for_reward(self):
+                if super_hash(self.observation) == super_hash(self.previous_observation):
+                    return 0
+                
                 fires_before = self.previous_observation.fire.sum()
                 fires_now = self.observation.fire.sum()
+                
                 if fires_before > fires_now:
                     return 50
                 else:
-                    return 0
+                    return 5
             
             def perform_action(self, action):
                 self.previous_observation = deepcopy(self.observation)
