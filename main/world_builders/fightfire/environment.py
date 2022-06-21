@@ -18,7 +18,7 @@ from gym import Env, spaces, utils
 layers_enum = LazyDict(dict(
     position=0,
     water=1,
-    goal=2,
+    fire=2,
 ))
 
 class Position(list):
@@ -57,14 +57,14 @@ def generate_random_map(size):
     # 
     # use dividing line
     # 
-    possible_goal_positions = []
+    possible_fire_positions = []
     possible_water_positions = []
     if random() > 0.5:
         # use start_x as dividing line
         for x_index, each_row in enumerate(layers.position):
             for y_index, each_cell in enumerate(each_row):
                 if x_index > start_x:
-                    possible_goal_positions.append((x_index, y_index))
+                    possible_fire_positions.append((x_index, y_index))
                 elif x_index < start_x:
                     possible_water_positions.append((x_index, y_index))
     else:
@@ -72,21 +72,21 @@ def generate_random_map(size):
         for x_index, each_row in enumerate(layers.position):
             for y_index, each_cell in enumerate(each_row):
                 if y_index > start_y:
-                    possible_goal_positions.append((x_index, y_index))
+                    possible_fire_positions.append((x_index, y_index))
                 elif y_index < start_y:
                     possible_water_positions.append((x_index, y_index))
     
     # set current location
     layers.position[start_x, start_y] = True
     
-    # generate goals
-    number_of_goals_minus_one = randint(0, round(len(possible_goal_positions)/2))
-    shuffle(possible_goal_positions)
-    for each_goal_index, (x,y) in enumerate(possible_goal_positions):
-        if each_goal_index > number_of_goals_minus_one:
+    # generate fires
+    number_of_fires_minus_one = randint(0, round(len(possible_fire_positions)/2))
+    shuffle(possible_fire_positions)
+    for each_fire_index, (x,y) in enumerate(possible_fire_positions):
+        if each_fire_index > number_of_fires_minus_one:
             break
         else:
-            layers.goal[x, y] = True
+            layers.fire[x, y] = True
     
     # generate waters
     number_of_waters_minus_one = randint(0, round(len(possible_water_positions)/2))
@@ -99,7 +99,7 @@ def generate_random_map(size):
         
     number_of_states = (
         product(layers.position.shape) # number of positions the player can be in
-        * (2 ** product(layers.goal.shape)) # squares cannot be both a goal and a water square, so we treat them as binary. This should still be an overestimate of true possible number of states
+        * (2 ** product(layers.fire.shape)) # squares cannot be both a fire and a water square, so we treat them as binary. This should still be an overestimate of true possible number of states
     )
     return layers, Position((start_x, start_y)), number_of_states
 
@@ -152,7 +152,7 @@ class World:
             output += f'-----'*len(each_row)+'-\n'
             # add all the fires
             for y, _ in enumerate(each_row):
-                output += f'|  🔥' if world.state.grid.goal[x,y] else f'|    '
+                output += f'|  🔥' if world.state.grid.fire[x,y] else f'|    '
             output += f'|\n'
             # add player and faucet
             for y, _ in enumerate(each_row):
@@ -199,7 +199,7 @@ class World:
 # World(grid_size=5).Player()
 # class FrozenLakeEnv(Env):
 #     """
-#         Frozen lake involves crossing a frozen lake from Start(S) to Goal(G) without falling into any Holes(H)
+#         Frozen lake involves crossing a frozen lake from Start(S) to fire(G) without falling into any Holes(H)
 #         by walking over the Frozen(F) lake.
 #         The agent may not always move in the intended direction due to the slippery nature of the frozen lake.
 
@@ -216,14 +216,14 @@ class World:
 #         ### Observation Space
 #         The observation is a value representing the agent's current position as
 #         current_row * nrows + current_col (where both the row and col start at 0).
-#         For example, the goal position in the 4x4 map can be calculated as follows: 3 * 4 + 3 = 15.
+#         For example, the fire position in the 4x4 map can be calculated as follows: 3 * 4 + 3 = 15.
 #         The number of possible observations is dependent on the size of the map.
 #         For example, the 4x4 map has 16 possible observations.
 
 #         ### Rewards
 
 #         Reward schedule:
-#         - Reach goal(G): +1
+#         - Reach fire(G): +1
 #         - Reach hole(H): 0
 #         - Reach frozen(F): 0
 
@@ -363,7 +363,7 @@ class World:
 #         self.cracked_hole_img = None
 #         self.ice_img          = None
 #         self.elf_images       = None
-#         self.goal_img         = None
+#         self.fire_img         = None
 #         self.start_img        = None
     
 #     def _compute_momentum_change_penalty(self):
@@ -450,9 +450,9 @@ class World:
 #         if self.ice_img is None:
 #             file_name = path.join(path.dirname(__file__), "img/ice.png")
 #             self.ice_img = pygame.image.load(file_name)
-#         if self.goal_img is None:
-#             file_name = path.join(path.dirname(__file__), "img/goal.png")
-#             self.goal_img = pygame.image.load(file_name)
+#         if self.fire_img is None:
+#             file_name = path.join(path.dirname(__file__), "img/fire.png")
+#             self.fire_img = pygame.image.load(file_name)
 #         if self.start_img is None:
 #             file_name = path.join(path.dirname(__file__), "img/stool.png")
 #             self.start_img = pygame.image.load(file_name)
@@ -488,7 +488,7 @@ class World:
 #             self.cracked_hole_img, (cell_width, cell_height)
 #         )
 #         ice_img = pygame.transform.scale(self.ice_img, (cell_width, cell_height))
-#         goal_img = pygame.transform.scale(self.goal_img, (cell_width, cell_height))
+#         fire_img = pygame.transform.scale(self.fire_img, (cell_width, cell_height))
 #         start_img = pygame.transform.scale(self.start_img, (small_cell_w, small_cell_h))
 
 #         desc = self.desc.tolist()
@@ -499,8 +499,8 @@ class World:
 #                     self.window_surface.blit(hole_img, (rect[0], rect[1]))
 #                 elif desc[y][x] == b"G":
 #                     self.window_surface.blit(ice_img, (rect[0], rect[1]))
-#                     goal_rect = self._center_small_rect(rect, goal_img.get_size())
-#                     self.window_surface.blit(goal_img, goal_rect)
+#                     fire_rect = self._center_small_rect(rect, fire_img.get_size())
+#                     self.window_surface.blit(fire_img, fire_rect)
 #                 elif desc[y][x] == b"S":
 #                     self.window_surface.blit(ice_img, (rect[0], rect[1]))
 #                     stool_rect = self._center_small_rect(rect, start_img.get_size())
