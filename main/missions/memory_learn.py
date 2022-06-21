@@ -5,6 +5,7 @@ import pickle
 import gym
 import numpy as np
 import time
+from collections import defaultdict
 
 # from world_builders.frozen_lake.environment import Env
 # from world_builders.cart_pole.environment import Env
@@ -32,9 +33,11 @@ def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_tes
     # training
     # 
     reward_sum = 0
-    for progress, (episode_index, timestep_index, mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
-        reward_sum += max(reward_sum, mr_bond.reward)
-        progress.text = f"reward: {reward_sum/(episode_index+1)}"
+    action_freq = defaultdict(lambda : 0)
+    for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
+        reward_sum += mr_bond.reward
+        action_freq[action] += 1
+        progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, {dict(action_freq)}"
         pass
     
     # 

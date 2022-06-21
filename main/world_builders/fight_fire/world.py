@@ -109,7 +109,8 @@ def generate_random_map(size):
     return layers, Position((start_x, start_y)), number_of_states
 
 class World:
-    def __init__(world, *, grid_size):
+    def __init__(world, *, grid_size, debug=False):
+        world.debug = debug
         world.state = Object(
             grid=None,
             has_water={},
@@ -151,7 +152,7 @@ class World:
             def check_for_reward(self):
                 fires_before = self.previous_observation.fire.sum()
                 fires_now = self.observation.fire.sum()
-                if fires_before < fires_now:
+                if fires_before > fires_now:
                     return 50
                 else:
                     return 0
@@ -244,6 +245,7 @@ class World:
         # 
         # mutate state
         # 
+        if world.debug: print(world)
         
         # position
         world.state.position_of[player] = new_position
@@ -255,6 +257,11 @@ class World:
         # put out fire
         world.state.grid.fire[new_position.x, new_position.y] = fire_status
         
+        if world.debug: print(world)
+        if world.debug: print(f'''has_water = {has_water}''')
+        if world.debug: print(f'''fire_status = {fire_status}''')
+        if world.debug: from time import sleep 
+        if world.debug: sleep(0.5)
         
         # request granted
         return True

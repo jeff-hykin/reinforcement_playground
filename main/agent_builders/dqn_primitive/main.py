@@ -48,7 +48,7 @@ class Agent(Skeleton):
     
     def when_mission_starts(self, mission_index=0):
         self.outcomes = []
-        self.running_epsilon = self.epsilon if not self.training else 0
+        self.running_epsilon = self.epsilon if self.training else 0
         pass
         
     def when_episode_starts(self, episode_index):

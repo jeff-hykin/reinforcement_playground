@@ -19,9 +19,10 @@ def traditional_runtime(*, agent, env, max_timestep_index=math.inf, max_episode_
             timestep_index += 1
             
             agent.when_timestep_starts(timestep_index)
-            agent.observation, agent.reward, agent.episode_is_over, info = env.step(agent.action)
+            action = agent.action
+            agent.observation, agent.reward, agent.episode_is_over, info = env.step(action)
             agent.when_timestep_ends(timestep_index)
-            yield episode_index, timestep_index, agent.observation, agent.reward, agent.episode_is_over
+            yield episode_index, timestep_index, agent.observation, action, agent.reward, agent.episode_is_over
         
         agent.when_episode_ends(episode_index)
     agent.when_mission_ends()
