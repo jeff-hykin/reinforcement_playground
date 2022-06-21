@@ -9,6 +9,8 @@ import collections
 import cv2
 import time
 
+from blissful_basics import product
+
 from tools.agent_skeleton import Skeleton
 from tools.file_system_tools import FileSystem
 
@@ -30,7 +32,10 @@ class Agent(Skeleton):
         pass
     
     def when_mission_starts(self, mission_index=0):
-        self.qtable = np.zeros((self.observation_space.n, self.action_space.n))
+        self.qtable = np.zeros((
+            product(self.observation_space.shape),
+            product(self.action_space.shape),
+        ))
         self.outcomes = []
         pass
         
@@ -48,6 +53,7 @@ class Agent(Skeleton):
             self.action = np.argmax(self.qtable[self.observation])
         
     def when_timestep_ends(self, timestep_index):
+        print(f'''self.action = {self.action}''')
         old_q_value       = self.qtable[self.prev_observation, self.action]
         discounted_reward = self.reward + self.discount_factor * np.max(self.qtable[self.observation]) 
         self.discounted_reward_sum += discounted_reward

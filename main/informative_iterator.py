@@ -82,7 +82,7 @@ class ProgressBar:
             percent=0,
             updated=True,
             time=self.times[0],
-            total_iterations=(len(original_generator) if iterations is None else iterations),
+            total_iterations=(len(tuple(original_generator)) if iterations is None else iterations),
             deviation=None,
             expected_number_of_updates_needed=None,
         )

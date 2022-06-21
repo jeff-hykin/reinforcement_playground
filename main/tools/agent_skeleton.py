@@ -1,4 +1,9 @@
 class Skeleton:
+    observation = None     # external world will change this
+    reward = None          # external world will change this
+    action = None          # extrenal world will read this
+    episode_is_over = None # extrenal world will change this
+    
     def __init__(self, observation_space, action_space, **config):
         self.observation = None     # external world will change this
         self.reward = None          # external world will change this

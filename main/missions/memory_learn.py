@@ -8,10 +8,15 @@ import time
 
 # from world_builders.frozen_lake.with_momentum import FrozenLakeEnv as Env
 from world_builders.cart_pole.environment import Env
+# from world_builders.fight_fire.world import World
 from agent_builders.dqn_primitive.main import Agent
 from tools.runtimes import traditional_runtime
 
 from informative_iterator import ProgressBar
+
+
+# world = World(grid_size=5)
+# env = world.Player()
 
 def run(number_of_episodes_for_training=1000, number_of_episodes_for_testing=100):
     env = Env()
@@ -27,7 +32,7 @@ def run(number_of_episodes_for_training=1000, number_of_episodes_for_testing=100
     # 
     # training
     # 
-    for progress, (episode_index, timestep_index, agent.observation, agent.reward, agent.episode_is_over) in ProgressBar(traditional_runtime(agent=agent, env=env)):
+    for progress, (episode_index, timestep_index, agent.observation, agent.reward, agent.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env)):
         pass
         
     
