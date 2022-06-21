@@ -85,6 +85,7 @@ class ProgressBar:
             total_iterations=(len(original_generator) if iterations is None else iterations),
             deviation=None,
             expected_number_of_updates_needed=None,
+            text="",
         )
         # setup print
         if self.disable_logging:
@@ -204,6 +205,8 @@ class ProgressBar:
                     # display each thing according to the layout
                     for each in self.layout:
                         getattr(self, f"show_{each}", lambda : None)()
+                    
+                    self.print(self.progress_data.text, end='')
                     
                     if not self.inline:
                         self.print()

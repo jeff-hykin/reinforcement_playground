@@ -20,6 +20,8 @@ from informative_iterator import ProgressBar
 
 def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_testing=1_000_000):
     env = Env()
+    print(f'''env.observation_space = {env.observation_space}''')
+    print(f'''env.action_space = {env.action_space}''')
     mr_bond = Agent(
         observation_space=env.observation_space,
         action_space=env.action_space,
@@ -35,7 +37,7 @@ def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_tes
     reward_sum = 0
     for progress, (episode_index, timestep_index, mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
         reward_sum += max(reward_sum, mr_bond.reward)
-        print(f"reward: {reward_sum/(episode_index+1)}", end="\r")
+        progress.text = f"reward: {reward_sum/(episode_index+1)}"
         pass
     
     # 
