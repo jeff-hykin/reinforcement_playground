@@ -5,7 +5,7 @@ import time
 import sys
 import math
 
-from super_map import Map
+from super_map import LazyDict
 
 try:
     from IPython.display import display, HTML, clear_output, get_ipython
@@ -77,12 +77,12 @@ class ProgressBar:
         self.next_percent_mark = self.percent_per_print
         self.prev_time         = -math.inf
         self.times             = [time.time()]
-        self.progress_data     = Map(
+        self.progress_data     = LazyDict(
             index=0,
             percent=0,
             updated=True,
             time=self.times[0],
-            total_iterations=(len(tuple(original_generator)) if iterations is None else iterations),
+            total_iterations=(len(original_generator) if iterations is None else iterations),
             deviation=None,
             expected_number_of_updates_needed=None,
         )

@@ -6,6 +6,7 @@ from io import StringIO
 
 from gym import utils
 from gym.envs.toy_text import discrete
+from gym.envs.toy_text.discrete import categorical_sample
 
 LEFT = 0
 DOWN = 1
@@ -63,7 +64,7 @@ def generate_random_map(size=8, p=0.8):
     return ["".join(x) for x in res]
 
 
-class FrozenLakeEnv(discrete.DiscreteEnv):
+class Env(discrete.DiscreteEnv):
     """
     Winter is here. You and your friends were tossing around a frisbee at the
     park when you made a wild throw that left the frisbee out in the middle of
@@ -147,7 +148,7 @@ class FrozenLakeEnv(discrete.DiscreteEnv):
                         else:
                             li.append((1.0, *update_probability_matrix(row, col, a)))
 
-        super(FrozenLakeEnv, self).__init__(nS, nA, P, isd)
+        super(Env, self).__init__(nS, nA, P, isd)
 
     def render(self, mode="human"):
         outfile = StringIO() if mode == "ansi" else sys.stdout
@@ -167,3 +168,20 @@ class FrozenLakeEnv(discrete.DiscreteEnv):
         if mode != "human":
             with closing(outfile):
                 return outfile.getvalue()
+    
+    # def seed(self, seed=None):
+    #     self.np_random, seed = seeding.np_random(seed)
+    #     return [seed]
+
+    def reset(self):
+        self.s = categorical_sample(self.isd, self.np_random)
+        self.lastaction = None
+        return int(self.s)
+
+    def step(self, a):
+        transitions = self.P[self.s][a]
+        i = categorical_sample([t[0] for t in transitions], self.np_random)
+        p, s, r, d = transitions[i]
+        self.s = s
+        self.lastaction = a
+        return (int(s), r, d, {"prob": p})

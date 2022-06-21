@@ -6,8 +6,8 @@ import gym
 import numpy as np
 import time
 
-# from world_builders.frozen_lake.with_momentum import FrozenLakeEnv as Env
-from world_builders.cart_pole.environment import Env
+from world_builders.frozen_lake.environment import Env
+# from world_builders.cart_pole.environment import Env
 # from world_builders.fight_fire.world import World
 from agent_builders.dqn_primitive.main import Agent
 from tools.runtimes import traditional_runtime
@@ -18,7 +18,7 @@ from informative_iterator import ProgressBar
 # world = World(grid_size=5)
 # env = world.Player()
 
-def run(number_of_episodes_for_training=1000, number_of_episodes_for_testing=100):
+def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_testing=1_000_000):
     env = Env()
     mr_bond = Agent(
         observation_space=env.observation_space,
@@ -32,28 +32,25 @@ def run(number_of_episodes_for_training=1000, number_of_episodes_for_testing=100
     # 
     # training
     # 
-    for progress, (episode_index, timestep_index, agent.observation, agent.reward, agent.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env)):
+    reward_sum = 0
+    for progress, (episode_index, timestep_index, mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
+        reward_sum += max(reward_sum, mr_bond.reward)
+        print(f"reward: {reward_sum/(episode_index+1)}", end="\r")
         pass
-        
     
     # 
     # testing
     # 
-    mr_bond.when_mission_starts()
-    for progress, episode_index in ProgressBar(range(number_of_episodes_for_testing)):
+    mr_bond.training = False
+    reward_sum = 0
+    for progress, (episode_index, timestep_index, mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_testing):
+        reward_sum += mr_bond.reward
+        # print(progress)
+        pass
         
-        mr_bond.observation     = env.reset()
-        mr_bond.when_episode_starts(episode_index)
-        timestep_index = -1
-        while not mr_bond.episode_is_over:
-            timestep_index += 1
-            
-            mr_bond.when_timestep_starts(timestep_index)
-            mr_bond.observation, mr_bond.reward, mr_bond.episode_is_over, info = env.step(mr_bond.action)
-            mr_bond.when_timestep_ends(timestep_index)
-            
-        mr_bond.when_episode_ends(episode_index)
-    mr_bond.when_mission_ends()
-
+    print(f'''reward_sum = {reward_sum}''')
+    print(f'''reward_sum/episode_index = {reward_sum/(episode_index+1)}''')
+    print(f'''reward_sum/timestep_index = {reward_sum/(timestep_index+1)}''')
+    
 
 run()
