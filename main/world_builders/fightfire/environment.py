@@ -8,7 +8,7 @@ from warnings import warn
 
 import numpy as np
 import torch
-from blissful_basics import Object
+from blissful_basics import Object, product
 from super_map import LazyDict
 from torch import tensor
 
@@ -97,25 +97,44 @@ def generate_random_map(size):
         else:
             layers.water[x, y] = True
         
-    return layers, Position((start_x, start_y))
+    number_of_states = (
+        product(layers.position.shape) # number of positions the player can be in
+        * (2 ** product(layers.goal.shape)) # squares cannot be both a goal and a water square, so we treat them as binary. This should still be an overestimate of true possible number of states
+    )
+    return layers, Position((start_x, start_y)), number_of_states
 
 class World:
     def __init__(world, *, grid_size):
-        world.layers, world.body_position = generate_random_map(grid_size)
+        world.state = Object(
+            grid=None,
+            has_water={},
+            position_of={},
+        )
+        world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(grid_size)
         world.min_index = 0
         world.max_index = grid_size-1
+        world.number_of_states = world.number_of_grid_states + 1
+        
+        world.has_water = {}
         
         class Player(Env):
+            reward_range = (0,100)
             actions = LazyDict(dict(
                 LEFT  = 0,
                 DOWN  = 1,
                 RIGHT = 2,
                 UP    = 3,
             ))
-            action_space = spaces.Discrete(len(actions))
+            action_space     = spaces.Discrete(len(actions))
+            number_of_states = world.number_of_grid_states
             
             def __init__(self):
-                self.body_position = world.body_position
+                world.state.has_water[self] = False
+                world.state.position_of[self] = world.start_position
+            
+            @property
+            def position(self):
+                return world.state.position_of[self]
                 
             def perform_action(self, action):
                 # request 
@@ -123,119 +142,141 @@ class World:
             
             @property
             def observation(self):
-                # this body can see everything
-                return world.layers
+                return world.state.grid
         
         world.Player = Player
     
+    def __repr__(world):
+        output = ""
+        for x, each_row in enumerate(world.state.grid.position):
+            output += f'-----'*len(each_row)+'-\n'
+            # add all the fires
+            for y, _ in enumerate(each_row):
+                output += f'|  🔥' if world.state.grid.goal[x,y] else f'|    '
+            output += f'|\n'
+            # add player and faucet
+            for y, _ in enumerate(each_row):
+                person_space = '🏃‍' if world.state.grid.position[x,y] else '  '
+                water_space  = '🚰' if world.state.grid.water[x,y] else '  '
+                output += f'|{person_space}{water_space}'
+            output += f'|\n'
+        output += f'-----'*len(each_row)+'-\n'
+        return output
+    
     def request_action(world, body, action):
         old_position = Position(body.position)
+        new_position = Position(old_position)
                 
         if action == body.actions.LEFT:
-            body.position.x -= 1
+            new_position.x -= 1
         elif action == body.actions.RIGHT:
-            body.position.x += 1
+            new_position.x += 1
         elif action == body.actions.DOWN:
-            body.position.y -= 1
+            new_position.y -= 1
         elif action == body.actions.UP:
-            body.position.y += 1
+            new_position.y += 1
         else:
             warn(f"invalid action ({action}) was selected, ignoring")
         
         # stay in bounds
-        if body.position.x > world.max_index: body.position.x = world.max_index
-        if body.position.x < world.min_index: body.position.x = world.min_index
-        if body.position.y > world.max_index: body.position.y = world.max_index
-        if body.position.y < world.min_index: body.position.y = world.min_index
+        if new_position.x > world.max_index: new_position.x = world.max_index
+        if new_position.x < world.min_index: new_position.x = world.min_index
+        if new_position.y > world.max_index: new_position.y = world.max_index
+        if new_position.y < world.min_index: new_position.y = world.min_index
         
-        # update grid with (possibly) new location
-        world.layers.position[tuple(old_position)] = False
-        world.layers.position[tuple(body.position)] = True
-
-
+        # 
+        # update state
+        # 
         
+        # position
+        world.state.position_of[body] = new_position
+        # grid
+        world.state.grid.position[tuple(old_position)] = False
+        world.state.grid.position[tuple(new_position)] = True
+        # has water
+        world.state.has_water[body] = world.state.has_water[body] or world.state.grid.water[new_position.x, new_position.y]
 
-# World(grid_size=5).player
+# World(grid_size=5).Player()
 # class FrozenLakeEnv(Env):
 #     """
-#     Frozen lake involves crossing a frozen lake from Start(S) to Goal(G) without falling into any Holes(H)
-#     by walking over the Frozen(F) lake.
-#     The agent may not always move in the intended direction due to the slippery nature of the frozen lake.
+#         Frozen lake involves crossing a frozen lake from Start(S) to Goal(G) without falling into any Holes(H)
+#         by walking over the Frozen(F) lake.
+#         The agent may not always move in the intended direction due to the slippery nature of the frozen lake.
 
 
-#     ### Action Space
-#     The agent takes a 1-element vector for actions.
-#     The action space is `(dir)`, where `dir` decides direction to move in which can be:
+#         ### Action Space
+#         The agent takes a 1-element vector for actions.
+#         The action space is `(dir)`, where `dir` decides direction to move in which can be:
 
-#     - 0: LEFT
-#     - 1: DOWN
-#     - 2: RIGHT
-#     - 3: UP
+#         - 0: LEFT
+#         - 1: DOWN
+#         - 2: RIGHT
+#         - 3: UP
 
-#     ### Observation Space
-#     The observation is a value representing the agent's current position as
-#     current_row * nrows + current_col (where both the row and col start at 0).
-#     For example, the goal position in the 4x4 map can be calculated as follows: 3 * 4 + 3 = 15.
-#     The number of possible observations is dependent on the size of the map.
-#     For example, the 4x4 map has 16 possible observations.
+#         ### Observation Space
+#         The observation is a value representing the agent's current position as
+#         current_row * nrows + current_col (where both the row and col start at 0).
+#         For example, the goal position in the 4x4 map can be calculated as follows: 3 * 4 + 3 = 15.
+#         The number of possible observations is dependent on the size of the map.
+#         For example, the 4x4 map has 16 possible observations.
 
-#     ### Rewards
+#         ### Rewards
 
-#     Reward schedule:
-#     - Reach goal(G): +1
-#     - Reach hole(H): 0
-#     - Reach frozen(F): 0
+#         Reward schedule:
+#         - Reach goal(G): +1
+#         - Reach hole(H): 0
+#         - Reach frozen(F): 0
 
-#     ### Arguments
-
-#     ```
-#     gym.make('FrozenLake-v1', desc=None, map_name="4x4", is_slippery=True)
-#     ```
-
-#     `desc`: Used to specify custom map for frozen lake. For example,
-
-#         desc=["SFFF", "FHFH", "FFFH", "HFFG"].
-
-#         A random generated map can be specified by calling the function `generate_random_map`. For example,
+#         ### Arguments
 
 #         ```
-#         from gym.envs.toy_text.frozen_lake import generate_random_map
-
-#         gym.make('FrozenLake-v1', desc=generate_random_map(size=8))
+#         gym.make('FrozenLake-v1', desc=None, map_name="4x4", is_slippery=True)
 #         ```
 
-#     `map_name`: ID to use any of the preloaded maps.
+#         `desc`: Used to specify custom map for frozen lake. For example,
 
-#         "4x4":[
-#             "SFFF",
-#             "FHFH",
-#             "FFFH",
-#             "HFFG"
+#             desc=["SFFF", "FHFH", "FFFH", "HFFG"].
+
+#             A random generated map can be specified by calling the function `generate_random_map`. For example,
+
+#             ```
+#             from gym.envs.toy_text.frozen_lake import generate_random_map
+
+#             gym.make('FrozenLake-v1', desc=generate_random_map(size=8))
+#             ```
+
+#         `map_name`: ID to use any of the preloaded maps.
+
+#             "4x4":[
+#                 "SFFF",
+#                 "FHFH",
+#                 "FFFH",
+#                 "HFFG"
+#                 ]
+
+#             "8x8": [
+#                 "SFFFFFFF",
+#                 "FFFFFFFF",
+#                 "FFFHFFFF",
+#                 "FFFFFHFF",
+#                 "FFFHFFFF",
+#                 "FHHFFFHF",
+#                 "FHFFHFHF",
+#                 "FFFHFFFG",
 #             ]
 
-#         "8x8": [
-#             "SFFFFFFF",
-#             "FFFFFFFF",
-#             "FFFHFFFF",
-#             "FFFFFHFF",
-#             "FFFHFFFF",
-#             "FHHFFFHF",
-#             "FHFFHFHF",
-#             "FFFHFFFG",
-#         ]
+#         `is_slippery`: True/False. If True will move in intended direction with
+#         probability of 1/3 else will move in either perpendicular direction with
+#         equal probability of 1/3 in both directions.
 
-#     `is_slippery`: True/False. If True will move in intended direction with
-#     probability of 1/3 else will move in either perpendicular direction with
-#     equal probability of 1/3 in both directions.
+#             For example, if action is left and is_slippery is True, then:
+#             - P(move left)=1/3
+#             - P(move up)=1/3
+#             - P(move down)=1/3
 
-#         For example, if action is left and is_slippery is True, then:
-#         - P(move left)=1/3
-#         - P(move up)=1/3
-#         - P(move down)=1/3
-
-#     ### Version History
-#     * v1: Bug fixes to rewards
-#     * v0: Initial versions release (1.0.0)
+#         ### Version History
+#         * v1: Bug fixes to rewards
+#         * v0: Initial versions release (1.0.0)
 #     """
 
 #     metadata = {
