@@ -45,7 +45,7 @@ from super_map import LazyDict
 from tools.debug import debug, ic
 from tools.agent_skeleton import Skeleton
 
-def correctness_check(self, policy, support_multi_env, supported_action_spaces):
+def correctness_check(self, policy, supported_action_spaces, support_multi_env,):
     if supported_action_spaces is not None:
         assert isinstance(self.action_space, supported_action_spaces), (
             f"The algorithm only supports {supported_action_spaces} as action spaces "
@@ -500,13 +500,9 @@ class DQN(GenericTools):
         #     :param device: Device on which the code should run.
         #         By default, it will try to use a Cuda compatible device and fallback to cpu
         #         if it is not possible.
-        #     :param support_multi_env: Whether the algorithm supports training
-        #         with multiple environments (as in A2C)
         #     :param create_eval_env: Whether to create a second environment that will be
         #         used for evaluating the agent periodically. (Only available when passing string for the environment)
         #     :param seed: Seed for the pseudo random generators
-        #     :param sde_support: Whether the model support gSDE or not
-        #     :param supported_action_spaces: The action spaces supported by the algorithm.
         # """
         
             # """
@@ -523,12 +519,9 @@ class DQN(GenericTools):
             # :param device: Device on which the code should run.
             #     By default, it will try to use a Cuda compatible device and fallback to cpu
             #     if it is not possible.
-            # :param support_multi_env: Whether the algorithm supports training
-            #     with multiple environments (as in A2C)
             # :param create_eval_env: Whether to create a second environment that will be
             #     used for evaluating the agent periodically. (Only available when passing string for the environment)
             # :param seed: Seed for the pseudo random generators
-            # :param supported_action_spaces: The action spaces supported by the algorithm.
             # """
     
     # Policy aliases (see _get_policy_from_name())
@@ -566,10 +559,6 @@ class DQN(GenericTools):
         device                 : Union[th.device , str]      = "auto"   , 
         _init_setup_model      : bool                        = True     , 
     ):
-        sde_support             = False
-        supported_action_spaces = (gym.spaces.Discrete,)
-        support_multi_env       = True
-        
         if True: # OffPolicyAlgorithm
             if True: # BaseAlgorithm
                 self.env                         = None  
@@ -610,7 +599,7 @@ class DQN(GenericTools):
                     self.action_space      = self.env.action_space
                     self.n_envs            = self.env.num_envs
                     
-                    correctness_check(self, policy, support_multi_env, supported_action_spaces)
+                    correctness_check(self, policy, supported_action_spaces=(gym.spaces.Discrete,), support_multi_env=True)
 
             self._episode_storage      = None
             self.actor                 = None  # type: Optional[th.nn.Module]
@@ -933,7 +922,7 @@ class DQN(GenericTools):
         # 
         if not reset_num_timesteps:
             # Make sure training timesteps are ahead of the internal counter
-            self._total_timesteps += self.num_timesteps 
+            self._total_timesteps += self.num_timesteps # FIXME: this doesn't make sense to me
         else:
             self.num_timesteps = 0
             self._episode_num = 0
