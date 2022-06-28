@@ -16,6 +16,45 @@ from super_hash import super_hash
 from tools.agent_skeleton import Skeleton
 from tools.file_system_tools import FileSystem
 
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier
+from trivial_torch_tools import Sequential, init, convert_each_arg, product
+
+torch.manual_seed(1)
+
+class CriticNetwork(nn.Module):
+    @init.hardware
+    def __init__(self, *, input_shape, output_shape, learning_rate=0.1):
+        super(CriticNetwork, self).__init__()
+        self.layers = Sequential()
+        self.layers.add_module('flatten', nn.Flatten(start_dim=input_shape, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
+        self.layers.add_module('lstm', nn.LSTM(product(input_shape), output_shape))
+        self.layers.add_module('softmax', nn.Softmax(dim=0))
+        
+        self.loss_function = nn.NLLLoss()
+        self.optimizer = self.get_optimizer(learning_rate)
+    
+    def get_optimizer(self, learning_rate):
+        return optim.SGD(self.parameters(), lr=learning_rate)
+    
+    def update_weights(self, input_value, output_value):
+        self.zero_grad()
+        loss = self.loss_function(input_value, output_value)
+        loss.backward()
+        self.optimizer.step()
+        return loss
+    
+    def predict(self, input):
+        with torch.no_grad():
+            return self.forward(inputs)
+        
+    
 class Agent(Skeleton):
     def __init__(self, 
         observation_space,
@@ -38,14 +77,44 @@ class Agent(Skeleton):
         self.discount_factor   = discount_factor
         self.epsilon           = epsilon        # Amount of randomness in the action selection
         self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
-        self.actions           = actions or tuple(range(product((*self.action_space.shape, 2))))
+        self.actions           = actions or tuple(range(product(self.action_space.shape))))
+        self.one_hotifier      = OneHotifier(possible_values=self.actions)
+        self.critic            = CriticNetwork(input_shape=product(*self.observation_space.shape, len(self.actions)), output_shape=len(self.actions))
+        # TODO: one-hot encode actions
         self._table            = defaultdict(lambda: self.default_value_assumption)
-        self.value_of          = value_of or (lambda state, action: self._table[super_hash((state, action))])
+        self.value_of          = lambda observation, action: self.critic.predict()
         self.bellman_update    = bellman_update if callable(bellman_update) else (lambda state, action, value: self._table.update({ super_hash((state, action)): value }) )
         self.default_value_assumption = default_value_assumption
         self._get_best_action  = get_best_action
         self.training          = training
         pass
+    
+    def action_to_tensor(self, action):
+        return self.one_hotifier.to_one_hot(action).to(self.hardware)
+    
+    def observation_to_tensor(self, observation):
+        return to_tensor(observation).to(self.hardware)
+    
+    def create_q_input(self, action, observation):
+        return torch.cat((
+            self.action_to_tensor(action),
+            self.observation_to_tensor(observation),
+        ))
+    
+    def get_best_action(self, observation):
+        if isinstance(self.action_space, gym.spaces.Discrete):
+            values = tuple((self.value_of(observation, each_action) for each_action in self.actions))
+            best_action_key = max_index(values)
+            return self.actions[best_action_key]
+        elif callable(self._get_best_action):
+            return self._get_best_action(self)
+        else:
+            raise Exception(f'''\n\nThe agent {self.__class__.__name__} doesn't have a way to choose the best action, please pass the argument: \n    {self.__class__.__name__}(get_best_action=lambda self: do_something(self.observation))\n\n''')
+        pass
+    
+    # 
+    # mission hooks
+    # 
     
     def when_mission_starts(self, mission_index=0):
         self.outcomes = []
@@ -66,17 +135,6 @@ class Agent(Skeleton):
             self.action = self.get_best_action(observation=self.observation)
         pass
     
-    def get_best_action(self, observation):
-        if isinstance(self.action_space, gym.spaces.Discrete):
-            values = tuple((self.value_of(observation, each_action) for each_action in self.actions))
-            best_action_key = max_index(values)
-            return self.actions[best_action_key]
-        elif callable(self._get_best_action):
-            return self._get_best_action(self)
-        else:
-            raise Exception(f'''\n\nThe agent {self.__class__.__name__} doesn't have a way to choose the best action, please pass the argument: \n    {self.__class__.__name__}(get_best_action=lambda self: do_something(self.observation))\n\n''')
-        pass
-            
     def when_timestep_ends(self, timestep_index):
         old_q_value       = self.value_of(self.prev_observation, self.action)
         discounted_reward = self.reward + self.discount_factor * self.get_best_action(self.observation)
