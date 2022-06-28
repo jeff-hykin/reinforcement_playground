@@ -80,7 +80,8 @@ def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_tes
                 for key in sorted_keys
         }
         episode_reward = episode_rewards[episode_index]
-        progress.text = f"reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
+        if mr_bond.episode_is_over:
+            progress.text = f"reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
         # progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, \n{dict(action_freq)}, \n{LazyDict(table)}"
         pass
     

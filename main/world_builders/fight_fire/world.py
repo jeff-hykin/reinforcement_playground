@@ -18,6 +18,7 @@ from super_hash import super_hash
 from gym import Env, spaces, utils
 
 from trivial_torch_tools import to_tensor
+from trivial_torch_tools.generics import to_pure
 
 
 layers_enum = LazyDict(dict(
@@ -144,6 +145,7 @@ class World:
                 world.state.position_of[self] = world.start_position
                 self.previous_action = None
                 self.previous_observation = None
+                self.action = None
             
             @property
             def position(self):
@@ -164,7 +166,11 @@ class World:
                 if fires_before > fires_now:
                     return 50
                 else:
-                    return 5
+                    # penalize hitting a wall
+                    if to_pure(self.previous_action) == to_pure(self.action) and to_pure(self.previous_observation) == to_pure(self.observation):
+                        return 0
+                    else:
+                        return 5
             
             def check_for_done(self):
                 fires_now = self.observation.fire.sum()
@@ -178,7 +184,8 @@ class World:
                 self.previous_observation = deepcopy(self.observation)
                 for each_key, each_value in layers_enum.items():
                     setattr(self.previous_observation, each_key, self.previous_observation[each_value])
-                self.previous_action = deepcopy(action)
+                self.previous_action = deepcopy(self.action)
+                self.action = action
                 world.request_change(self, action)
             
             def step(self, action):
