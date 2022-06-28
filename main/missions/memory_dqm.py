@@ -20,6 +20,7 @@ from informative_iterator import ProgressBar
 
 world = World(
     grid_size=3,
+    visualize=False,
     # debug=True,
 )
 Env = world.Player
@@ -59,15 +60,16 @@ def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_tes
         action_space=env.action_space,
         actions=env.actions.values(),
     )
-    print(f'''env.actions.values() = {env.actions.values()}''')
     
     # 
     # training
     # 
     reward_sum = 0
+    episode_rewards = defaultdict(lambda : 0)
     action_freq = { each:0 for each in mr_bond.actions }
     for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
         reward_sum += mr_bond.reward
+        episode_rewards[episode_index] += mr_bond.reward
         action_freq[action] += 1
         new = defaultdict(lambda : 0)
         new.update({ key: action_freq[key] for key in sorted(list(action_freq.keys())) })
@@ -77,7 +79,8 @@ def run(number_of_timesteps_for_training=10_000_000, number_of_timesteps_for_tes
             key: mr_bond._table[key]
                 for key in sorted_keys
         }
-        progress.text = f"reward: {align(reward_sum/(episode_index+1), digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
+        episode_reward = episode_rewards[episode_index]
+        progress.text = f"reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
         # progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, \n{dict(action_freq)}, \n{LazyDict(table)}"
         pass
     

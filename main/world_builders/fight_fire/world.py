@@ -121,19 +121,11 @@ class Discrete(spaces.Discrete):
         self._shape = value
 
 class World:
-    def __init__(world, *, grid_size, debug=False):
+    def __init__(world, *, grid_size, visualize=False, debug=False):
+        world.visualize = visualize
         world.debug = debug
-        world.state = Object(
-            grid=None,
-            has_water={},
-            position_of={},
-        )
-        world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(grid_size)
-        world.min_index = 0
-        world.max_index = grid_size-1
-        world.number_of_states = world.number_of_grid_states + 1
-        
-        world.has_water = defaultdict(lambda : False)
+        world.grid_size = grid_size
+        world.reset()
         
         class Player(Env):
             reward_range = (0,100)
@@ -174,6 +166,14 @@ class World:
                 else:
                     return 5
             
+            def check_for_done(self):
+                fires_now = self.observation.fire.sum()
+                
+                if fires_now == 0:
+                    return True
+                else:
+                    return False
+            
             def perform_action(self, action):
                 self.previous_observation = deepcopy(self.observation)
                 for each_key, each_value in layers_enum.items():
@@ -185,14 +185,18 @@ class World:
                 self.perform_action(action)
                 next_state = self.observation
                 reward     = self.check_for_reward()
-                done       = reward > 0
+                done       = self.check_for_done()
                 debug_info = Object(has_water=world.state.has_water[self], position=self.position)
+                
+                if world.visualize:
+                    print(f'''player1 reward = {f"{reward}".rjust(3)}, done = {done}''')
                 
                 return next_state, reward, done, debug_info
 
             def reset(self,):
                 # ask the world to reset
                 world.request_change(self, World.reset)
+                self.__init__()
                 return self.observation
             
             def close(self):
@@ -222,7 +226,17 @@ class World:
         return output
     
     def reset(world):
-        return 
+        world.state = Object(
+            grid=None,
+            has_water={},
+            position_of={},
+        )
+        world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(world.grid_size)
+        world.min_index = 0
+        world.max_index = world.grid_size-1
+        world.number_of_states = world.number_of_grid_states + 1
+        
+        world.has_water = defaultdict(lambda : False)
     
     def request_change(world, player, change):
         if change == World.reset:
@@ -280,5 +294,9 @@ class World:
         if world.debug: from time import sleep 
         if world.debug: sleep(0.5)
         
+        if world.visualize:
+            from time import sleep
+            print(f'''world = {world}''')
+            sleep(0.7)
         # request granted
         return True
