@@ -24,7 +24,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier
-from trivial_torch_tools import Sequential, init, convert_each_arg, product
+from trivial_torch_tools import Sequential, init, convert_each_arg, product, to_pure
 
 torch.manual_seed(1)
 
@@ -60,16 +60,13 @@ class Agent(Skeleton):
         observation_space,
         action_space,
         actions=None,
-        value_of=None,
         training=True,
         learning_rate=0.5,
         discount_factor=0.9,
         epsilon=1.0,
         epsilon_decay=0.001,
         default_value_assumption=0,
-        bellman_update=None,
         get_best_action=None,
-        memory=None,
     ):
         self.observation_space = observation_space
         self.action_space      = action_space
@@ -79,27 +76,40 @@ class Agent(Skeleton):
         self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
         self.actions           = actions or tuple(range(product(self.action_space.shape))))
         self.one_hotifier      = OneHotifier(possible_values=self.actions)
-        self.critic            = CriticNetwork(input_shape=product(*self.observation_space.shape, len(self.actions)), output_shape=len(self.actions))
+        self.q_input_shape     = len(actions) + product(self.observation_space.shape)
+        self.critic            = CriticNetwork(input_shape=self.q_input_shape, output_shape=len(self.actions))
         # TODO: one-hot encode actions
-        self._table            = defaultdict(lambda: self.default_value_assumption)
-        self.value_of          = lambda observation, action: self.critic.predict()
-        self.bellman_update    = bellman_update if callable(bellman_update) else (lambda state, action, value: self._table.update({ super_hash((state, action)): value }) )
+        self._table                   = defaultdict(lambda: self.default_value_assumption)
         self.default_value_assumption = default_value_assumption
-        self._get_best_action  = get_best_action
-        self.training          = training
+        self._get_best_action         = get_best_action
+        self.training                 = training
         pass
     
     def action_to_tensor(self, action):
-        return self.one_hotifier.to_one_hot(action).to(self.hardware)
+        return self.one_hotifier.to_one_hot(action).to(self.critic.hardware)
     
     def observation_to_tensor(self, observation):
-        return to_tensor(observation).to(self.hardware)
+        return to_tensor(observation).to(self.critic.hardware)
     
     def create_q_input(self, action, observation):
         return torch.cat((
             self.action_to_tensor(action),
             self.observation_to_tensor(observation),
         ))
+    
+    # TODO add python caching
+    def value_of(self, observation, action):
+        input_tensor = self.create_q_input(action, observation)
+        action_values = self.critic.predict(input_tensor)
+        action_index = self.actions.index(action)
+        value_of_specific_action = action_values[action_index]
+        return to_pure(value_of_specific_action)
+    
+    def bellman_update(self, prev_observation, action, new_value):
+        return self.critic.update_weights(
+            input_value=self.create_q_input(prev_observation),
+            output_value=to_tensor(new_value).to(self.critic.hardware),
+        )
     
     def get_best_action(self, observation):
         if isinstance(self.action_space, gym.spaces.Discrete):
@@ -140,9 +150,10 @@ class Agent(Skeleton):
         discounted_reward = self.reward + self.discount_factor * self.get_best_action(self.observation)
         self.discounted_reward_sum += discounted_reward
         
-        # update q value
-        new_value = old_q_value + self.learning_rate * (discounted_reward - self.value_of(self.prev_observation, self.action))
-        self.bellman_update(self.prev_observation, self.action, new_value)
+        if self.training:
+            # update q value
+            new_q_value = old_q_value + self.learning_rate * (discounted_reward - self.value_of(self.prev_observation, self.action))
+            self.bellman_update(self.prev_observation, self.action, new_q_value)
         pass
         
     def when_episode_ends(self, episode_index):
