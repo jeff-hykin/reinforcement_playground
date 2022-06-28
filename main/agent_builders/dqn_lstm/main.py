@@ -16,7 +16,7 @@ from super_hash import super_hash
 from tools.agent_skeleton import Skeleton
 from tools.file_system_tools import FileSystem
 
-
+from tools.debug import debug
 
 import torch
 import torch.nn as nn
@@ -24,35 +24,53 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier
-from trivial_torch_tools import Sequential, init, convert_each_arg, product, to_pure
+from trivial_torch_tools import Sequential, init, convert_each_arg, product
+from trivial_torch_tools.generics import to_pure, flatten
 
 torch.manual_seed(1)
 
+def randomly_pick_from(a_list):
+    from random import randint
+    index = randint(0, len(a_list)-1)
+    return a_list[index]
+
+
 class CriticNetwork(nn.Module):
-    @init.hardware
+    @init.to_device()
     def __init__(self, *, input_shape, output_shape, learning_rate=0.1):
         super(CriticNetwork, self).__init__()
+        self.input_size = product(flatten(input_shape))
+        
         self.layers = Sequential()
-        self.layers.add_module('flatten', nn.Flatten(start_dim=input_shape, end_dim=-1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module('lstm', nn.LSTM(product(input_shape), output_shape))
+        self.layers.add_module('flatten', nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
+        self.layers.add_module('lstm', nn.LSTM(self.input_size, output_shape))
         self.layers.add_module('softmax', nn.Softmax(dim=0))
         
-        self.loss_function = nn.NLLLoss()
+        self.loss_function = nn.MSELoss()
         self.optimizer = self.get_optimizer(learning_rate)
     
     def get_optimizer(self, learning_rate):
         return optim.SGD(self.parameters(), lr=learning_rate)
     
-    def update_weights(self, input_value, output_value):
+    def update_weights(self, input_value, ideal_output):
         self.zero_grad()
-        loss = self.loss_function(input_value, output_value)
+        input_value.requires_grad = True
+        current_output = self.forward(input_value)
+        print(f'''current_output = {current_output}''')
+        print(f'''ideal_output = {ideal_output}''')
+        loss = self.loss_function(current_output, ideal_output)
         loss.backward()
         self.optimizer.step()
         return loss
     
-    def predict(self, input):
+    def predict(self, input_batch):
         with torch.no_grad():
-            return self.forward(inputs)
+            return self.forward(input_batch)
+    
+    def forward(self, input_batch):
+        values = self.layers.flatten(input_batch)
+        lstm_out, _ = self.layers.lstm(values)
+        return self.layers.softmax(lstm_out) # alternative: F.log_softmax(lstm_out, dim=1)
         
     
 class Agent(Skeleton):
@@ -74,10 +92,11 @@ class Agent(Skeleton):
         self.discount_factor   = discount_factor
         self.epsilon           = epsilon        # Amount of randomness in the action selection
         self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
-        self.actions           = actions or tuple(range(product(self.action_space.shape))))
-        self.one_hotifier      = OneHotifier(possible_values=self.actions)
-        self.q_input_shape     = len(actions) + product(self.observation_space.shape)
-        self.critic            = CriticNetwork(input_shape=self.q_input_shape, output_shape=len(self.actions))
+        self.actions           = OneHotifier(
+            possible_values=(  actions or tuple(range(product(self.action_space.shape or (self.action_space.n,))))  ),
+        )
+        self.q_input_size     = len(self.actions) + product(self.observation_space.shape or (self.observation_space.n,))
+        self.critic            = CriticNetwork(input_shape=self.q_input_size, output_shape=len(self.actions))
         # TODO: one-hot encode actions
         self._table                   = defaultdict(lambda: self.default_value_assumption)
         self.default_value_assumption = default_value_assumption
@@ -86,36 +105,41 @@ class Agent(Skeleton):
         pass
     
     def action_to_tensor(self, action):
-        return self.one_hotifier.to_one_hot(action).to(self.critic.hardware)
+        return self.actions.value_to_onehot(action).to(self.critic.hardware)
     
     def observation_to_tensor(self, observation):
-        return to_tensor(observation).to(self.critic.hardware)
+        return to_tensor(observation).flatten().to(self.critic.hardware)
     
     def create_q_input(self, action, observation):
-        return torch.cat((
+        actual_input = torch.cat((
             self.action_to_tensor(action),
             self.observation_to_tensor(observation),
         ))
+        batched = to_tensor([actual_input])
+        return batched
     
     # TODO add python caching
     def value_of(self, observation, action):
         input_tensor = self.create_q_input(action, observation)
-        action_values = self.critic.predict(input_tensor)
-        action_index = self.actions.index(action)
-        value_of_specific_action = action_values[action_index]
+        action_onehot = self.critic.predict(input_tensor)[0] # first element because its a batch of size=1
+        action_index = self.actions.onehot_to_index(action_onehot)
+        value_of_specific_action = action_onehot[action_index]
         return to_pure(value_of_specific_action)
     
     def bellman_update(self, prev_observation, action, new_value):
+        action_q_distribution = self.critic.predict(self.create_q_input(observation=prev_observation, action=action))
+        action_index = self.actions.value_to_index(action)
+        action_q_distribution[0][action_index] = new_value
         return self.critic.update_weights(
-            input_value=self.create_q_input(prev_observation),
-            output_value=to_tensor(new_value).to(self.critic.hardware),
+            input_value=self.create_q_input(observation=prev_observation, action=action),
+            ideal_output=action_q_distribution, # wrapped in list to create a batch of size 1
         )
     
     def get_best_action(self, observation):
         if isinstance(self.action_space, gym.spaces.Discrete):
             values = tuple((self.value_of(observation, each_action) for each_action in self.actions))
-            best_action_key = max_index(values)
-            return self.actions[best_action_key]
+            best_action_index = max_index(values)
+            return self.actions.index_to_value(best_action_index)
         elif callable(self._get_best_action):
             return self._get_best_action(self)
         else:
@@ -139,7 +163,7 @@ class Agent(Skeleton):
         self.prev_observation = self.observation
         # if random number < epsilon, take a random action
         if random.random() < self.running_epsilon:
-            self.action = self.action_space.sample()
+            self.action = randomly_pick_from(self.actions)
         # else, take the action with the highest value in the current self.observation
         else:
             self.action = self.get_best_action(observation=self.observation)
@@ -147,7 +171,8 @@ class Agent(Skeleton):
     
     def when_timestep_ends(self, timestep_index):
         old_q_value       = self.value_of(self.prev_observation, self.action)
-        discounted_reward = self.reward + self.discount_factor * self.get_best_action(self.observation)
+        best_action       = self.get_best_action(self.observation)
+        discounted_reward = self.reward + self.discount_factor * self.value_of(self.observation, best_action)
         self.discounted_reward_sum += discounted_reward
         
         if self.training:

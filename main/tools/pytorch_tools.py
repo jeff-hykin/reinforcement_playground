@@ -178,26 +178,51 @@ def to_tensor(an_object):
             reshaped_list.append(torch.reshape(each, (*missing_dimensions_tuple, *shape)))
         
         return torch.stack(reshaped_list).type(torch.float)
-            
-class OneHotifier():
+
+def randomly_pick_from(a_list):
+    from random import randint
+    index = randint(0, len(a_list)-1)
+    return a_list[index]
+
+class OneHotifier(list):
     def __init__(self, possible_values):
         # convert to tuple if needed
         if not hasattr(possible_values, "__len__"):
             possible_values = tuple(possible_values)
-        self.possible_values = possible_values
+        
+        super(OneHotifier, self).__init__(possible_values)
+        
+    def index_to_value(self, index):
+        return self[index]
     
-    def to_one_hot(self, value):
-        index = self.possible_values.index(value)
+    def index_to_onehot(self, index):
         return torch.nn.functional.one_hot(
             torch.tensor(index),
-            len(self.possible_values)
+            len(self),
         )
     
-    def from_one_hot(self, vector):
-        vector = to_tensor(vector)
-        index_value = vector.max(0).indices
-        return self.possible_values[index_value]
-        
+    def value_to_index(self, value):
+        return self.index(value)
+    
+    def value_to_onehot(self, value):
+        index = self.value_to_index(value)
+        return self.index_to_onehot(index)
+    
+    def onehot_to_index(self, vector):
+        tensor = to_tensor(vector)
+        max_value = tensor.max(0).values
+        indicies = (tensor >= max_value).nonzero()
+        if len(indicies) > 0: # randomly pick if there is a tie
+            output = randomly_pick_from(indicies).cpu().item()
+        else:
+            output = indicies[0].cpu().item()
+        return output
+    
+    def onehot_to_value(self, vector):
+        index = self.onehot_to_index(vector)
+        return self.index_to_value(index)
+    
+    
 def onehot_argmax(tensor):
     tensor = to_tensor(tensor)
     the_max = max(each for each in tensor)

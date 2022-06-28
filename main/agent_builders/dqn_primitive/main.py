@@ -78,7 +78,8 @@ class Agent(Skeleton):
             
     def when_timestep_ends(self, timestep_index):
         old_q_value       = self.value_of(self.prev_observation, self.action)
-        discounted_reward = self.reward + self.discount_factor * self.get_best_action(self.observation)
+        best_action       = self.get_best_action(self.observation)
+        discounted_reward = self.reward + self.discount_factor * self.value_of(self.observation, best_action)
         self.discounted_reward_sum += discounted_reward
         
         # update q value

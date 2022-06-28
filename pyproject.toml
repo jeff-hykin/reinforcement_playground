@@ -52,6 +52,7 @@ networkx = "2.7"
 atari-py = "0.2.9"
 jupyterthemes = "0.20.0"
 blissful-basics = "^0.0.2"
+trivial-torch-tools = "^0.5.1"
 
 [tool.poetry.dev-dependencies]
 

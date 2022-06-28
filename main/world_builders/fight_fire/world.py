@@ -17,6 +17,8 @@ from super_hash import super_hash
 
 from gym import Env, spaces, utils
 
+from trivial_torch_tools import to_tensor
+
 
 layers_enum = LazyDict(dict(
     position=0,
@@ -109,6 +111,15 @@ def generate_random_map(size):
     )
     return layers, Position((start_x, start_y)), number_of_states
 
+class Discrete(spaces.Discrete):
+    @property
+    def shape(self):
+        return self._shape
+    
+    @shape.setter
+    def shape(self, value):
+        self._shape = value
+
 class World:
     def __init__(world, *, grid_size, debug=False):
         world.debug = debug
@@ -132,8 +143,9 @@ class World:
                 RIGHT = "RIGHT",
                 UP    = "UP",
             ))
-            action_space      = spaces.Discrete(len(actions))
-            observation_space = spaces.Discrete(world.number_of_grid_states)
+            action_space      = Discrete(len(actions))
+            observation_space = Discrete(world.number_of_grid_states)
+            observation_space.shape = tuple(to_tensor(world.state.grid).shape)
             
             def __init__(self):
                 world.state.has_water[self] = False
