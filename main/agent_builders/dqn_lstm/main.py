@@ -56,8 +56,6 @@ class CriticNetwork(nn.Module):
         self.zero_grad()
         input_value.requires_grad = True
         current_output = self.forward(input_value)
-        print(f'''current_output = {current_output}''')
-        print(f'''ideal_output = {ideal_output}''')
         loss = self.loss_function(current_output, ideal_output)
         loss.backward()
         self.optimizer.step()
@@ -82,7 +80,7 @@ class Agent(Skeleton):
         learning_rate=0.5,
         discount_factor=0.9,
         epsilon=1.0,
-        epsilon_decay=0.001,
+        epsilon_decay=0.00001,
         default_value_assumption=0,
         get_best_action=None,
     ):
@@ -95,7 +93,7 @@ class Agent(Skeleton):
         self.actions           = OneHotifier(
             possible_values=(  actions or tuple(range(product(self.action_space.shape or (self.action_space.n,))))  ),
         )
-        self.q_input_size     = len(self.actions) + product(self.observation_space.shape or (self.observation_space.n,))
+        self.q_input_size     = product(self.observation_space.shape or (self.observation_space.n,))
         self.critic            = CriticNetwork(input_shape=self.q_input_size, output_shape=len(self.actions))
         # TODO: one-hot encode actions
         self._table                   = defaultdict(lambda: self.default_value_assumption)
@@ -104,42 +102,33 @@ class Agent(Skeleton):
         self.training                 = training
         pass
     
-    def action_to_tensor(self, action):
-        return self.actions.value_to_onehot(action).to(self.critic.hardware)
-    
     def observation_to_tensor(self, observation):
         return to_tensor(observation).flatten().to(self.critic.hardware)
     
-    def create_q_input(self, action, observation):
-        actual_input = torch.cat((
-            self.action_to_tensor(action),
-            self.observation_to_tensor(observation),
-        ))
-        batched = to_tensor([actual_input])
-        return batched
+    def create_q_input(self, observation):
+        return to_tensor([self.observation_to_tensor(observation)])
     
     # TODO add python caching
     def value_of(self, observation, action):
-        input_tensor = self.create_q_input(action, observation)
+        input_tensor = self.create_q_input(observation)
         action_onehot = self.critic.predict(input_tensor)[0] # first element because its a batch of size=1
-        action_index = self.actions.onehot_to_index(action_onehot)
-        value_of_specific_action = action_onehot[action_index]
+        value_of_specific_action = action_onehot[self.actions.value_to_index(action)]
         return to_pure(value_of_specific_action)
     
     def bellman_update(self, prev_observation, action, new_value):
-        action_q_distribution = self.critic.predict(self.create_q_input(observation=prev_observation, action=action))
+        action_q_distribution = self.critic.predict(self.create_q_input(prev_observation))
         action_index = self.actions.value_to_index(action)
         action_q_distribution[0][action_index] = new_value
         return self.critic.update_weights(
-            input_value=self.create_q_input(observation=prev_observation, action=action),
+            input_value=self.create_q_input(observation=prev_observation),
             ideal_output=action_q_distribution, # wrapped in list to create a batch of size 1
         )
     
     def get_best_action(self, observation):
         if isinstance(self.action_space, gym.spaces.Discrete):
-            values = tuple((self.value_of(observation, each_action) for each_action in self.actions))
-            best_action_index = max_index(values)
-            return self.actions.index_to_value(best_action_index)
+            input_tensor = self.create_q_input(observation)
+            action_q_distribution = self.critic.predict(input_tensor)[0] # first element because its a batch of size=1
+            return self.actions.onehot_to_value(action_q_distribution)
         elif callable(self._get_best_action):
             return self._get_best_action(self)
         else:
@@ -161,7 +150,6 @@ class Agent(Skeleton):
         
     def when_timestep_starts(self, timestep_index):
         self.prev_observation = self.observation
-        # if random number < epsilon, take a random action
         if random.random() < self.running_epsilon:
             self.action = randomly_pick_from(self.actions)
         # else, take the action with the highest value in the current self.observation
@@ -183,7 +171,7 @@ class Agent(Skeleton):
         
     def when_episode_ends(self, episode_index):
         self.outcomes.append(self.discounted_reward_sum)
-        self.running_epsilon *= self.epsilon_decay
+        self.running_epsilon *= (1-self.epsilon_decay)
         pass
         
     def when_mission_ends(self, mission_index=0):
