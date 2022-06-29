@@ -129,7 +129,7 @@ class World:
         world.reset()
         
         class Player(Env):
-            reward_range = (0,100)
+            reward_range = (-10,100)
             actions = LazyDict(dict(
                 LEFT  = "LEFT",
                 DOWN  = "DOWN",
@@ -155,11 +155,7 @@ class World:
             def observation(self):
                 return world.state.grid
                 
-            
             def check_for_reward(self):
-                if super_hash(self.observation) == super_hash(self.previous_observation):
-                    return 0
-                
                 fires_before = self.previous_observation.fire.sum()
                 fires_now = self.observation.fire.sum()
                 
@@ -167,10 +163,10 @@ class World:
                     return 50
                 else:
                     # penalize hitting a wall
-                    if to_pure(self.previous_action) == to_pure(self.action) and to_pure(self.previous_observation) == to_pure(self.observation):
-                        return 0
+                    if to_pure(self.previous_observation) == to_pure(self.observation):
+                        return -5
                     else:
-                        return 5
+                        return -1
             
             def check_for_done(self):
                 fires_now = self.observation.fire.sum()

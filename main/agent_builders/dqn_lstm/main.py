@@ -72,7 +72,7 @@ class CriticNetwork(nn.Module):
         
     
 class Agent(Skeleton):
-    def __init__(self, 
+    def __init__(self,
         observation_space,
         action_space,
         actions=None,
@@ -80,7 +80,7 @@ class Agent(Skeleton):
         learning_rate=0.5,
         discount_factor=0.9,
         epsilon=1.0,
-        epsilon_decay=0.00001,
+        epsilon_decay=0.0001,
         default_value_assumption=0,
         get_best_action=None,
     ):
