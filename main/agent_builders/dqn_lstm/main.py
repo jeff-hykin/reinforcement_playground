@@ -31,6 +31,10 @@ from trivial_torch_tools.generics import to_pure, flatten
 
 torch.manual_seed(1)
 
+class Decision(tuple):
+    def __repr__(self):
+        return f"{self[0]}".rjust(7)+f"{self[1]}"
+
 class CriticNetwork(nn.Module):
     @init.to_device()
     def __init__(self, *, input_shape, output_shape, learning_rate=0.1):
@@ -114,7 +118,7 @@ class Agent(Skeleton):
             all_argmax_coordinates(observation.position)[0]
         ))
         sort_keys(self._table)
-        self._table[action, position_coordinates] = result
+        self._table[Decision((action, position_coordinates))] = result
         return result
     
     def bellman_update(self, prev_observation, action, new_value):
