@@ -1,12 +1,13 @@
+from collections import defaultdict
 from contextlib import closing
+from copy import deepcopy
 from io import StringIO
 from os import path
+from random import random, randint, shuffle, seed
 from typing import List, Optional
-import math
-from random import random, randint, shuffle
 from warnings import warn
-from copy import deepcopy
-from collections import defaultdict
+import math
+from time import sleep, time
 
 import numpy as np
 import torch
@@ -61,8 +62,8 @@ def generate_random_map(width, height):
     layers = torch.zeros(shape) != 0 # boolean tensor with default of false
     for each_key, each_value in layers_enum.items():
         setattr(layers, each_key, layers[each_value])
-    start_x = randint(min_x_index+1,max_x_index-1)
-    start_y = randint(min_y_index+1,max_y_index-1)
+    start_x = randint(min_x_index+1,max_x_index-1) if min_x_index!=min_x_index else min_x_index
+    start_y = randint(min_y_index+1,max_y_index-1) if min_y_index!=min_y_index else min_y_index
     center_square_location = (start_x, start_y)
     
     # 
@@ -70,7 +71,7 @@ def generate_random_map(width, height):
     # 
     possible_fire_positions = []
     possible_water_positions = []
-    if random() > 0.5:
+    if height == 1 or random() > 0.5:
         # use start_x as dividing line
         for x_index, each_row in enumerate(layers.position):
             for y_index, each_cell in enumerate(each_row):
@@ -124,10 +125,11 @@ class Discrete(spaces.Discrete):
         self._shape = value
 
 class World:
-    def __init__(world, *, grid_width, grid_height, visualize=False, debug=False):
+    def __init__(world, *, grid_width, grid_height, visualize=False, debug=False, random_seed=None):
+        world._random_seed = time() if random_seed == None else random_seed
         world.visualize = visualize
         world.debug = debug
-        world.grid_width, world.grid_height = grid_width, grid_height
+        world.grid_width, world.grid_height = int(grid_width), int(grid_height)
         world.reset()
         
         class Player(Env):
@@ -215,20 +217,40 @@ class World:
     
     def __repr__(world):
         output = ""
-        for x, each_row in enumerate(world.state.grid.position):
-            output += f'-----'*len(each_row)+'-\n'
+        grid = world.state.grid
+        transposed = Object(
+            position=defaultdict(lambda: {}),
+            water=defaultdict(lambda: {}),
+            fire=defaultdict(lambda: {}),
+        )
+        for x, column in enumerate(world.state.grid.position):
+            for y, cell in enumerate(column):
+                transposed.position[y][x] = world.state.grid.position[x, y]
+                transposed.water[y][x]    = world.state.grid.water[x, y]
+                transposed.fire[y][x]     = world.state.grid.fire[x, y]
+        
+        for row_index, each_row in enumerate(transposed.position.values()):
+            output += f'-----'*(world.max_x_index+1)+'-\n'
             # add all the fires
-            for y, _ in enumerate(each_row):
-                output += f'|  🔥' if world.state.grid.fire[x,y] else f'|    '
+            for column_index, _ in enumerate(each_row):
+                output += f'|  🔥' if world.state.grid.fire[column_index,row_index] else f'|    '
             output += f'|\n'
             # add player and faucet
-            for y, _ in enumerate(each_row):
-                person_space = '🏃‍' if world.state.grid.position[x,y] else '  '
-                water_space  = '🚰' if world.state.grid.water[x,y] else '  '
+            for column_index, _ in enumerate(each_row):
+                person_space = '🏃‍' if world.state.grid.position[column_index,row_index] else '  '
+                water_space  = '🚰' if world.state.grid.water[column_index,row_index] else '  '
                 output += f'|{person_space}{water_space}'
             output += f'|\n'
-        output += f'-----'*len(each_row)+'-\n'
+        output += f'-----'*(world.max_x_index+1)+'-\n'
         return output
+    
+    @property
+    def random_seed(self):
+        return self._random_seed
+    
+    @random_seed.setter
+    def random_seed(self, value):
+        self._random_seed = value
     
     def reset(world):
         world.state = Object(
@@ -236,9 +258,11 @@ class World:
             has_water={},
             position_of={},
         )
+        world.random_seed += 1
+        seed(world.random_seed)
         world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(world.grid_width, world.grid_height)
-        world.min_x_index, world.min_y_index = 0
-        world.max_x_index, world.max_y_index = world.width-1, world.height-1
+        world.min_x_index, world.min_y_index = 0, 0
+        world.max_x_index, world.max_y_index = world.grid_width-1, world.grid_height-1
         world.number_of_states = world.number_of_grid_states + 1
         
         world.has_water = defaultdict(lambda : False)
@@ -296,11 +320,9 @@ class World:
         if world.debug: print(world)
         if world.debug: print(f'''has_water = {has_water}''')
         if world.debug: print(f'''fire_status = {fire_status}''')
-        if world.debug: from time import sleep 
         if world.debug: sleep(0.5)
         
         if world.visualize:
-            from time import sleep
             print(f'''world = {world}''')
             sleep(0.7)
         # request granted
