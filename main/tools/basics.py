@@ -31,6 +31,23 @@ def flatten_once(items):
         else:
             yield each
 
+def sort_keys(a_dict):
+    keys = sorted(list(a_dict.keys()))
+    dict_copy = {}
+    # save copy and remove
+    for each_key in keys:
+        dict_copy[each_key] = a_dict[each_key]
+        del a_dict[each_key]
+    # re-add in correct order
+    for each_key in keys:
+        a_dict[each_key] = dict_copy[each_key]
+    return a_dict
+
+def randomly_pick_from(a_list):
+    from random import randint
+    index = randint(0, len(a_list)-1)
+    return a_list[index]
+
 def list_module_names(system_only=False, installed_only=False):
     def item_is_python_module(item_name, parent_path):
         import regex

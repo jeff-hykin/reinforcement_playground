@@ -15,6 +15,7 @@ from super_map import LazyDict
 from world_builders.fight_fire.world import World
 from agent_builders.dqn_lstm.main import Agent
 from tools.runtimes import traditional_runtime
+from tools.basics import sort_keys, randomly_pick_from
 
 from informative_iterator import ProgressBar
 
@@ -36,11 +37,6 @@ Env = world.Player
 from blissful_basics import product, max_index, to_pure
 from super_hash import super_hash
 from tools.agent_skeleton import Skeleton
-
-def randomly_pick_from(a_list):
-    from random import randint
-    index = randint(0, len(a_list)-1)
-    return a_list[index]
 
 def align(value, pad=3, digits=5, decimals=3):
     # convert to int if needed
@@ -73,18 +69,10 @@ def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testin
         reward_sum += mr_bond.reward
         episode_rewards[episode_index] += mr_bond.reward
         action_freq[action] += 1
-        new = defaultdict(lambda : 0)
-        new.update({ key: action_freq[key] for key in sorted(list(action_freq.keys())) })
-        keys = list(mr_bond._table.keys())
-        sorted_keys = sorted(keys)
-        table       = { 
-            key: mr_bond._table[key]
-                for key in sorted_keys
-        }
         episode_reward = episode_rewards[episode_index]
         if mr_bond.episode_is_over:
             from statistics import mean as average
-            progress.text = f"average_reward:{align(average(list(episode_rewards.values())), pad=4, decimals=0)}, reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
+            progress.text = f"average_reward:{align(average(list(episode_rewards.values())), pad=4, decimals=0)}, reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{mr_bond._table}"
         # progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, \n{dict(action_freq)}, \n{LazyDict(table)}"
         pass
     

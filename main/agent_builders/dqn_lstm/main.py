@@ -12,28 +12,24 @@ from collections import defaultdict
 
 from blissful_basics import product, max_index
 from super_hash import super_hash
+from super_map import LazyDict
 
 from tools.agent_skeleton import Skeleton
 from tools.file_system_tools import FileSystem
 
 from tools.debug import debug
+from tools.basics import sort_keys, randomly_pick_from
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier
+from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier, all_argmax_coordinates
 from trivial_torch_tools import Sequential, init, convert_each_arg, product
 from trivial_torch_tools.generics import to_pure, flatten
 
 torch.manual_seed(1)
-
-def randomly_pick_from(a_list):
-    from random import randint
-    index = randint(0, len(a_list)-1)
-    return a_list[index]
-
 
 class CriticNetwork(nn.Module):
     @init.to_device()
@@ -93,10 +89,10 @@ class Agent(Skeleton):
         self.actions           = OneHotifier(
             possible_values=(  actions or tuple(range(product(self.action_space.shape or (self.action_space.n,))))  ),
         )
-        self.q_input_size     = product(self.observation_space.shape or (self.observation_space.n,))
+        self.q_input_size      = product(self.observation_space.shape or (self.observation_space.n,))
         self.critic            = CriticNetwork(input_shape=self.q_input_size, output_shape=len(self.actions))
         # TODO: one-hot encode actions
-        self._table                   = defaultdict(lambda: self.default_value_assumption)
+        self._table                   = LazyDict()
         self.default_value_assumption = default_value_assumption
         self._get_best_action         = get_best_action
         self.training                 = training
@@ -113,7 +109,13 @@ class Agent(Skeleton):
         input_tensor = self.create_q_input(observation)
         action_onehot = self.critic.predict(input_tensor)[0] # first element because its a batch of size=1
         value_of_specific_action = action_onehot[self.actions.value_to_index(action)]
-        return to_pure(value_of_specific_action)
+        result = to_pure(value_of_specific_action)
+        position_coordinates = tuple(to_pure(
+            all_argmax_coordinates(observation.position)[0]
+        ))
+        sort_keys(self._table)
+        self._table[action, position_coordinates] = result
+        return result
     
     def bellman_update(self, prev_observation, action, new_value):
         action_q_distribution = self.critic.predict(self.create_q_input(prev_observation))

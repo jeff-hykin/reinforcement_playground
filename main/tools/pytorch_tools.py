@@ -184,6 +184,10 @@ def randomly_pick_from(a_list):
     index = randint(0, len(a_list)-1)
     return a_list[index]
 
+def all_argmax_coordinates(tensor):
+    as_float = tensor.float() # for boolean tensors
+    return (as_float == torch.max(as_float)).nonzero()
+
 class OneHotifier(list):
     def __init__(self, possible_values):
         # convert to tuple if needed
