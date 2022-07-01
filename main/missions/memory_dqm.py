@@ -19,10 +19,12 @@ from tools.runtimes import traditional_runtime
 from informative_iterator import ProgressBar
 
 world = World(
-    grid_size=3,
+    grid_width=3,
+    grid_height=1,
     visualize=False,
     # debug=True,
 )
+print(f'''world = {world}''')
 Env = world.Player
 
 

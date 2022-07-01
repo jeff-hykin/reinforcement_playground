@@ -49,18 +49,20 @@ class Position(list):
     def __repr__(self):
         return f'(x={self.x},y={self.y},z={self.z})'
     
-def generate_random_map(size):
-    if size % 2 == 0:
-        raise Exception(f'''size must be odd when generating a map''')
+def generate_random_map(width, height):
+    if width % 2 == 0 or height % 2 == 0:
+        raise Exception(f'''width and height must each odd when generating a map''')
     
-    shape = (len(layers_enum), size, size)
-    min_index = 0
-    max_index = size-1
+    shape = (len(layers_enum), width, height)
+    min_x_index = 0
+    min_y_index = 0
+    max_x_index = width-1
+    max_y_index = height-1
     layers = torch.zeros(shape) != 0 # boolean tensor with default of false
     for each_key, each_value in layers_enum.items():
         setattr(layers, each_key, layers[each_value])
-    start_x = randint(min_index+1,max_index-1)
-    start_y = randint(min_index+1,max_index-1)
+    start_x = randint(min_x_index+1,max_x_index-1)
+    start_y = randint(min_y_index+1,max_y_index-1)
     center_square_location = (start_x, start_y)
     
     # 
@@ -122,10 +124,10 @@ class Discrete(spaces.Discrete):
         self._shape = value
 
 class World:
-    def __init__(world, *, grid_size, visualize=False, debug=False):
+    def __init__(world, *, grid_width, grid_height, visualize=False, debug=False):
         world.visualize = visualize
         world.debug = debug
-        world.grid_size = grid_size
+        world.grid_width, world.grid_height = grid_width, grid_height
         world.reset()
         
         class Player(Env):
@@ -234,9 +236,9 @@ class World:
             has_water={},
             position_of={},
         )
-        world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(world.grid_size)
-        world.min_index = 0
-        world.max_index = world.grid_size-1
+        world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(world.grid_width, world.grid_height)
+        world.min_x_index, world.min_y_index = 0
+        world.max_x_index, world.max_y_index = world.width-1, world.height-1
         world.number_of_states = world.number_of_grid_states + 1
         
         world.has_water = defaultdict(lambda : False)
@@ -264,10 +266,10 @@ class World:
             warn(f"invalid change ({change}) was selected, ignoring")
         
         # stay in bounds
-        if new_position.x > world.max_index: new_position.x = world.max_index
-        if new_position.x < world.min_index: new_position.x = world.min_index
-        if new_position.y > world.max_index: new_position.y = world.max_index
-        if new_position.y < world.min_index: new_position.y = world.min_index
+        if new_position.x > world.max_x_index: new_position.x = world.max_x_index
+        if new_position.x < world.min_x_index: new_position.x = world.min_x_index
+        if new_position.y > world.max_y_index: new_position.y = world.max_y_index
+        if new_position.y < world.min_y_index: new_position.y = world.min_y_index
         
         # check if player has water
         has_water = world.state.has_water[player] or world.state.grid.water[new_position.x, new_position.y]
