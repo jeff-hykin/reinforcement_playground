@@ -31,9 +31,22 @@ from trivial_torch_tools.generics import to_pure, flatten
 
 torch.manual_seed(1)
 
-class Decision(tuple):
+class Decision:
+    def __init__(self, action, observation):
+        self.position = tuple(to_pure(
+            all_argmax_coordinates(observation.position)[0]
+        ))
+        self.action = action
+    def __hash__(self):
+        return hash(tuple((self.action, self.position)))
+    def __str__(self):
+        return self.__repr__()
     def __repr__(self):
-        return f"{self[0]}".rjust(7)+f"{self[1]}"
+        return f"{self.action}".rjust(7)+f"{self.position}"
+    def __lt__(self, other):
+        return tuple((self.position, self.action)) < tuple((other.position, other.action))
+    def __eq__(self, other):
+        return hash(self) == hash(other)
 
 class CriticNetwork(nn.Module):
     @init.to_device()
@@ -114,11 +127,8 @@ class Agent(Skeleton):
         action_onehot = self.critic.predict(input_tensor)[0] # first element because its a batch of size=1
         value_of_specific_action = action_onehot[self.actions.value_to_index(action)]
         result = to_pure(value_of_specific_action)
-        position_coordinates = tuple(to_pure(
-            all_argmax_coordinates(observation.position)[0]
-        ))
+        self._table[Decision(action, observation)] = result
         sort_keys(self._table)
-        self._table[Decision((action, position_coordinates))] = result
         return result
     
     def bellman_update(self, prev_observation, action, new_value):
