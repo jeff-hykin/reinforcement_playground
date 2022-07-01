@@ -14,7 +14,7 @@ from blissful_basics import product, max_index
 from super_hash import super_hash
 from super_map import LazyDict
 
-from tools.agent_skeleton import Skeleton
+from tools.agent_skeleton import Skeleton, rl_basics
 from tools.file_system_tools import FileSystem
 
 from tools.debug import debug
@@ -48,6 +48,7 @@ class Decision:
     def __eq__(self, other):
         return hash(self) == hash(other)
 
+
 class CriticNetwork(nn.Module):
     @init.to_device()
     def __init__(self, *, input_shape, output_shape, learning_rate=0.1):
@@ -66,12 +67,18 @@ class CriticNetwork(nn.Module):
         return optim.SGD(self.parameters(), lr=learning_rate)
     
     def update_weights(self, input_value, ideal_output):
-        self.zero_grad()
+        self.optimizer.zero_grad()
         input_value.requires_grad = True
+        # print(f'''self.parameters() BEFORE = {tuple(self.parameters())}''')
         current_output = self.forward(input_value)
-        loss = self.loss_function(current_output, ideal_output)
+        # print(f'''current_output = {current_output}''')
+        # print(f'''ideal_output = {ideal_output}''')
+        # print(f'''current_output.requires_grad = {current_output.requires_grad}''')
+        loss = (self.loss_function(current_output, ideal_output)+10)**2
+        # print(f'''loss = {loss}''')
         loss.backward()
         self.optimizer.step()
+        # print(f'''self.parameters() AFTER = {tuple(self.parameters())}''')
         return loss
     
     def predict(self, input_batch):
@@ -81,10 +88,13 @@ class CriticNetwork(nn.Module):
     def forward(self, input_batch):
         values = self.layers.flatten(input_batch)
         lstm_out, _ = self.layers.lstm(values)
-        return self.layers.softmax(lstm_out) # alternative: F.log_softmax(lstm_out, dim=1)
+        return F.log_softmax(lstm_out, dim=1)
+        # return lstm_out # alternative: F.log_softmax(lstm_out, dim=1)
+        # return self.layers.softmax(lstm_out) # alternative: F.log_softmax(lstm_out, dim=1)
         
     
 class Agent(Skeleton):
+    @rl_basics
     def __init__(self,
         observation_space,
         action_space,
@@ -180,8 +190,6 @@ class Agent(Skeleton):
         pass
     
     def when_timestep_ends(self, timestep_index):
-        self.prev_observation_response = self.action
-        
         best_action       = self.get_best_action(self.observation)
         q_value_prev      = self.value_of(self.prev_observation, self.prev_observation_response)
         q_value_current   = self.value_of(self.observation, best_action)

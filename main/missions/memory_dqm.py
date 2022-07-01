@@ -50,7 +50,7 @@ def align(value, pad=3, digits=5, decimals=3):
     else:
         return f"{value}".rjust(pad)
 
-def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testing=100_000):
+def run(number_of_timesteps_for_training=1_000, number_of_timesteps_for_testing=100_000):
     env = Env()
     mr_bond = Agent(
         observation_space=env.observation_space,
@@ -61,98 +61,17 @@ def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testin
     # 
     # training
     # 
-    reward_sum = 0
-    episode_rewards = defaultdict(lambda : 0)
-    action_freq = { each:0 for each in mr_bond.actions }
-    for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
-        world.random_seed = 1 # same world every time
-        reward_sum += mr_bond.reward
-        episode_rewards[episode_index] += mr_bond.reward
-        action_freq[action] += 1
-        episode_reward = episode_rewards[episode_index]
-        if mr_bond.episode_is_over:
-            from statistics import mean as average
-            progress.text = f"average_reward:{align(average(list(episode_rewards.values())), pad=4, decimals=0)}, reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{mr_bond._table}"
-        # progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, \n{dict(action_freq)}, \n{LazyDict(table)}"
-        pass
-    
-    print("# ")
-    print("# 50% random")
-    print("# ")
-    reward_sum = 0
-    episode_rewards = defaultdict(lambda : 0)
-    action_freq = { each:0 for each in mr_bond.actions }
-    mr_bond.epsilon = 0.5
-    for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
-        reward_sum += mr_bond.reward
-        episode_rewards[episode_index] += mr_bond.reward
-        action_freq[action] += 1
-        new = defaultdict(lambda : 0)
-        new.update({ key: action_freq[key] for key in sorted(list(action_freq.keys())) })
-        keys = list(mr_bond._table.keys())
-        sorted_keys = sorted(keys)
-        table       = { 
-            key: mr_bond._table[key]
-                for key in sorted_keys
-        }
-        episode_reward = episode_rewards[episode_index]
-        if mr_bond.episode_is_over:
-            from statistics import mean as average
-            progress.text = f"average_reward:{align(average(list(episode_rewards.values())), pad=4, decimals=0)}, reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
-        # progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, \n{dict(action_freq)}, \n{LazyDict(table)}"
-        pass
-    
-    print("# ")
-    print("# 5% random")
-    print("# ")
-    reward_sum = 0
-    episode_rewards = defaultdict(lambda : 0)
-    action_freq = { each:0 for each in mr_bond.actions }
-    mr_bond.epsilon = 0.05
-    for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
-        reward_sum += mr_bond.reward
-        episode_rewards[episode_index] += mr_bond.reward
-        action_freq[action] += 1
-        new = defaultdict(lambda : 0)
-        new.update({ key: action_freq[key] for key in sorted(list(action_freq.keys())) })
-        keys = list(mr_bond._table.keys())
-        sorted_keys = sorted(keys)
-        table       = { 
-            key: mr_bond._table[key]
-                for key in sorted_keys
-        }
-        episode_reward = episode_rewards[episode_index]
-        if mr_bond.episode_is_over:
-            from statistics import mean as average
-            progress.text = f"average_reward:{align(average(list(episode_rewards.values())), pad=4, decimals=0)}, reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
-        # progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, \n{dict(action_freq)}, \n{LazyDict(table)}"
-        pass
-    
-    print("# ")
-    print("# 0% random")
-    print("# ")
-    reward_sum = 0
-    episode_rewards = defaultdict(lambda : 0)
-    action_freq = { each:0 for each in mr_bond.actions }
-    mr_bond.epsilon = 0.00
-    for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
-        reward_sum += mr_bond.reward
-        episode_rewards[episode_index] += mr_bond.reward
-        action_freq[action] += 1
-        new = defaultdict(lambda : 0)
-        new.update({ key: action_freq[key] for key in sorted(list(action_freq.keys())) })
-        keys = list(mr_bond._table.keys())
-        sorted_keys = sorted(keys)
-        table       = { 
-            key: mr_bond._table[key]
-                for key in sorted_keys
-        }
-        episode_reward = episode_rewards[episode_index]
-        if mr_bond.episode_is_over:
-            from statistics import mean as average
-            progress.text = f"average_reward:{align(average(list(episode_rewards.values())), pad=4, decimals=0)}, reward: {align(episode_reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{dict(action_freq)}"
-        # progress.text = f"reward: {reward_sum/(episode_index+1)}, episode:{episode_index}, \n{dict(action_freq)}, \n{LazyDict(table)}"
-        pass
+    for each_epsilon in [ 0.9, 0.5, 0.05, 0 ]:
+        print("# ")
+        print(f"# {each_epsilon*100:.0f}% random")
+        print("# ")
+        mr_bond.epsilon = each_epsilon
+        for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
+            world.random_seed = 1 # same world every time
+            if mr_bond.episode_is_over:
+                from statistics import mean as average
+                progress.text = f"average_reward:{align(mr_bond.per_episode.average.reward, pad=4, decimals=0)}, reward: {align(mr_bond.episode.reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, epsilon:{align(mr_bond.running_epsilon, pad=2, decimals=6)}, \n{mr_bond._table}"
+            pass
     
     # 
     # testing
