@@ -96,6 +96,7 @@ class Agent(Skeleton):
         epsilon_decay=0.0001,
         default_value_assumption=0,
         get_best_action=None,
+        random_seed=None,
     ):
         self.observation_space = observation_space
         self.action_space      = action_space
@@ -113,6 +114,9 @@ class Agent(Skeleton):
         self.default_value_assumption = default_value_assumption
         self._get_best_action         = get_best_action
         self.training                 = training
+        self.random_seed              = random_seed or time.time()
+        if self.training:
+            self.critic.train()
         pass
     
     def observation_to_tensor(self, observation):
@@ -166,6 +170,8 @@ class Agent(Skeleton):
         
     def when_timestep_starts(self, timestep_index):
         self.prev_observation = self.observation
+        self.random_seed += 1
+        random.seed(self.random_seed)
         if random.random() < self.running_epsilon:
             self.action = randomly_pick_from(self.actions)
         # else, take the action with the highest value in the current self.observation

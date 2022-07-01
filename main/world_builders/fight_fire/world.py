@@ -323,7 +323,7 @@ class World:
         if world.debug: sleep(0.5)
         
         if world.visualize:
-            print(f'''world = {world}''')
+            print(world)
             sleep(0.7)
         # request granted
         return True
