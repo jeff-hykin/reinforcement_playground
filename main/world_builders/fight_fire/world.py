@@ -62,8 +62,8 @@ def generate_random_map(width, height):
     layers = torch.zeros(shape) != 0 # boolean tensor with default of false
     for each_key, each_value in layers_enum.items():
         setattr(layers, each_key, layers[each_value])
-    start_x = randint(min_x_index+1,max_x_index-1) if min_x_index!=min_x_index else min_x_index
-    start_y = randint(min_y_index+1,max_y_index-1) if min_y_index!=min_y_index else min_y_index
+    start_x = randint(min_x_index+1,max_x_index-1) if min_x_index!=max_x_index else min_x_index
+    start_y = randint(min_y_index+1,max_y_index-1) if min_y_index!=max_y_index else min_y_index
     center_square_location = (start_x, start_y)
     
     # 
@@ -73,20 +73,20 @@ def generate_random_map(width, height):
     possible_water_positions = []
     if height == 1 or random() > 0.5:
         # use start_x as dividing line
-        for x_index, each_row in enumerate(layers.position):
-            for y_index, each_cell in enumerate(each_row):
-                if x_index > start_x:
-                    possible_fire_positions.append((x_index, y_index))
-                elif x_index < start_x:
-                    possible_water_positions.append((x_index, y_index))
+        for column_index, each_row in enumerate(layers.position):
+            for row_index, each_cell in enumerate(each_row):
+                if column_index > start_x:
+                    possible_fire_positions.append((column_index, row_index))
+                elif column_index < start_x:
+                    possible_water_positions.append((column_index, row_index))
     else:
         # use start_y as dividing line
-        for x_index, each_row in enumerate(layers.position):
-            for y_index, each_cell in enumerate(each_row):
-                if y_index > start_y:
-                    possible_fire_positions.append((x_index, y_index))
-                elif y_index < start_y:
-                    possible_water_positions.append((x_index, y_index))
+        for column_index, each_row in enumerate(layers.position):
+            for row_index, each_cell in enumerate(each_row):
+                if row_index > start_y:
+                    possible_fire_positions.append((column_index, row_index))
+                elif row_index < start_y:
+                    possible_water_positions.append((column_index, row_index))
     
     # set current location
     layers.position[start_x, start_y] = True

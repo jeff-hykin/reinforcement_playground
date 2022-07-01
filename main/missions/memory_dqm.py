@@ -24,7 +24,7 @@ world = World(
     visualize=False,
     # debug=True,
 )
-print(f'''world = {world}''')
+print(f'''world = \n{world}''')
 Env = world.Player
 
 
