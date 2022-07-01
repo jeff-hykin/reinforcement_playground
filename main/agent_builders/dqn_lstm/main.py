@@ -174,15 +174,20 @@ class Agent(Skeleton):
         pass
     
     def when_timestep_ends(self, timestep_index):
-        old_q_value       = self.value_of(self.prev_observation, self.action)
+        self.prev_observation_response = self.action
+        
         best_action       = self.get_best_action(self.observation)
-        discounted_reward = self.reward + self.discount_factor * self.value_of(self.observation, best_action)
+        q_value_prev      = self.value_of(self.prev_observation, self.prev_observation_response)
+        q_value_current   = self.value_of(self.observation, best_action)
+        delta             = (self.discount_factor * q_value_current) - q_value_prev
+        
+        discounted_reward = (self.reward + delta)
         self.discounted_reward_sum += discounted_reward
         
         if self.training:
             # update q value
-            new_q_value = old_q_value + self.learning_rate * (discounted_reward - self.value_of(self.prev_observation, self.action))
-            self.bellman_update(self.prev_observation, self.action, new_q_value)
+            more_accurate_prev_q_value = q_value_prev + self.learning_rate * (self.reward + delta)
+            self.bellman_update(self.prev_observation, self.prev_observation_response, more_accurate_prev_q_value)
         pass
         
     def when_episode_ends(self, episode_index):
