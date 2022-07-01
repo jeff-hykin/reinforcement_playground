@@ -24,7 +24,6 @@ world = World(
     visualize=False,
     # debug=True,
 )
-print(f'''world = \n{world}''')
 Env = world.Player
 
 
@@ -70,6 +69,7 @@ def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testin
     episode_rewards = defaultdict(lambda : 0)
     action_freq = { each:0 for each in mr_bond.actions }
     for progress, (episode_index, timestep_index, mr_bond.observation, action, mr_bond.reward, mr_bond.episode_is_over) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
+        world.random_seed = 1 # same world every time
         reward_sum += mr_bond.reward
         episode_rewards[episode_index] += mr_bond.reward
         action_freq[action] += 1
