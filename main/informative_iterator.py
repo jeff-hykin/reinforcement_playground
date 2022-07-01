@@ -198,15 +198,18 @@ class ProgressBar:
                         expected_number_of_updates_needed       = remaining_number_of_iterations / iterations_per_update_lowerbound
                         
                         self.secs_remaining = time_per_update * expected_number_of_updates_needed
-                        
+                    
+                    if self.progress_data.text:
+                        self.print('', end='\r')
+                        self.print('                                                                                                                        ', end='\r')
+                        self.print(self.progress_data.text, end='\n')
+                    
                     if self.inline:
                         self.print('', end='\r')
                     
                     # display each thing according to the layout
                     for each in self.layout:
                         getattr(self, f"show_{each}", lambda : None)()
-                    
-                    self.print(self.progress_data.text, end='')
                     
                     if not self.inline:
                         self.print()

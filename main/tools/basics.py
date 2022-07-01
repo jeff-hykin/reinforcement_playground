@@ -37,7 +37,7 @@ def sort_keys(a_dict):
     # save copy and remove
     for each_key in keys:
         dict_copy[each_key] = a_dict[each_key]
-        del a_dict[each_key]
+    a_dict.clear()
     # re-add in correct order
     for each_key in keys:
         a_dict[each_key] = dict_copy[each_key]

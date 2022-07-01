@@ -168,7 +168,7 @@ class World:
                 else:
                     # penalize hitting a wall
                     if to_pure(self.previous_observation) == to_pure(self.observation):
-                        return -5
+                        return -20
                     else:
                         return -1
             
