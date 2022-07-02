@@ -32,7 +32,7 @@ class Skeleton:
     def update_weights(self):
         pass
 
-def enhance_with(enhancement_class):
+def enhance_with_single(enhancement_class):
     def wrapper1(init_function):
         def wrapper2(self, *args, **kwargs):
             output = init_function(self, *args, **kwargs)
@@ -73,20 +73,27 @@ def enhance_with(enhancement_class):
         return wrapper2
     return wrapper1
 
+def enhance_with(*enhancements):
+    def wrapper(function_getting_wrapped):
+        for each_enhancement in enhancements:
+            function_getting_wrapped = enhance_with_single(each_enhancement)(function_getting_wrapped)
+        return function_getting_wrapped
+    return wrapper
+        
 
 class Enhancement:
-    def when_mission_starts(self, mission_index=0):
-        pass
-    def when_episode_starts(self, episode_index):
-        pass
-    def when_timestep_starts(self, timestep_index):
-        pass
-    def when_timestep_ends(self, timestep_index):
-        pass
-    def when_episode_ends(self, episode_index):
-        pass
-    def when_mission_ends(self, mission_index=0):
-        pass
+    def when_mission_starts(self, normal_behavior, mission_index=0):
+        return normal_behavior(mission_index)
+    def when_episode_starts(self, normal_behavior, episode_index):
+        return normal_behavior(episode_index)
+    def when_timestep_starts(self, normal_behavior, timestep_index):
+        return normal_behavior(timestep_index)
+    def when_timestep_ends(self, normal_behavior, timestep_index):
+        return normal_behavior(timestep_index)
+    def when_episode_ends(self, normal_behavior, episode_index):
+        return normal_behavior(episode_index)
+    def when_mission_ends(self, normal_behavior, mission_index=0):
+        return normal_behavior(mission_index)
 
 from super_map import LazyDict
 from tools.basics import sort_keys, randomly_pick_from
@@ -165,11 +172,12 @@ class AgentBasics(Enhancement):
         # 
         # update action_frequency
         # 
-        length_before = len(tuple(self.action_frequency.keys()))
-        self.action_frequency[self.action] += 1
-        length_after = len(tuple(self.action_frequency.keys()))
-        if length_before < length_after:
-            sort_keys(self.action_frequency)
+        if hasattr(self, "action_frequency"):
+            length_before = len(tuple(self.action_frequency.keys()))
+            self.action_frequency[self.action] += 1
+            length_after = len(tuple(self.action_frequency.keys()))
+            if length_before < length_after:
+                sort_keys(self.action_frequency)
         
         # 
         # set prev_observation
