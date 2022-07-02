@@ -105,18 +105,18 @@ class AgentBasics(Enhancement):
             self.episode
             self.per_episode
             self.episodes
-            self.prev_observation
-            self.prev_observation_response
+            self.previous_observation
+            self.previous_observation_response
             self.action_frequency    (if self.actions)
     """
     
     def when_mission_starts(self, normal_behavior, mission_index=0):
         print(f'''self, normal_behavior, mission_index=0 = {(self, normal_behavior, mission_index)}''')
         # 
-        # prev_observation
+        # previous_observation
         # 
-        self.prev_observation = None
-        self.prev_observation_response = None
+        self.previous_observation = None
+        self.previous_observation_response = None
         
         # 
         # action_frequency
@@ -180,10 +180,10 @@ class AgentBasics(Enhancement):
                 sort_keys(self.action_frequency)
         
         # 
-        # set prev_observation
+        # set previous_observation
         # 
-        self.prev_observation          = self.observation
-        self.prev_observation_response = self.action
+        self.previous_observation          = self.observation
+        self.previous_observation_response = self.action
         self.observation               = None
         self.action                    = None
     

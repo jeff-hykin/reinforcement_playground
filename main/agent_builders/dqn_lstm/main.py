@@ -26,6 +26,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier, all_argmax_coordinates
+from tools.timestep_tools import TimestepSeries, Timestep
 from trivial_torch_tools import Sequential, init, convert_each_arg, product
 from trivial_torch_tools.generics import to_pure, flatten
 
@@ -36,104 +37,20 @@ torch.manual_seed(1)
 # 
 # Slider Enhancement
 # 
-class ObservationSlider(Enhancement):
+class TimestepSeriesEnhancement(Enhancement):
     def when_episode_starts(self, original, *args):
-        if hasattr(self, "observation_slider_size"):
-            self.observation_slider = {
-                index: each
-                    for enumerate([self.observation] * (self.observation_slider_size+1))
-            }
-            self.current_observation_slider = [
-                self.observation_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-self.observation_slider_size,
-                        self.episode.timestep.index,
-                    ) 
-            ]
-            self.current_observation_slider = [
-                self.observation_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-(self.observation_slider_size+1),
-                        self.episode.timestep.index-1,
-                    ) 
-            ]
-        
-        original(*args)
-    
-    def when_timestep_ends(self, original, *args):
-        if hasattr(self, "observation_slider"):
-            self.observation_slider[self.episode.timestep.index] = self.observation or self.prev_observation_response
-            try:
-                # delete trailing element
-                del self.observation_slider[self.episode.timestep.index-(self.observation_slider_size+2)]
-            except Exception as error:
-                pass
-            
-            self.current_observation_slider = [
-                self.observation_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-self.observation_slider_size,
-                        self.episode.timestep.index,
-                    ) 
-            ]
-            self.current_observation_slider = [
-                self.observation_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-(self.observation_slider_size+1),
-                        self.episode.timestep.index-1,
-                    ) 
-            ]
-        original()
-
-class ActionSlider(Enhancement):
-    def when_episode_starts(self, original, *args):
-        if hasattr(self, "action_slider_size"):
-            self.action_slider = {
-                index: each
-                    for enumerate([self.action] * (self.action_slider_size+1))
-            }
-            self.current_action_slider = [
-                self.action_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-self.action_slider_size,
-                        self.episode.timestep.index,
-                    ) 
-            ]
-            self.current_action_slider = [
-                self.action_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-(self.action_slider_size+1),
-                        self.episode.timestep.index-1,
-                    ) 
-            ]
-        
+        self.timestep_series = TimestepSeries()
+        self.timestep_series[0].observation = self.observation
         original(*args)
     
     def when_timestep_starts(self, original, *args):
+        self.timestep_series[self.episode.timestep.index].observation = self.observation
         original(*args)
-        if hasattr(self, "action_slider"):
-            self.action_slider[self.episode.timestep.index] = self.action or self.prev_observation_response
-            try:
-                # delete trailing element
-                del self.action_slider[self.episode.timestep.index-(self.action_slider_size+2)]
-            except Exception as error:
-                pass
-            
-            self.current_action_slider = [
-                self.action_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-self.action_slider_size,
-                        self.episode.timestep.index,
-                    ) 
-            ]
-            self.current_action_slider = [
-                self.action_slider[each]
-                    for each in range(
-                        self.episode.timestep.index-(self.action_slider_size+1),
-                        self.episode.timestep.index-1,
-                    ) 
-            ]
-        original()
+        self.timestep_series[self.episode.timestep.index].action = self.action
+    
+    def when_timestep_ends(self, original, *args):
+        self.timestep_series[self.episode.timestep.index-1].reward = self.reward
+        original(*args)
 
 class Decision:
     def __init__(self, action, observation):
@@ -211,8 +128,7 @@ class Agent(Skeleton):
         self.discount_factor   = discount_factor
         self.epsilon           = epsilon        # Amount of randomness in the action selection
         self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
-        self.observation_slider_size = 5
-        self.action_slideer_size     = 5
+        self.sequence_size     = 5
         self.actions           = OneHotifier(
             possible_values=(  actions or tuple(range(product(self.action_space.shape or (self.action_space.n,))))  ),
         )
@@ -233,33 +149,14 @@ class Agent(Skeleton):
             all_argmax_coordinates(self.observation.position)[0]
         ))
     
-    @property
-    def current_sequence(self):
-        return to_tensor(
-            [
-                torch.cat(
-                    each_observation.flatten(),
-                    to_tensor(self.actions.value_to_onehot(each_action))
-                )
-                    for each_observation, each_action in zip(self.current_observation_slider, self.current_action_slider)
-            ]
-        ).to(self.critic.hardware)
+    def current_value_of(self, action):
         
-    @property
-    def previous_sequence(self):
-        return to_tensor(
-            [
-                torch.cat(
-                    each_observation.flatten(),
-                    to_tensor(self.actions.value_to_onehot(each_action))
-                )
-                    for each_observation, each_action in zip(self.previous_observation_slider, self.previous_action_slider)
-            ]
-        ).to(self.critic.hardware)
+        # create critic input
+        sequence = self.time_series[-self.sequence_size:]
+        sequence[-1].action = action # suppose what the current action is
+        torch.cat(each_observation.flatten(), to_tensor(each_action))
+            for each in sequence.
         
-    def value_of(self, observation, action):
-        self.observation_slider[self.episode.timestep.index] = observation
-        self.action_slider[self.episode.timestep.index] = action
         action_index = self.actions.value_to_index(action)
         prediction = self.critic.predict(sequence)
         action_value = prediction[-1] # last layer is "current" prediction
