@@ -149,35 +149,50 @@ class Agent(Skeleton):
             all_argmax_coordinates(self.observation.position)[0]
         ))
     
-    def current_value_of(self, action):
+    def value_of(self, timestep_index, observation, action):
         
         # create critic input
-        sequence = self.time_series[-self.sequence_size:]
-        sequence[-1].action = action # suppose what the current action is
-        torch.cat(each_observation.flatten(), to_tensor(each_action))
-            for each in sequence.
+        sequence = self.time_series[timestep_index-self.sequence_size:timestep_index]
+        sequence[timestep_index].observation = observation # suppose what the current observation is
+        sequence[timestep_index].action = action           # suppose what the current action is
         
-        action_index = self.actions.value_to_index(action)
-        prediction = self.critic.predict(sequence)
-        action_value = prediction[-1] # last layer is "current" prediction
-        result = to_pure(action_value)
+        sequence_tensor = to_tensor([
+            torch.cat(each_observation.flatten(), to_tensor(each_action))
+                for each in sequence
+        ])
+        
+        prediction = self.critic.predict(sequence_tensor)
+        value_of_action = prediction[-1] # last layer is "current" prediction
+        result = to_pure(value_of_action)
         self._table[Decision(action, observation)] = result
         sort_keys(self._table)
         return result
     
-    def bellman_update(self, prev_observation, prev_observation_response, new_value):
+    def bellman_update(self, timestep_index, observation, action, new_value):
+        # create critic input
+        sequence = self.time_series[timestep_index-self.sequence_size:timestep_index]
+        sequence[timestep_index].observation = observation # suppose what the current observation is
+        sequence[timestep_index].action = action           # suppose what the current action is
+        
+        sequence_tensor = to_tensor([
+            torch.cat(each_observation.flatten(), to_tensor(each_action))
+                for each in sequence
+        ])
+        
         return self.critic.update_weights(
-            input_value=self.previous_sequence,
+            input_value=sequence_tensor,
             ideal_output=new_value, # wrapped in list to create a batch of size 1
         )
     
     def get_greedy_action(self, observation):
         if isinstance(self.action_space, gym.spaces.Discrete):
-            for each in self.actions:
-                pass
-            input_tensor = self.create_q_input(observation)
-            action_q_distribution = self.critic.predict(input_tensor)[0] # first element because its a batch of size=1
-            return self.actions.onehot_to_value(action_q_distribution)
+            action_values = []
+            for each_action in self.actions:
+                action_values.append(
+                    self.value_of(self.episode.timestep.index, self.observation, each_action)
+                )
+            best_action = self.actions.onehot_to_value(action_values)
+            return best_action
         elif callable(self._get_greedy_action):
             return self._get_greedy_action(self)
         else:
@@ -213,17 +228,17 @@ class Agent(Skeleton):
     
     def when_timestep_ends(self, timestep_index):
         self.action       = self.get_greedy_action(self.observation)
-        q_value_prev      = self.value_of(self.previous_sequence, self.prev_observation_response)
-        q_value_current   = self.value_of(self.current_sequence , self.action)
-        delta             = (self.discount_factor * q_value_current) - q_value_prev
+        q_value_previous  = self.value_of(self.episode.timestep.index-1, self.previous_observation, self.previous_observation_response)
+        q_value_current   = self.value_of(self.episode.timestep.index  , self.observation         , self.action)
+        delta             = (self.discount_factor * q_value_current) - q_value_previous
         
         discounted_reward = (self.reward + delta)
-        self.discounted_reward_sum += discounted_reward
+        self.discounted_reward_sum += discounted_reward # TODO: doesn't seem quite right to me
         
         if self.training:
             # update q value
-            more_accurate_prev_q_value = q_value_prev + self.learning_rate * (self.reward + delta)
-            self.bellman_update(self.prev_observation, self.prev_observation_response, more_accurate_prev_q_value)
+            more_accurate_prev_q_value = q_value_previous + self.learning_rate * (self.reward + delta)
+            self.bellman_update(self.episode.timestep.index-1, self.prev_observation, self.prev_observation_response, more_accurate_prev_q_value)
         
     def when_episode_ends(self, episode_index):
         self.outcomes.append(self.discounted_reward_sum)
