@@ -108,7 +108,7 @@ class CriticNetwork(nn.Module):
         # return self.layers.softmax(lstm_out) # alternative: F.log_softmax(lstm_out, dim=1)
         
 class Agent(Skeleton):
-    @enhance_with(AgentBasics, ObservationSlider, ActionSlider)
+    @enhance_with(AgentBasics, TimestepSeriesEnhancement)
     def __init__(self,
         observation_space,
         action_space,
@@ -206,19 +206,16 @@ class Agent(Skeleton):
     def when_mission_starts(self, mission_index=0):
         self.outcomes = []
         self.running_epsilon = self.epsilon if self.training else 0
-        pass
         
     def when_episode_starts(self, episode_index):
-        self.actions.value_to_onehot(self.actions[0])
         self.discounted_reward_sum = 0
-        pass
         
     def when_timestep_starts(self, timestep_index):
         self.random_seed += 1
         random.seed(self.random_seed)
         if random.random() < self.running_epsilon:
             if self.position == (0,0):
-                self.action = "RIGHT"
+                self.action = "RIGHT" # this most helpful action on a (3,1) field that I am currently debugging. Can safely be removed
             else:
                 self.action = randomly_pick_from(self.actions)
         # else, take the action with the highest value in the current self.observation
