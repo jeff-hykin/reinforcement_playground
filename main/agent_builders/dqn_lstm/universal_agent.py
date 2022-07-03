@@ -14,8 +14,8 @@ from blissful_basics import product, max_index
 from super_hash import super_hash
 from super_map import LazyDict
 
-from tools.universe.agent import Skeleton, enhance_with
-from tools.universe.enhancements import EpisodeEnhancement, LoggerEnhancement
+from tools.universe.agent import Skeleton, Enhancement, enhance_with
+from tools.universe.enhancements.basic import EpisodeEnhancement, LoggerEnhancement
 from tools.file_system_tools import FileSystem
 
 from tools.debug import debug
@@ -181,7 +181,7 @@ class Agent(Skeleton):
         self.response_size     = product(self.response_shape)
         self.learning_rate     = learning_rate
         self.discount_factor   = discount_factor
-        self.responses           = OneHotifier(
+        self.responses         = OneHotifier(
             possible_values=(  responses or tuple(range(self.response_size))  ),
         )
         self.random_seed       = random_seed or time.time()
@@ -192,8 +192,6 @@ class Agent(Skeleton):
         self._table                   = LazyDict()
         self.default_value_assumption = default_value_assumption
         self._get_greedy_response       = get_greedy_response
-        if self.training:
-            self.critic.train()
     
     @property
     def position(self):

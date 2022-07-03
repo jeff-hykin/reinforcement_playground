@@ -35,6 +35,8 @@ class Skeleton:
 def enhance_with_single(enhancement_class):
     def wrapper1(init_function):
         def wrapper2(self, *args, **kwargs):
+            help(init_function)
+            print(f'''init_function = {init_function}''')
             output = init_function(self, *args, **kwargs)
             
             real_mission_starts = self.when_mission_starts
