@@ -31,6 +31,7 @@ from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, fo
 from tools.timestep_tools import TimestepSeries, Timestep
 from trivial_torch_tools import Sequential, init, convert_each_arg, product
 from trivial_torch_tools.generics import to_pure, flatten
+torch.autograd.set_detect_anomaly(True)
 
 import warnings
 warnings.filterwarnings('error')
@@ -102,6 +103,7 @@ class ValueCriticEnhancement(Enhancement):
             output_size=len(self.responses),
             number_of_layers=2,
         )
+        self._critic.optimizer.zero_grad()
         
         def value_of(observation, response, episode_timestep_index):
             response_index = self.responses.index(response)
@@ -111,18 +113,22 @@ class ValueCriticEnhancement(Enhancement):
             observation, response, episode_timestep_index = inputs
             response_index = self.responses.index(response)
             # this action is the one we want the loss to affect
-            ideal_output = to_tensor(self._critic_pipeline.previous_output).detach()
+            ideal_output = list(to_pure(each) for each in self._critic_pipeline.previous_output)
             ideal_output[response_index] = new_value
+            ideal_output = to_tensor(ideal_output)
             
             # update weights
             loss = self._critic.loss_function(self._critic_pipeline.previous_output, ideal_output)
-            loss.backward(retain_graph=True)
+            loss.backward(create_graph=True)
             self._critic.optimizer.step()
             self._critic.optimizer.zero_grad()
+            self._critic_pipeline.previous_hidden_values = (
+                self._critic_pipeline.previous_hidden_values[0].clone().detach(),
+                self._critic_pipeline.previous_hidden_values[1].clone().detach(),
+            )
         
         def _critic_update_pipeline(index, observation):
             observation = to_tensor(observation).float()
-            observation.requires_grad = True
             self._critic_table[index] = self._critic_pipeline(observation)
         
         # 
@@ -225,8 +231,8 @@ class Agent(Skeleton):
     def when_timestep_ends(self):
         self.next_timestep.response = self.get_greedy_response(self.next_timestep.observation)
         
-        q_value_current = self.value_of(self.timestep.observation     , self.timestep.response     , self.episode.timestep.index)
-        q_value_next    = self.value_of(self.next_timestep.observation, self.next_timestep.response, self.episode.timestep.index)
+        q_value_current = to_pure(self.value_of(self.timestep.observation     , self.timestep.response     , self.episode.timestep.index))
+        q_value_next    = to_pure(self.value_of(self.next_timestep.observation, self.next_timestep.response, self.episode.timestep.index))
         delta           = (self.discount_factor * q_value_next) - q_value_current
         
         # TODO: record discounted reward here

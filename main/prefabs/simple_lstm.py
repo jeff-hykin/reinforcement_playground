@@ -86,9 +86,10 @@ class SimpleLstm(nn.LSTM):
         def process_next(input_frame):
             batch_size = 1
             sequence_size = 1
-            input_frame = input_frame.reshape((batch_size, sequence_size, product(input_frame.shape)))
+            input_frame = input_frame.clone().detach().reshape((batch_size, sequence_size, product(input_frame.shape)))
+            input_frame.requires_grad_(True)
             output_sequence, process_next.previous_hidden_values = self.forward_full(
-                input_frame.reshape((batch_size, sequence_size, product(input_frame.shape))),
+                input_frame,
                 process_next.previous_hidden_values,
             )
             process_next.previous_output = output_sequence[0][0]
