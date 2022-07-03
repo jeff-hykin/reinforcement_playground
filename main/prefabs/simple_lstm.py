@@ -82,16 +82,18 @@ class SimpleLstm(nn.LSTM):
             )
         
     def pipeline(self):
-        previous_hidden_values = None
         def process_next(input_frame):
-            nonlocal previous_hidden_values
             batch_size = 1
             sequence_size = 1
-            output_sequence, previous_hidden_values = self.forward_full(
+            output_sequence, process_next.previous_hidden_values = self.forward_full(
                 input_frame.reshape((batch_size, sequence_size, *input_frame.shape)),
-                previous_hidden_values,
+                process_next.previous_hidden_values,
             )
-            return output_sequence[0][0]
+            process_next.previous_output = output_sequence[0][0]
+            return process_next.previous_output
+        
+        process_next.previous_output = None
+        process_next.previous_hidden_values = None
         
         return process_next
 
