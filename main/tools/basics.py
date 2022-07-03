@@ -383,6 +383,18 @@ def Countdown(size=None, offset=0, delay=0, seconds=None):
         return countdown
     
 
+def align(value, pad=3, digits=5, decimals=3):
+    # convert to int if needed
+    if decimals == 0 and isinstance(value, float):
+        value = int(value)
+        
+    if isinstance(value, int):
+        return f"{value}".rjust(digits)
+    elif isinstance(value, float):
+        return f"{'{'}:{pad}.{decimals}f{'}'}".format(value).rjust(pad+decimals+1)
+    else:
+        return f"{value}".rjust(pad)
+
 here = "os.path.dirname(__file__)"
 project_folder = os.environ.get('FORNIX_FOLDER', ".")
 if os.environ.get('FORNIX_FOLDER', None):

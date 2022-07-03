@@ -25,6 +25,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+from prefabs.simple_lstm import SimpleLstm
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier, all_argmax_coordinates
 from tools.timestep_tools import TimestepSeries, Timestep
 from trivial_torch_tools import Sequential, init, convert_each_arg, product
@@ -70,16 +71,20 @@ class Decision:
         return hash(self) == hash(other)
 
 class CriticNetwork(nn.Module):
+    @init.forward_sequential_method
     @init.to_device()
-    def __init__(self, *, input_shape, output_shape, learning_rate=0.1):
+    def __init__(self, *, input_size, output_size, number_of_layers, learning_rate=0.1):
         super(CriticNetwork, self).__init__()
-        self.input_size = product(flatten(input_shape))
         
         self.layers = Sequential()
-        # self.layers.add_module('flatten', nn.Flatten(1)) # 1 => skip the first dimension because thats the batch dimension
-        self.layers.add_module('lstm', nn.LSTM(self.input_size, output_shape))
+        self.layers.add_module('lstm', SimpleLstm(
+            input_size=input_size,
+            output_size=output_size,
+            number_of_layers=number_of_layers,
+        ))
         
-        self.loss_function = nn.MSELoss()
+        mse_loss = nn.MSELoss()
+        self.loss_function = lambda current_output, ideal_output: (mse_loss(current_output, ideal_output)+10)**2
         self.optimizer = self.get_optimizer(learning_rate)
     
     def get_optimizer(self, learning_rate):
@@ -89,8 +94,8 @@ class CriticNetwork(nn.Module):
         self.optimizer.zero_grad()
         input_value.requires_grad = True
         current_output = self.forward(input_value)
-        loss = (self.loss_function(current_output, ideal_output)+10)**2
-        # print(f'''loss = {loss}''')
+        loss = self.loss_function(current_output, ideal_output)
+        print(f'''loss = {loss}''')
         loss.backward()
         self.optimizer.step()
         return loss
@@ -98,15 +103,78 @@ class CriticNetwork(nn.Module):
     def predict(self, input_batch):
         with torch.no_grad():
             return self.forward(input_batch)
+
+class ValueCriticEnhancement(Enhancement):
+    """
+        requires:
+            self.episode.timestep.index
+            self.actions # finite list of each possible action
+        adds:
+            self.value_of(observation, action, episode_timestep_index)
+                returns a scalar
+            self.bellman_update((observation, action, episode_timestep_index), new_value)
+    """
     
-    def forward(self, input_batch):
-        # values = self.layers.flatten(input_batch)
-        lstm_out, _ = self.layers.lstm(values)
-        return lstm_out
-        # self.layers.softmax(lstm_out) <- will fail (no weight updates)
-        # return lstm_out # alternative: F.log_softmax(lstm_out, dim=1)
-        # return self.layers.softmax(lstm_out) # alternative: F.log_softmax(lstm_out, dim=1)
+    def when_mission_starts(self, original, *args):
+        observation_shape = self.observation_space.shape or (self.observation_space.n,)
         
+        self._critic_index = None
+        self._critic_table = {}
+        self._critic_pipeline = None
+        self._critic = CriticNetwork(
+            input_size=product(observation_shape),
+            output_shape=len(self.actions),
+        )
+        
+        def value_of(observation, action, episode_timestep_index):
+            action_index = self.actions.index(action)
+            return self._critic_table[episode_timestep_index][action_index]
+        
+        def bellman_update(inputs, new_value):
+            observation, action, episode_timestep_index = inputs
+            
+            # update weights
+            loss = self._critic.loss_function(self._critic_pipeline.previous_output, to_tensor(new_value))
+            loss.backward()
+            self._critic.optimizer.step()
+            self._critic.optimizer.zero_grad()
+        
+        def _critic_update_pipeline(index, observation):
+            observation = to_tensor(observation)
+            observation.requires_grad = True
+            self._critic_table[index] = self._critic_pipeline(observation)
+        
+        def update_weights(self, ideal_output):
+            loss = self.loss_function(self._critic_pipeline.previous_output, ideal_output)
+            loss.backward()
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            return loss
+        
+        self._critic_update_pipeline = _critic_update_pipeline
+        self.value_of                = value_of
+        self.bellman_update          = bellman_update
+        original(*args)
+        
+    def when_episode_starts(self, original, *args):
+        # create or reset the pipeline
+        self._critic_pipeline = self._critic.pipeline()
+        original(*args)
+        # add the first observation
+        # cache the values in a table to allow self.value_of() to be called multiple times
+        # (the normal way of computing on-demand would screw up the pipeline order/sequence)
+        self._critic_update_pipeline(self.episode.timestep.index, self.observation)
+    
+    def when_timestep_starts(self, original, *args):
+        # record the time, whatever it may be
+        self._critic_index = self.episode.timestep.index
+    
+    def when_timestep_ends(self, original, *args):
+        # the next observation is available instantly, but because its the next observation we make sure the index is +1 of the previous index
+        self._critic_update_pipeline(self._critic_index+1, self.observation)
+        original(*args)
+    
+
 class Agent(Skeleton):
     @enhance_with(AgentBasics, TimestepSeriesEnhancement)
     def __init__(self,
@@ -132,8 +200,8 @@ class Agent(Skeleton):
         self.actions           = OneHotifier(
             possible_values=(  actions or tuple(range(product(self.action_space.shape or (self.action_space.n,))))  ),
         )
-        self.q_input_size      = product(self.observation_space.shape or (self.observation_space.n,)) + len(self.actions)
-        self.critic            = CriticNetwork(input_shape=self.q_input_size, output_shape=1)
+        self.q_input_size      = product(self.observation_space.shape or (self.observation_space.n,))
+        
         # TODO: one-hot encode actions
         self._table                   = LazyDict()
         self.default_value_assumption = default_value_assumption
