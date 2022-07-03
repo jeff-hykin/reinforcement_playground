@@ -31,7 +31,6 @@ from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, fo
 from tools.timestep_tools import TimestepSeries, Timestep
 from trivial_torch_tools import Sequential, init, convert_each_arg, product
 from trivial_torch_tools.generics import to_pure, flatten
-torch.autograd.set_detect_anomaly(True)
 
 import warnings
 warnings.filterwarnings('error')
@@ -95,7 +94,6 @@ class ValueCriticEnhancement(Enhancement):
     def when_mission_starts(self, original, ):
         observation_shape = self.observation_space.shape or (self.observation_space.n,)
         
-        self._critic_index = None
         self._critic_table = {}
         self._critic_pipeline = None
         self._critic = CriticNetwork(
@@ -112,6 +110,7 @@ class ValueCriticEnhancement(Enhancement):
         def bellman_update(inputs, new_value):
             observation, response, episode_timestep_index = inputs
             response_index = self.responses.index(response)
+            
             # this action is the one we want the loss to affect
             ideal_output = list(to_pure(each) for each in self._critic_pipeline.previous_output)
             ideal_output[response_index] = new_value
@@ -119,13 +118,9 @@ class ValueCriticEnhancement(Enhancement):
             
             # update weights
             loss = self._critic.loss_function(self._critic_pipeline.previous_output, ideal_output)
-            loss.backward(create_graph=True)
+            loss.backward()
             self._critic.optimizer.step()
             self._critic.optimizer.zero_grad()
-            self._critic_pipeline.previous_hidden_values = (
-                self._critic_pipeline.previous_hidden_values[0].clone().detach(),
-                self._critic_pipeline.previous_hidden_values[1].clone().detach(),
-            )
         
         def _critic_update_pipeline(index, observation):
             observation = to_tensor(observation).float()
@@ -140,7 +135,6 @@ class ValueCriticEnhancement(Enhancement):
         original()
         
     def when_episode_starts(self, original, ):
-        self._critic_index = -1
         self._critic_pipeline = self._critic.pipeline()
         original()
         # cache the values in a table to allow self.value_of() to be called multiple times
