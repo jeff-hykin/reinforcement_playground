@@ -67,25 +67,18 @@ class CriticNetwork(nn.Module):
         ))
         
         mse_loss = nn.MSELoss()
-        self.loss_function = lambda current_output, ideal_output: (mse_loss(current_output, ideal_output)+10)**2
+        self.loss_function = lambda current_output, ideal_output: mse_loss(current_output, ideal_output)
         self.optimizer = self.get_optimizer(learning_rate)
     
     def get_optimizer(self, learning_rate):
         return optim.SGD(self.parameters(), lr=learning_rate)
     
-    def update_weights(self, input_value, ideal_output):
-        self.optimizer.zero_grad()
-        input_value.requires_grad = True
-        current_output = self.forward(input_value)
-        loss = self.loss_function(current_output, ideal_output)
-        print(f'''loss = {loss}''')
-        loss.backward()
-        self.optimizer.step()
-        return loss
-    
     def predict(self, input_batch):
         with torch.no_grad():
             return self.forward(input_batch)
+        
+    def pipeline(self):
+        return self.layers.lstm.pipeline()
 
 class ValueCriticEnhancement(Enhancement):
     """
@@ -98,7 +91,7 @@ class ValueCriticEnhancement(Enhancement):
             self.bellman_update((observation, response, episode_timestep_index), new_value)
     """
     
-    def when_mission_starts(self, original, *args):
+    def when_mission_starts(self, original, ):
         observation_shape = self.observation_space.shape or (self.observation_space.n,)
         
         self._critic_index = None
@@ -106,7 +99,8 @@ class ValueCriticEnhancement(Enhancement):
         self._critic_pipeline = None
         self._critic = CriticNetwork(
             input_size=product(observation_shape),
-            output_shape=len(self.responses),
+            output_size=len(self.responses),
+            number_of_layers=2,
         )
         
         def value_of(observation, response, episode_timestep_index):
@@ -115,51 +109,48 @@ class ValueCriticEnhancement(Enhancement):
         
         def bellman_update(inputs, new_value):
             observation, response, episode_timestep_index = inputs
+            response_index = self.responses.index(response)
+            # this action is the one we want the loss to affect
+            ideal_output = to_tensor(self._critic_pipeline.previous_output).detach()
+            ideal_output[response_index] = new_value
             
             # update weights
-            loss = self._critic.loss_function(self._critic_pipeline.previous_output, to_tensor(new_value))
-            loss.backward()
+            loss = self._critic.loss_function(self._critic_pipeline.previous_output, ideal_output)
+            loss.backward(retain_graph=True)
             self._critic.optimizer.step()
             self._critic.optimizer.zero_grad()
         
         def _critic_update_pipeline(index, observation):
-            observation = to_tensor(observation)
+            observation = to_tensor(observation).float()
             observation.requires_grad = True
             self._critic_table[index] = self._critic_pipeline(observation)
         
-        def update_weights(self, ideal_output):
-            loss = self.loss_function(self._critic_pipeline.previous_output, ideal_output)
-            loss.backward()
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-            return loss
-        
+        # 
+        # attch methods
+        # 
         self._critic_update_pipeline = _critic_update_pipeline
         self.value_of                = value_of
         self.bellman_update          = bellman_update
-        original(*args)
+        original()
         
-    def when_episode_starts(self, original, *args):
-        # create or reset the pipeline
+    def when_episode_starts(self, original, ):
+        self._critic_index = -1
         self._critic_pipeline = self._critic.pipeline()
-        original(*args)
-        # add the first observation
+        original()
         # cache the values in a table to allow self.value_of() to be called multiple times
-        # (the normal way of computing on-demand would screw up the pipeline order/sequence)
-        self._critic_update_pipeline(self.episode.timestep.index, self.observation)
+        # (because the normal way, e.g. on-demand, would screw up the pipeline order/sequence)
+        self._critic_table = {}
+        # preemtively get the first one
+        self._critic_update_pipeline(self.next_timestep.index, self.next_timestep.observation)
     
-    def when_timestep_starts(self, original, *args):
-        # record the time, whatever it may be
-        self._critic_index = self.episode.timestep.index
-    
-    def when_timestep_ends(self, original, *args):
-        # the next observation is available instantly, but because its the next observation we make sure the index is +1 of the previous index
-        self._critic_update_pipeline(self._critic_index+1, self.observation)
-        original(*args)
+    def when_timestep_ends(self, original):
+        # the next observation is available instantly, so also immediately cache it
+        self._critic_update_pipeline(self.next_timestep.index, self.next_timestep.observation)
+        original()
     
 
 class Agent(Skeleton):
-    @enhance_with(EpisodeEnhancement, LoggerEnhancement)
+    @enhance_with(EpisodeEnhancement, LoggerEnhancement, ValueCriticEnhancement)
     def __init__(self,
         observation_space,
         response_space,
@@ -203,7 +194,7 @@ class Agent(Skeleton):
         response_values = []
         for each_response in self.responses:
             response_values.append(
-                self.value_of(self.observation, each_response, self.episode.timestep.index)
+                self.value_of(self.timestep.observation, each_response, self.episode.timestep.index)
             )
         best_response = self.responses.onehot_to_value(response_values)
         return best_response
@@ -234,8 +225,8 @@ class Agent(Skeleton):
     def when_timestep_ends(self):
         self.next_timestep.response = self.get_greedy_response(self.next_timestep.observation)
         
-        q_value_current = self.value_of(self.timestep.observation     , self.timestep.response     )
-        q_value_next    = self.value_of(self.next_timestep.observation, self.next_timestep.response)
+        q_value_current = self.value_of(self.timestep.observation     , self.timestep.response     , self.episode.timestep.index)
+        q_value_next    = self.value_of(self.next_timestep.observation, self.next_timestep.response, self.episode.timestep.index)
         delta           = (self.discount_factor * q_value_next) - q_value_current
         
         # TODO: record discounted reward here

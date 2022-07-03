@@ -41,7 +41,7 @@ def run(number_of_timesteps_for_training=10_000, number_of_timesteps_for_testing
     # 
     for each_epsilon in [ 0.5, 0.05, 0 ]:
         mr_bond.epsilon = each_epsilon
-        for progress, (episode_index, timestep) in ProgressBar(traditional_runtime(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
+        for progress, (episode_index, timestep) in ProgressBar(basic(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
             world.random_seed = 1 # same world every time
             progress.text = f"average_reward:{align(mr_bond.per_episode.average.reward, pad=4, decimals=0)}, reward: {align(mr_bond.episode.reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, {align(mr_bond.epsilon*100, pad=3, decimals=0)}% random, \n{mr_bond._table}"
                 

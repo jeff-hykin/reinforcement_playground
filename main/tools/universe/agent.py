@@ -35,9 +35,10 @@ class Skeleton:
 def enhance_with_single(enhancement_class):
     def wrapper1(init_function):
         def wrapper2(self, *args, **kwargs):
-            help(init_function)
-            print(f'''init_function = {init_function}''')
-            output = init_function(self, *args, **kwargs)
+            real_init = enhancement_class
+            def when_init(*args, **kwargs):
+                return enhancement_class.when_init(self, real_init, *args, **kwargs)
+            self.when_init = when_init
             
             real_mission_starts = self.when_mission_starts
             def when_mission_starts(*args, **kwargs):
@@ -69,8 +70,11 @@ def enhance_with_single(enhancement_class):
                 return enhancement_class.when_mission_ends(self, real_mission_ends, *args, **kwargs)
             self.when_mission_ends = when_mission_ends
             
-            return output
-            
+            has_custom_init = enhancement_class.__init__ != Enhancement.__init__
+            if has_custom_init:
+                enhancement_class.__init__(self, init_function, *args, **kwargs)
+            else:
+                init_function(self, *args, **kwargs)
         
         return wrapper2
     return wrapper1
@@ -83,15 +87,17 @@ def enhance_with(*enhancements):
     return wrapper
         
 class Enhancement:
-    def when_mission_starts(self, normal_behavior, mission_index=0):
-        return normal_behavior(mission_index)
-    def when_episode_starts(self, normal_behavior, episode_index):
-        return normal_behavior(episode_index)
-    def when_timestep_starts(self, normal_behavior, timestep_index):
-        return normal_behavior(timestep_index)
-    def when_timestep_ends(self, normal_behavior, timestep_index):
-        return normal_behavior(timestep_index)
-    def when_episode_ends(self, normal_behavior, episode_index):
-        return normal_behavior(episode_index)
-    def when_mission_ends(self, normal_behavior, mission_index=0):
-        return normal_behavior(mission_index)
+    def __init__(self, *args, **kwargs):
+        pass
+    def when_mission_starts(self, original,):
+        return original()
+    def when_episode_starts(self, original,):
+        return original()
+    def when_timestep_starts(self, original,):
+        return original()
+    def when_timestep_ends(self, original,):
+        return original()
+    def when_episode_ends(self, original,):
+        return original()
+    def when_mission_ends(self, original,):
+        return original()

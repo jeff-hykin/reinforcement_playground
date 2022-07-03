@@ -44,6 +44,9 @@ class EpisodeEnhancement(Enhancement):
         
     
     def when_timestep_starts(self, original):
+        self.episode.timestep.index += 1
+        self.episode.timestep.observation = self.timestep.observation
+        self.episode.timestep.response = self.timestep.response
         # get a response
         original()
     
