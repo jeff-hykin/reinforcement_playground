@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/mgbellemare/Arcade-Learning-Environment
+	branch = master
+	commit = 969857fc0dd2cde24b425dba950aec73dbc89109
+	parent = d34e0cbde189a13a12aed4543f9f0f69818274e6
+	method = merge
+	cmdver = 0.4.1
