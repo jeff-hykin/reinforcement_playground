@@ -8,12 +8,24 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.8,<3.10"
 pip = "20.1.1"
+
+simple-namespace = "^1.0.0"
+super-map = "1.3.0"
+super-hash = "1.0.5"
+json-fix = "^0.1.2"
+blissful-basics = "^0.0.2"
+trivial-torch-tools = "^0.5.1"
+silver-spectacle = "0.7.0"
+slick-siphon = "0.1.1"
+ez_yaml = "1.1.0"
+informative-iterator = "0.0.3"
+
+ale-py = { path = "./settings/extensions/ale-py/internals/ale-py" }
 numpy = "1.20.2"
 PyYAML = "5.4.1"
 torch = "1.8.1"
 torchvision = ">=0.9.1"
 opencv-python = "4.5.1.48"
-gym = {extras = ["atari"], version = "0.21"}
 regex = "2021.4.4"
 tqdm = "4.61.0"
 pygame = "2.0.1"
@@ -34,17 +46,7 @@ Shapely = "1.8"
 networkx = "2.7"
 atari-py = "0.2.9"
 jupyterthemes = "0.20.0"
-
-simple-namespace = "^1.0.0"
-super-map = "1.3.0"
-super-hash = "1.0.5"
-json-fix = "^0.1.2"
-blissful-basics = "^0.0.2"
-trivial-torch-tools = "^0.5.1"
-silver-spectacle = "0.7.0"
-slick-siphon = "0.1.1"
-ez_yaml = "1.1.0"
-informative-iterator = "0.0.3"
+gym = {extras = ["atari"], version = "0.21"}
 
 [tool.poetry.dev-dependencies]
 

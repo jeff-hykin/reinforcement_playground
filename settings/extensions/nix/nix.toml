@@ -153,6 +153,10 @@ from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 load = [ "python38Packages", "shap",]
 from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 
+[[packages]]
+load = [ "ninja",] # for ale-py
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
+
 # 
 # for .so errors on linux with opencv+ffmpeg
 # 

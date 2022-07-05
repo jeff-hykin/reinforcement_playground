@@ -1,0 +1,1 @@
+../extensions/ale-py/commands/add_project_to_ale_py_path
