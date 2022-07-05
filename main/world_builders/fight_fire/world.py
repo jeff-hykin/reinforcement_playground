@@ -318,6 +318,7 @@ class World:
         world.state.grid.fire[new_position.x, new_position.y] = fire_status
         
         if world.debug: print(world)
+        if world.debug: print(f'''new_position = {new_position}''')
         if world.debug: print(f'''has_water = {has_water}''')
         if world.debug: print(f'''fire_status = {fire_status}''')
         if world.debug: sleep(0.5)

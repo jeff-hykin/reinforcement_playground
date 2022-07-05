@@ -228,7 +228,24 @@ def average(iterable):
         return None
     else:
         return mean(cleaned_data)
-    
+
+real_max = max
+real_min = min
+def normalize(values, max=None, min=None):
+    """
+    all elements of the output should be between 0 and 1
+    """
+    if len(values) == 0:
+        return values
+    if type(max) is type(None):
+        max = real_max(values)
+    if type(min) is type(None):
+        min = real_min(values)
+    reward_range = max - min
+    if reward_range == 0:
+        return [ 0 for each in values ]
+    return tuple((each - min)/reward_range for each in values)
+                
 # def savitzky_golay_smoothing(a_list, strength):
 #     from SGCC.savgol import get_coefficients # pip install savgol-calculator
 #     import math

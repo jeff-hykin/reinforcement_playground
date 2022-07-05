@@ -17,6 +17,7 @@ from super_map import LazyDict
 from tools.universe.agent import Skeleton, Enhancement, enhance_with
 from tools.universe.enhancements.basic import EpisodeEnhancement, LoggerEnhancement
 from tools.file_system_tools import FileSystem
+from tools.stat_tools import normalize
 
 from tools.debug import debug
 from tools.basics import sort_keys, randomly_pick_from
@@ -83,16 +84,33 @@ class CriticNetwork(nn.Module):
 class FightFireEnhancement(Enhancement):
     """
         adds:
-            self.decision_table
+            self._decision_table
     """
     
     def when_mission_starts(self, original, ):
-        self.decision_table = LazyDict().setdefault(lambda *args: 0)
+        # self.correct_decisions = {
+        #    DOWN(0, 0): 0, 
+        #    LEFT(0, 0): 0, 
+        #   RIGHT(0, 0): 1.0, 
+        #      UP(0, 0): 0, 
+        #    DOWN(1, 0): 0, 
+        #    LEFT(1, 0): 0.5, 
+        #   RIGHT(1, 0): 0.5, 
+        #      UP(1, 0): 0, 
+        #    DOWN(2, 0): -1, 
+        #    LEFT(2, 0): -1, 
+        #   RIGHT(2, 0): -1, 
+        #      UP(2, 0): -1, 
+        # }
+        self._decision_table = LazyDict().setdefault(lambda *args: 0)
+        self.decision_table = LazyDict()
         original()
         
     def when_timestep_ends(self, original):
-        self.decision_table[Decision(self.timestep.response, self.timestep.observation)] += 1
-        self.decision_table = sort_keys(self.decision_table)
+        self._decision_table[Decision(self.timestep.response, self.timestep.observation)] += 1
+        self._decision_table = sort_keys(self._decision_table)
+        noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
+        self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
         original()
     
 class ValueCriticEnhancement(Enhancement):
