@@ -122,7 +122,7 @@ class FightFireEnhancement(Enhancement):
         # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
         # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
         self.decision_table = LazyDict({
-            each_decision : f"{decision_count}".rjust(9)+", # immediate reward total: "+ f"{reward_total}".rjust(9)
+            each_decision : f"{decision_count:b}".rjust(18)+", # immediate reward per action: "+ f"{reward_total/decision_count:.1f}".rjust(9)
                 for each_decision, decision_count, reward_total in zip(self._decision_table.keys(), self._decision_table.values(), self.reward_table.values())
         })
         original()
