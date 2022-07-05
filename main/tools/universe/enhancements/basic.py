@@ -1,7 +1,7 @@
 from super_map import LazyDict
 from tools.basics import sort_keys, randomly_pick_from
 from tools.universe.agent import Enhancement
-from tools.universe.timestep import TimestepSeries, Timestep
+from tools.universe.timestep import TimestepSeries, Timestep, MockTimestep
 
 class EpisodeEnhancement(Enhancement):
     """
@@ -17,16 +17,16 @@ class EpisodeEnhancement(Enhancement):
     def when_mission_starts(self, original):
         self.episode = LazyDict(
             index=-1,
-            previous_timestep=Timestep(
-                self.previous_timestep,
+            previous_timestep=MockTimestep(
+                Timestep(),
                 index=-2,
             ),
-            timestep=Timestep(
-                self.timestep,
+            timestep=MockTimestep(
+                Timestep(),
                 index=-1
             ),
-            next_timestep=Timestep(
-                self.next_timestep,
+            next_timestep=MockTimestep(
+                Timestep(),
                 index=0
             ),
         )
@@ -43,15 +43,15 @@ class EpisodeEnhancement(Enhancement):
         self.episode = LazyDict(
             index=self.episode.index+1,
             reward=0,
-            previous_timestep=Timestep(
+            previous_timestep=MockTimestep(
                 self.previous_timestep,
                 index=-2,
             ),
-            timestep=Timestep(
+            timestep=MockTimestep(
                 self.timestep,
                 index=-1,
             ),
-            next_timestep=Timestep(
+            next_timestep=MockTimestep(
                 self.next_timestep,
                 index=0
             ),
@@ -61,15 +61,15 @@ class EpisodeEnhancement(Enhancement):
         
     
     def when_timestep_starts(self, original):
-        self.episode.previous_timestep=Timestep(
+        self.episode.previous_timestep=MockTimestep(
             self.previous_timestep,
             index=self.episode.previous_timestep.index+1,
         )
-        self.episode.timestep=Timestep(
+        self.episode.timestep=MockTimestep(
             self.timestep,
             index=self.episode.timestep.index+1,
         )
-        self.episode.next_timestep=Timestep(
+        self.episode.next_timestep=MockTimestep(
             self.next_timestep,
             index=self.episode.next_timestep.index+1,
         )
@@ -77,15 +77,15 @@ class EpisodeEnhancement(Enhancement):
         original()
     
     def when_timestep_ends(self, original):
-        self.episode.previous_timestep=Timestep(
+        self.episode.previous_timestep=MockTimestep(
             self.previous_timestep,
             index=self.episode.previous_timestep.index,
         )
-        self.episode.timestep=Timestep(
+        self.episode.timestep=MockTimestep(
             self.timestep,
             index=self.episode.timestep.index,
         )
-        self.episode.next_timestep=Timestep(
+        self.episode.next_timestep=MockTimestep(
             self.next_timestep,
             index=self.episode.next_timestep.index,
         )

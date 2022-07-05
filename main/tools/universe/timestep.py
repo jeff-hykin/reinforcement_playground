@@ -25,6 +25,20 @@ class Timestep:
         self.is_last_step = is_last_step if not (type(is_last_step) == type(None)) else self.is_last_step
         self.hidden_info  = hidden_info  if not (type(hidden_info ) == type(None)) else self.hidden_info
 
+class MockTimestep(Timestep):
+    def __init__(self, timestep, *, index):
+        self.__dict__ = timestep.__dict__
+        self._index = index
+    
+    @property
+    def index(self):
+        return self._index
+    
+    @index.setter
+    def index(self, value):
+        self._index = value
+    
+
 class TimestepSeries:
     def __init__(self, ):
         self.index = -1
