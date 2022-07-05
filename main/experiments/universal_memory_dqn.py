@@ -12,8 +12,8 @@ from super_map import LazyDict
 from super_hash import super_hash
 from informative_iterator import ProgressBar
 
-from world_builders.fight_fire import World
-from agent_builders.dqn_lstm.universal_agent import Agent
+from worlds.fight_fire import World
+from agents.dqn_lstm import Agent
 from rverse.runtimes import basic
 from tools.basics import sort_keys, randomly_pick_from, align
 
