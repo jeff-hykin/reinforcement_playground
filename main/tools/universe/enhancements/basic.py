@@ -8,17 +8,26 @@ class EpisodeEnhancement(Enhancement):
         creates:
             self.episode
             self.episode.index
-            self.episode.timestep
             self.episode.reward
+            self.episode.timestep
+            self.episode.previous_timestep
             self.episodes[0]
     """
     
     def when_mission_starts(self, original):
         self.episode = LazyDict(
             index=-1,
-            timestep=LazyDict(
-                index=-1,
-                reward=None,
+            previous_timestep=Timestep(
+                self.previous_timestep,
+                index=-2,
+            ),
+            timestep=Timestep(
+                self.timestep,
+                index=-1
+            ),
+            next_timestep=Timestep(
+                self.next_timestep,
+                index=0
             ),
         )
         self.episodes = []
@@ -33,28 +42,56 @@ class EpisodeEnhancement(Enhancement):
     def when_episode_starts(self, original):
         self.episode = LazyDict(
             index=self.episode.index+1,
-            timestep=LazyDict(
-                index=-1,
-                reward=None,
-            ),
             reward=0,
+            previous_timestep=Timestep(
+                self.previous_timestep,
+                index=-2,
+            ),
+            timestep=Timestep(
+                self.timestep,
+                index=-1,
+            ),
+            next_timestep=Timestep(
+                self.next_timestep,
+                index=0
+            ),
         )
         self.episodes.append(self.episode)
         original()
         
     
     def when_timestep_starts(self, original):
-        self.episode.timestep.index += 1
-        self.episode.timestep.observation = self.timestep.observation
-        self.episode.timestep.response = self.timestep.response
+        self.episode.previous_timestep=Timestep(
+            self.previous_timestep,
+            index=self.episode.previous_timestep.index+1,
+        )
+        self.episode.timestep=Timestep(
+            self.timestep,
+            index=self.episode.timestep.index+1,
+        )
+        self.episode.next_timestep=Timestep(
+            self.next_timestep,
+            index=self.episode.next_timestep.index+1,
+        )
         # get a response
         original()
     
     def when_timestep_ends(self, original):
+        self.episode.previous_timestep=Timestep(
+            self.previous_timestep,
+            index=self.episode.previous_timestep.index,
+        )
+        self.episode.timestep=Timestep(
+            self.timestep,
+            index=self.episode.timestep.index,
+        )
+        self.episode.next_timestep=Timestep(
+            self.next_timestep,
+            index=self.episode.next_timestep.index,
+        )
         # 
-        # rewards
+        # reward
         # 
-        self.episode.timestep.reward = self.timestep.reward
         self.episode.reward += self.timestep.reward
         
         original()

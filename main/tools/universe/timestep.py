@@ -7,6 +7,23 @@ class Timestep:
     reward       : float = None 
     is_last_step : bool  = False
     hidden_info  : None  = None
+    
+    def __init__(self, timestep=None, *, index=None, observation=None, response=None, reward=None, is_last_step=None, hidden_info=None):
+        if timestep:
+            for each_attr in dir(timestep):
+                # skip magic attributes
+                if len(each_attr) > 2 and each_attr[0:2] == '__':
+                    continue
+                # adopt all other attributes
+                setattr(self, each_attr, getattr(timestep, each_attr))
+        
+        # set any non-None values
+        self.index        = index        if not (type(index       ) == type(None)) else self.index
+        self.observation  = observation  if not (type(observation ) == type(None)) else self.observation
+        self.response     = response     if not (type(response    ) == type(None)) else self.response
+        self.reward       = reward       if not (type(reward      ) == type(None)) else self.reward
+        self.is_last_step = is_last_step if not (type(is_last_step) == type(None)) else self.is_last_step
+        self.hidden_info  = hidden_info  if not (type(hidden_info ) == type(None)) else self.hidden_info
 
 class TimestepSeries:
     def __init__(self, ):
@@ -29,7 +46,7 @@ class TimestepSeries:
             is_last_step = state.is_last_step
             
         self.index += 1
-        self.steps[self.index] = Timestep(self.index, observation, response, reward, is_last_step)
+        self.steps[self.index] = Timestep(index=self.index, observation=observation, response=response, reward=reward, is_last_step=is_last_step)
     
     @property
     def observations(self):
@@ -72,7 +89,7 @@ class TimestepSeries:
             return self.steps[key]
         else:
             new_steps = { 
-                each_key: Timestep(*self.steps[each_key])
+                each_key: Timestep(self.steps[each_key])
                     for each_key in range(key.start, key.stop, key.step) 
             }
             time_slice = TimestepSeries()
