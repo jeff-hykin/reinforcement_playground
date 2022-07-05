@@ -38,11 +38,9 @@ warnings.filterwarnings('error')
 torch.manual_seed(1)
 
 class Decision:
-    def __init__(self, response, observation):
-        self.position = tuple(to_pure(
-            all_argmax_coordinates(observation.position)[0]
-        ))
-        self.response = response
+    def __init__(self, response, position):
+        self.position = tuple(position)
+        self.response = f"{response}" 
     def __hash__(self):
         return hash(tuple((self.response, self.position)))
     def __str__(self):
@@ -106,11 +104,18 @@ class FightFireEnhancement(Enhancement):
         self.decision_table = LazyDict()
         original()
         
+    def when_timestep_starts(self, original):
+        self.position = tuple(to_pure(
+            all_argmax_coordinates(self.timestep.observation.position)[0]
+        ))
+        original()
+        
     def when_timestep_ends(self, original):
-        self._decision_table[Decision(self.timestep.response, self.timestep.observation)] += 1
+        self._decision_table[Decision(self.timestep.response, self.position)] += 1
         self._decision_table = sort_keys(self._decision_table)
-        noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
-        self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
+        # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
+        # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
+        self.decision_table = self._decision_table
         original()
     
 class ValueCriticEnhancement(Enhancement):
@@ -216,12 +221,6 @@ class Agent(Skeleton):
         self.default_value_assumption = default_value_assumption
         self._get_greedy_response       = get_greedy_response
     
-    @property
-    def position(self):
-        return tuple(to_pure(
-            all_argmax_coordinates(self.observation.position)[0]
-        ))
-    
     def get_greedy_response(self, observation):
         response_values = []
         for each_response in self.responses:
@@ -249,7 +248,13 @@ class Agent(Skeleton):
         self.random_seed += 1
         random.seed(self.random_seed)
         if random.random() < self.running_epsilon:
-            self.timestep.response = randomly_pick_from(self.responses)
+            # injecting expert (debugging! remove later )
+            if self.position == (2,0):
+                self.timestep.response = "LEFT"
+            elif self.position == (0,0): 
+                self.timestep.response = "RIGHT"
+            else:
+                self.timestep.response = randomly_pick_from(self.responses)
         # else, take the response with the highest value in the current self.observation
         elif not self.timestep.response: # self.next_timestep.response may have already been calculated
             self.timestep.response = self.get_greedy_response(self.timestep.observation)

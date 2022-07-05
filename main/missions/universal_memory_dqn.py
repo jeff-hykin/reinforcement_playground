@@ -28,7 +28,7 @@ world = World(
     # this is probably what is needed to overcome the greedy/probabilistic problem
     # may also be related to feature extraction
 
-def run(number_of_timesteps_for_training=10_000, number_of_timesteps_for_testing=100_000):
+def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testing=100_000):
     env = world.Player()
     mr_bond = Agent(
         observation_space=env.observation_space,
