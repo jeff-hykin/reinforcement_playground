@@ -15,12 +15,14 @@ from super_hash import super_hash
 from super_map import LazyDict
 
 from tools.universe.agent import Skeleton, Enhancement, enhance_with
+from tools.universe.timestep import Timestep
 from tools.universe.enhancements.basic import EpisodeEnhancement, LoggerEnhancement
 from tools.file_system_tools import FileSystem
 from tools.stat_tools import normalize
 
 from tools.debug import debug
 from tools.basics import sort_keys, randomly_pick_from
+from tools.object import Object
 
 import torch
 import torch.nn as nn
@@ -29,7 +31,6 @@ import torch.optim as optim
 
 from prefabs.simple_lstm import SimpleLstm
 from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier, all_argmax_coordinates
-from tools.timestep_tools import TimestepSeries, Timestep
 from trivial_torch_tools import Sequential, init, convert_each_arg, product
 from trivial_torch_tools.generics import to_pure, flatten
 
@@ -147,30 +148,47 @@ class ValueCriticEnhancement(Enhancement):
             output_size=len(self.responses),
             number_of_layers=2,
         )
-        self._critic.optimizer.zero_grad()
         
-        def value_of(observation, response, episode_timestep_index):
-            response_index = self.responses.index(response)
-            return self._critic_table[episode_timestep_index][response_index]
+        def value_of(timestep):
+            response_index = self.responses.index(timestep.response)
+            return self._critic_table[timestep.index][response_index]
         
-        def bellman_update(inputs, new_value):
-            observation, response, episode_timestep_index = inputs
-            response_index = self.responses.index(response)
+        def bellman_update(timestep, new_value):
+            response_index = self.responses.index(timestep.response)
             
             # this action is the one we want the loss to affect
-            ideal_output = list(to_pure(each) for each in self._critic_pipeline.previous_output)
+            ideal_output = list(to_pure(each) for each in timestep.critic.output)
             ideal_output[response_index] = new_value
             ideal_output = to_tensor(ideal_output)
             
-            # update weights
-            loss = self._critic.loss_function(self._critic_pipeline.previous_output, ideal_output)
+            # replay the timestep (bellman caused us to be on t+1, and we need to be update t+0)
+            self._critic.optimizer.zero_grad()
+            self._critic_pipeline.previous_hidden_values = timestep.critic.hidden_inputs # go back to older previous values
+            self._critic_pipeline( # replay the observation and hidden inputs
+                to_tensor(timestep.observation).float().requires_grad_(True)
+            )
+            
+            # now update weights
+            loss = self._critic.loss_function(timestep.critic.output, ideal_output)
             loss.backward()
             self._critic.optimizer.step()
-            self._critic.optimizer.zero_grad()
+            
+            # go back to the t+1 state
+            assert self.next_timestep.index == timestep.index + 1
+            self._critic_update_pipeline(self.next_timestep)
+            
         
-        def _critic_update_pipeline(index, observation):
-            observation = to_tensor(observation).float()
-            self._critic_table[index] = self._critic_pipeline(observation)
+        def _critic_update_pipeline(timestep):
+            observation = to_tensor(timestep.observation).float()
+            # save a copy of the hidden inputs on the timestep
+            timestep.critic = Object(
+                hidden_inputs= self._critic_pipeline.previous_hidden_values and (
+                    self._critic_pipeline.previous_hidden_values[0].clone().detach(),
+                    self._critic_pipeline.previous_hidden_values[1].clone().detach(),
+                ),
+                output=None,
+            )
+            timestep.critic.output = self._critic_table[timestep.index] = self._critic_pipeline(observation)
         
         # 
         # attch methods
@@ -186,12 +204,12 @@ class ValueCriticEnhancement(Enhancement):
         # cache the values in a table to allow self.value_of() to be called multiple times
         # (because the normal way, e.g. on-demand, would screw up the pipeline order/sequence)
         self._critic_table = {}
-        # preemtively get the first one
-        self._critic_update_pipeline(self.next_timestep.index, self.next_timestep.observation)
+        # preemtively get the first one (must be done for eveything else to work)
+        self._critic_update_pipeline(self.episode.next_timestep)
     
     def when_timestep_ends(self, original):
-        # the next observation is available instantly, so also immediately cache it
-        self._critic_update_pipeline(self.next_timestep.index, self.next_timestep.observation)
+        # the next observation is available instantly, so also immediately cache it to make the result available
+        self._critic_update_pipeline(self.episode.next_timestep)
         original()
     
 
@@ -231,9 +249,12 @@ class Agent(Skeleton):
     
     def get_greedy_response(self, observation):
         response_values = []
+        original_response = self.episode.timestep.response
         for each_response in self.responses:
             response_values.append(
-                self.value_of(self.timestep.observation, each_response, self.episode.timestep.index)
+                self.value_of(
+                    Timestep(self.episode.timestep, response=each_response)
+                )
             )
         best_response = self.responses.onehot_to_value(response_values)
         return best_response
@@ -263,18 +284,19 @@ class Agent(Skeleton):
     
     def when_timestep_ends(self):
         self.next_timestep.response = self.get_greedy_response(self.next_timestep.observation)
-        
-        q_value_current = to_pure(self.value_of(self.timestep.observation     , self.timestep.response     , self.episode.timestep.index))  # q_t0 = Q(s0, a0)
-        q_value_next    = to_pure(self.value_of(self.next_timestep.observation, self.next_timestep.response, self.episode.timestep.index))  # q_t1 = Q(s1, a1)
-        delta           = (self.discount_factor * q_value_next) - q_value_current                                                           # delta = (gamma * q_t1) - q_t0
+        timestep      = self.episode.timestep
+        next_timestep = self.episode.next_timestep
+        q_value_current = to_pure(self.value_of(timestep))            # q_t0 = Q(s0, a0)
+        q_value_next    = to_pure(self.value_of(next_timestep))       # q_t1 = Q(s1, a1)
+        delta           = (self.discount_factor * q_value_next) - q_value_current  # delta = (gamma * q_t1) - q_t0
         
         # TODO: record discounted reward here
         
         if self.training:
             # update q value
-            more_accurate_prev_q_value = q_value_current + self.learning_rate * (self.timestep.reward + delta)                             # q
+            more_accurate_prev_q_value = q_value_current + self.learning_rate * (timestep.reward + delta)
             self.bellman_update(
-                (self.timestep.observation, self.timestep.response, self.timestep.index),
+                timestep,
                 more_accurate_prev_q_value,
             )
         

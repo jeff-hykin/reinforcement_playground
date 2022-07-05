@@ -87,6 +87,7 @@ def enhance_with(*enhancements):
     return wrapper
         
 class Enhancement:
+    # TODO: attach all methods that are not these methods
     def __init__(self, *args, **kwargs):
         pass
     def when_mission_starts(self, original,):

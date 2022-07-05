@@ -48,7 +48,13 @@ class Position(list):
     def z(self, value): self[2] = value
     
     def __repr__(self):
-        return f'(x={self.x},y={self.y},z={self.z})'
+        length = len(self)
+        if length > 2:
+            return f'(x={self.x},y={self.y},z={self.z})'
+        if length > 1:
+            return f'(x={self.x},y={self.y})'
+        else:
+            return f'(x={self.x})'
     
 def generate_random_map(width, height):
     if width % 2 == 0 or height % 2 == 0:
