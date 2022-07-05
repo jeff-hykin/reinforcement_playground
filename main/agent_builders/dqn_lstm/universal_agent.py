@@ -80,6 +80,21 @@ class CriticNetwork(nn.Module):
     def pipeline(self):
         return self.layers.lstm.pipeline()
 
+class FightFireEnhancement(Enhancement):
+    """
+        adds:
+            self.decision_table
+    """
+    
+    def when_mission_starts(self, original, ):
+        self.decision_table = LazyDict().setdefault(lambda *args: 0)
+        original()
+        
+    def when_timestep_ends(self, original):
+        self.decision_table[Decision(self.timestep.response, self.timestep.observation)] += 1
+        self.decision_table = sort_keys(self.decision_table)
+        original()
+    
 class ValueCriticEnhancement(Enhancement):
     """
         requires:
@@ -150,7 +165,7 @@ class ValueCriticEnhancement(Enhancement):
     
 
 class Agent(Skeleton):
-    @enhance_with(EpisodeEnhancement, LoggerEnhancement, ValueCriticEnhancement)
+    @enhance_with(EpisodeEnhancement, LoggerEnhancement, ValueCriticEnhancement, FightFireEnhancement)
     def __init__(self,
         observation_space,
         response_space,
@@ -180,7 +195,6 @@ class Agent(Skeleton):
         self.epsilon           = epsilon        # Amount of randomness in the response selection
         self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
         
-        self._table                   = LazyDict()
         self.default_value_assumption = default_value_assumption
         self._get_greedy_response       = get_greedy_response
     
