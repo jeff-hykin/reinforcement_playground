@@ -82,11 +82,12 @@ class CriticNetwork(nn.Module):
 class FightFireEnhancement(Enhancement):
     """
         adds:
-            self._decision_table
+            self.decision_table
+            self.reward_table
     """
     
     def when_mission_starts(self, original, ):
-        # self.correct_decisions = {
+        # self.correct_decision_proportions = {
         #    DOWN(0, 0): 0, 
         #    LEFT(0, 0): 0, 
         #   RIGHT(0, 0): 1.0, 
@@ -95,13 +96,14 @@ class FightFireEnhancement(Enhancement):
         #    LEFT(1, 0): 0.5, 
         #   RIGHT(1, 0): 0.5, 
         #      UP(1, 0): 0, 
-        #    DOWN(2, 0): -1, 
-        #    LEFT(2, 0): -1, 
-        #   RIGHT(2, 0): -1, 
-        #      UP(2, 0): -1, 
+        #    DOWN(2, 0): 0, 
+        #    LEFT(2, 0): 1.0, 
+        #   RIGHT(2, 0): 0, 
+        #      UP(2, 0): 0, 
         # }
         self._decision_table = LazyDict().setdefault(lambda *args: 0)
         self.decision_table = LazyDict()
+        self.reward_table = LazyDict().setdefault(lambda *args: 0)
         original()
         
     def when_timestep_starts(self, original):
@@ -111,11 +113,17 @@ class FightFireEnhancement(Enhancement):
         original()
         
     def when_timestep_ends(self, original):
-        self._decision_table[Decision(self.timestep.response, self.position)] += 1
+        decision = Decision(self.timestep.response, self.position)
+        self.reward_table[decision] += self.timestep.reward
+        self._decision_table[decision] += 1
+        self.reward_table    = sort_keys(self.reward_table)
         self._decision_table = sort_keys(self._decision_table)
         # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
         # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
-        self.decision_table = self._decision_table
+        self.decision_table = LazyDict({
+            each_decision : f"{decision_count}".rjust(9)+", # immediate reward total: "+ f"{reward_total}".rjust(9)
+                for each_decision, decision_count, reward_total in zip(self._decision_table.keys(), self._decision_table.values(), self.reward_table.values())
+        })
         original()
     
 class ValueCriticEnhancement(Enhancement):
@@ -248,13 +256,7 @@ class Agent(Skeleton):
         self.random_seed += 1
         random.seed(self.random_seed)
         if random.random() < self.running_epsilon:
-            # injecting expert (debugging! remove later )
-            if self.position == (2,0):
-                self.timestep.response = "LEFT"
-            elif self.position == (0,0): 
-                self.timestep.response = "RIGHT"
-            else:
-                self.timestep.response = randomly_pick_from(self.responses)
+            self.timestep.response = randomly_pick_from(self.responses)
         # else, take the response with the highest value in the current self.observation
         elif not self.timestep.response: # self.next_timestep.response may have already been calculated
             self.timestep.response = self.get_greedy_response(self.timestep.observation)
@@ -262,15 +264,15 @@ class Agent(Skeleton):
     def when_timestep_ends(self):
         self.next_timestep.response = self.get_greedy_response(self.next_timestep.observation)
         
-        q_value_current = to_pure(self.value_of(self.timestep.observation     , self.timestep.response     , self.episode.timestep.index))
-        q_value_next    = to_pure(self.value_of(self.next_timestep.observation, self.next_timestep.response, self.episode.timestep.index))
-        delta           = (self.discount_factor * q_value_next) - q_value_current
+        q_value_current = to_pure(self.value_of(self.timestep.observation     , self.timestep.response     , self.episode.timestep.index))  # q_t0 = Q(s0, a0)
+        q_value_next    = to_pure(self.value_of(self.next_timestep.observation, self.next_timestep.response, self.episode.timestep.index))  # q_t1 = Q(s1, a1)
+        delta           = (self.discount_factor * q_value_next) - q_value_current                                                           # delta = (gamma * q_t1) - q_t0
         
         # TODO: record discounted reward here
         
         if self.training:
             # update q value
-            more_accurate_prev_q_value = q_value_current + self.learning_rate * (self.timestep.reward + delta)
+            more_accurate_prev_q_value = q_value_current + self.learning_rate * (self.timestep.reward + delta)                             # q
             self.bellman_update(
                 (self.timestep.observation, self.timestep.response, self.timestep.index),
                 more_accurate_prev_q_value,
