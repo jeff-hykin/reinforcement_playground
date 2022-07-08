@@ -141,9 +141,9 @@ class World:
         
         class Player(Env):
             actions = LazyDict(dict(
+                LEFT  = "LEFT",
                 UP    = "UP",
                 DOWN  = "DOWN",
-                LEFT  = "LEFT",
                 RIGHT = "RIGHT",
             ))
             action_space      = Discrete(len(actions))

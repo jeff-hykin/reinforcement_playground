@@ -10,7 +10,7 @@ import cv2
 import time
 from collections import defaultdict
 
-from blissful_basics import product, max_index
+from blissful_basics import product, max_index, flatten
 from super_hash import super_hash
 from super_map import LazyDict
 
@@ -102,7 +102,7 @@ class FightFireEnhancement(Enhancement):
         #   RIGHT(2, 0): 0, 
         #      UP(2, 0): 0, 
         # }
-        self._decision_table_helper = LazyDict().setdefault(lambda *args: 0)
+        self.decision_count = LazyDict().setdefault(lambda *args: 0)
         self.q_value_per_decision   = LazyDict().setdefault(lambda *args: 0)
         self.decision_table         = LazyDict()
         self.reward_table           = LazyDict().setdefault(lambda *args: 0)
@@ -118,14 +118,14 @@ class FightFireEnhancement(Enhancement):
         self.decision = Decision(self.timestep.response, self.position)
         if self.following_policy:
             self.reward_table[self.decision] += self.timestep.reward
-            self._decision_table_helper[self.decision] += 1
-            self.reward_table    = sort_keys(self.reward_table)
-            self._decision_table_helper = sort_keys(self._decision_table_helper)
-            # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table_helper.values())) ]
-            # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table_helper.keys(), noramlized_values)  })
+            self.decision_count[self.decision] += 1
+            sort_keys(self.reward_table)
+            sort_keys(self.decision_count)
+            # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self.decision_count.values())) ]
+            # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self.decision_count.keys(), noramlized_values)  })
             self.decision_table = LazyDict({
                 each_decision : f"{decision_count:b}".rjust(18)+", # immediate reward per action: "+ f"{reward_total/decision_count:.5f}".rjust(9)
-                    for each_decision, decision_count, reward_total in zip(self._decision_table_helper.keys(), self._decision_table_helper.values(), self.reward_table.values())
+                    for each_decision, decision_count, reward_total in zip(self.decision_count.keys(), self.decision_count.values(), self.reward_table.values())
             })
         original()
     
@@ -197,15 +197,45 @@ class ValueCriticEnhancement(Enhancement):
         original()
     
 
+class QTableEnhancement(Enhancement):
+    """
+        requires:
+            self.episode.timestep.index
+            self.responses # finite list of each possible response
+        adds:
+            self.value_of(observation, response, episode_timestep_index)
+                returns a scalar
+            self.bellman_update((observation, response, episode_timestep_index), new_value)
+    """
+    
+    def when_mission_starts(self, original, ):
+        self.q_table = LazyDict().setdefault(lambda key: 0)
+        
+        def value_of(timestep):
+            observation_as_tuple = tuple(flatten(to_pure(timestep.observation)))
+            return self.q_table[ observation_as_tuple, timestep.response, ]
+        
+        def bellman_update(timestep, better_q):
+            observation_as_tuple = tuple(flatten(to_pure(timestep.observation)))
+            self.q_table[ observation_as_tuple, timestep.response, ] = better_q
+        
+        # 
+        # attch methods
+        # 
+        self.bellman_update = bellman_update
+        self.value_of       = value_of
+        original()
+        
+
 class Agent(Skeleton):
-    @enhance_with(EpisodeEnhancement, LoggerEnhancement, ValueCriticEnhancement, FightFireEnhancement)
+    @enhance_with(EpisodeEnhancement, LoggerEnhancement, ValueCriticEnhancement, FightFireEnhancement, QTableEnhancement)
     def __init__(self,
         observation_space,
         response_space,
         responses=None,
         training=True,
         learning_rate=0.5,
-        discount_factor=0.01,
+        discount_factor=0.9,
         epsilon=1.0,
         epsilon_decay=0.0001,
         default_value_assumption=0,
@@ -237,6 +267,7 @@ class Agent(Skeleton):
             "actions": self.responses.__repr__(),
             "update value sum": self._sum_table,
             "q value update-value": self.q_value_per_decision,
+            "pure q_table": self.q_table,
             "ideal Q's": self._ideal_table,
             "critic Q's": self._critic_table,
             "policy decisions": self.decision_table,
@@ -299,45 +330,50 @@ class Agent(Skeleton):
         if self.training:
             # update q value
             more_accurate_curr_q_value = q_value_current + self.learning_rate * (timestep.reward + delta)
-            new_value = more_accurate_curr_q_value
+            average_reward = self.reward_table[self.decision] / self.decision_count[self.decision] if self.decision_count[self.decision] > 0 else 0
+            self.bellman_update(timestep, average_reward)
             
-            # log it to a table
-            self.q_value_per_decision[self.decision] = more_accurate_curr_q_value
-            sort_keys(self.q_value_per_decision)
-            
-            # response_index is the action we want the loss to affect (so only change that part of the tensor)
-            response_index = self.responses.value_to_index(timestep.response)
-            ideal_output = list(to_pure(each) for each in timestep.critic.output) # get whatever the weights wouldve been
-            ideal_output[response_index] = new_value                              # replace this one weight in the copy
-            ideal_output = to_tensor(ideal_output)                                 
-            
-            # replay the timestep (doing "self.next_timestep.response = ..." caused the pipeline to be on t+1, and we need to update the weights for t+0)
-            self._critic.optimizer.zero_grad()
-            self._critic_pipeline.previous_hidden_values = timestep.critic.hidden_inputs
-            timestep.critic.output = self._critic_pipeline( # replay the observation and hidden inputs to get the normal t+0 output with gradient tracking
-                to_tensor(timestep.observation).float().requires_grad_(True)
-            )
-            
-            # 
-            # calculate average ideal update values for debugging
-            # 
-            self._sum_table[  self.position] += ideal_output
-            self._count_table[self.position] += 1
-            average_ideal = self._sum_table[self.position]/self._count_table[self.position] # NOTE: debugging only, averaging ideal defeats the ability of memory
-            
-            # now update weights
-            loss = self._critic.loss_function(timestep.critic.output, average_ideal)
-            loss.backward()
-            self._critic.optimizer.step()
-            
-            self._critic_table[self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(timestep.critic.output.clone().detach())]
-            self._ideal_table[ self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(average_ideal.clone().detach())]
-            sort_keys(self._critic_table)
-            sort_keys(self._ideal_table)
-            
-            # go back to the t+1 state
-            assert self.next_timestep.index == timestep.index + 1
-            self._critic_update_pipeline(self.next_timestep)
+            # LSTM critic update
+            if False:
+                new_value = more_accurate_curr_q_value
+                
+                # log it to a table
+                self.q_value_per_decision[self.decision] = more_accurate_curr_q_value
+                sort_keys(self.q_value_per_decision)
+                
+                # response_index is the action we want the loss to affect (so only change that part of the tensor)
+                response_index = self.responses.value_to_index(timestep.response)
+                ideal_output = list(to_pure(each) for each in timestep.critic.output) # get whatever the weights wouldve been
+                ideal_output[response_index] = new_value                              # replace this one weight in the copy
+                ideal_output = to_tensor(ideal_output)                                 
+                
+                # replay the timestep (doing "self.next_timestep.response = ..." caused the pipeline to be on t+1, and we need to update the weights for t+0)
+                self._critic.optimizer.zero_grad()
+                self._critic_pipeline.previous_hidden_values = timestep.critic.hidden_inputs
+                timestep.critic.output = self._critic_pipeline( # replay the observation and hidden inputs to get the normal t+0 output with gradient tracking
+                    to_tensor(timestep.observation).float().requires_grad_(True)
+                )
+                
+                # 
+                # calculate average ideal update values for debugging
+                # 
+                self._sum_table[  self.position] += ideal_output
+                self._count_table[self.position] += 1
+                average_ideal = self._sum_table[self.position]/self._count_table[self.position] # NOTE: debugging only, averaging ideal defeats the ability of memory
+                
+                # now update weights
+                loss = self._critic.loss_function(timestep.critic.output, average_ideal)
+                loss.backward()
+                self._critic.optimizer.step()
+                
+                self._critic_table[self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(timestep.critic.output.clone().detach())]
+                self._ideal_table[ self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(average_ideal.clone().detach())]
+                sort_keys(self._critic_table)
+                sort_keys(self._ideal_table)
+                
+                # go back to the t+1 state
+                assert self.next_timestep.index == timestep.index + 1
+                self._critic_update_pipeline(self.next_timestep)
         
         self.update_debug()
         
