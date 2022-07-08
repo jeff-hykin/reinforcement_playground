@@ -142,8 +142,8 @@ class World:
         class Player(Env):
             actions = LazyDict(dict(
                 LEFT  = "LEFT",
-                RIGHT = "RIGHT",
                 UP    = "UP",
+                RIGHT = "RIGHT",
                 DOWN  = "DOWN",
             ))
             action_space      = Discrete(len(actions))
@@ -267,6 +267,7 @@ class World:
         world.random_seed += 1
         seed(world.random_seed)
         world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(world.grid_width, world.grid_height)
+        seed(time()) # make random again so that randomness of other things isnt effected
         world.min_x_index, world.min_y_index = 0, 0
         world.max_x_index, world.max_y_index = world.grid_width-1, world.grid_height-1
         world.number_of_states = world.number_of_grid_states + 1

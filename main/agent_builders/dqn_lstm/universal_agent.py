@@ -150,14 +150,13 @@ class ValueCriticEnhancement(Enhancement):
             output_size=len(self.responses),
             number_of_layers=2,
         )
-        self._sum_table   = Object(Options(default=lambda each, self: 0))
-        self._count_table = Object(Options(default=lambda each, self: 0))
-        self._ideal_table = Object(Options(default=lambda each, self: 0))
+        self._sum_table     = Object(Options(default=lambda each, self: 0))
+        self._count_table   = Object(Options(default=lambda each, self: 0))
+        self._ideal_table   = Object(Options(default=lambda each, self: 0))
         self._critic_table  = Object(Options(default=lambda each, self: 0))
         
         def value_of(timestep):
-            response_index = self.responses.index(timestep.response)
-            return self._critic_cache[timestep.index][response_index]
+            return self._critic_cache[timestep.index][timestep.response]
         
         def _critic_update_pipeline(timestep):
             observation = to_tensor(timestep.observation).float()
@@ -169,7 +168,11 @@ class ValueCriticEnhancement(Enhancement):
                 ),
                 output=None,
             )
-            timestep.critic.output = self._critic_cache[timestep.index] = self._critic_pipeline(observation)
+            timestep.critic.output = self._critic_pipeline(observation)
+            self._critic_cache[timestep.index] = {
+                each_response : each_value
+                    for each_response, each_value in zip(self.responses, timestep.critic.output)
+            }
         
         # 
         # attch methods
@@ -230,7 +233,7 @@ class Agent(Skeleton):
         self._get_greedy_response       = get_greedy_response
     
     def update_debug(self):
-        self.debug = LazyDict({
+        self.debug.update({
             "actions": self.responses.__repr__(),
             "update value sum": self._sum_table,
             "q value update-value": self.q_value_per_decision,
@@ -240,16 +243,20 @@ class Agent(Skeleton):
         })
         
     def get_greedy_response(self, observation):
+        import math
         response_values = []
         original_response = self.episode.timestep.response
+        max_value = -math.inf
+        greedy_response = None
         for each_response in self.responses:
-            response_values.append(
-                self.value_of(
-                    Timestep(self.episode.timestep, response=each_response)
-                )
+            value = self.value_of(
+                Timestep(self.episode.timestep, response=each_response)
             )
-        best_response = self.responses.onehot_to_value(response_values)
-        return best_response
+            if value > max_value:
+                max_value       = max_value
+                greedy_response = each_response
+            
+        return greedy_response
     
     # 
     # mission hooks
@@ -270,8 +277,9 @@ class Agent(Skeleton):
         # 
         self.random_seed += 1
         random.seed(self.random_seed)
-        
         self.following_policy = random.random() > self.running_epsilon
+        random.seed(time.time()) # go back to actual random for other things
+        
         if self.following_policy:
             self.timestep.response = randomly_pick_from(self.responses)
         # else, take the response with the highest value in the current self.observation
@@ -298,7 +306,7 @@ class Agent(Skeleton):
             sort_keys(self.q_value_per_decision)
             
             # response_index is the action we want the loss to affect (so only change that part of the tensor)
-            response_index = self.responses.index(timestep.response)
+            response_index = self.responses.value_to_index(timestep.response)
             ideal_output = list(to_pure(each) for each in timestep.critic.output) # get whatever the weights wouldve been
             ideal_output[response_index] = new_value                              # replace this one weight in the copy
             ideal_output = to_tensor(ideal_output)                                 

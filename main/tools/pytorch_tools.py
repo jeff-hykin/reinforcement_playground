@@ -7,7 +7,7 @@ from tools.record_keeper import RecordKeeper
 from simple_namespace import namespace
 #%% pytorch_tools
 
-default_seed = 1
+default_seed = 10275023948
 torch.manual_seed(default_seed)
 
 # if gpu is to be used
@@ -195,6 +195,14 @@ class OneHotifier(list):
             possible_values = tuple(possible_values)
         
         super(OneHotifier, self).__init__(possible_values)
+        
+        from random import randint
+        index = randint(0, len(self)-1)
+        assert self.index_to_value(index) == self[index]
+        assert self.value_to_index(self.index_to_value(index)) == index
+        assert self.onehot_to_index(self.value_to_onehot(self.index_to_value(index))) == index
+        assert torch.all(self.value_to_onehot(self.index_to_value(index)) == self.index_to_onehot(index))
+        assert self.onehot_to_value(self.value_to_onehot(self.index_to_value(index))) == self[index]
     
     def __repr__(self):
         string = "OneHotifier(\n"
