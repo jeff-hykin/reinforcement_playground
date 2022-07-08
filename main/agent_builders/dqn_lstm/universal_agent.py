@@ -224,6 +224,7 @@ class Agent(Skeleton):
         self.training          = training
         self.epsilon           = epsilon        # Amount of randomness in the response selection
         self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
+        self.debug             = LazyDict()
         
         self.default_value_assumption = default_value_assumption
         self._get_greedy_response       = get_greedy_response
@@ -248,6 +249,14 @@ class Agent(Skeleton):
         self.discounted_rewards = []
         self.running_epsilon = self.epsilon if self.training else 0
         self.following_policy = None
+        self.debug = LazyDict({
+            "actions": self.responses,
+            "update value sum": self._sum_table,
+            "q value update-value": self.q_value_per_decision,
+            "ideal Q's": self._ideal_table,
+            "critic Q's": self._critic_table,
+            "policy decisions": self.decision_table,
+        })
         
     def when_episode_starts(self):
         self.discounted_reward_sum = 0
@@ -318,6 +327,15 @@ class Agent(Skeleton):
             # go back to the t+1 state
             assert self.next_timestep.index == timestep.index + 1
             self._critic_update_pipeline(self.next_timestep)
+        
+        self.debug = LazyDict({
+            "actions": self.responses,
+            "update value sum": self._sum_table,
+            "q value update-value": self.q_value_per_decision,
+            "ideal Q's": self._ideal_table,
+            "critic Q's": self._critic_table,
+            "policy decisions": self.decision_table,
+        })
         
     def when_episode_ends(self):
         self.discounted_rewards.append(self.discounted_reward_sum)
