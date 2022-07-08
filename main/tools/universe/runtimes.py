@@ -1,5 +1,6 @@
 import itertools
 import math
+from copy import deepcopy
 from tools.universe.timestep import Timestep
 
 
@@ -20,7 +21,7 @@ def basic(*, agent, env, max_timestep_index=math.inf, max_episode_index=math.inf
         )
         agent.next_timestep = Timestep(
             index=0,
-            observation=env.reset(),
+            observation=deepcopy(env.reset()),
             is_last_step=False,
         )
         agent.when_episode_starts()
@@ -33,7 +34,10 @@ def basic(*, agent, env, max_timestep_index=math.inf, max_episode_index=math.inf
             agent.when_timestep_starts()
             if type(agent.timestep.response) == type(None):
                 agent.timestep.response = env.action_space.sample()
-            agent.next_timestep.observation, agent.timestep.reward, agent.timestep.is_last_step, agent.timestep.hidden_info = env.step(agent.timestep.response)
+            observation, reward, is_last_step, agent.timestep.hidden_info = env.step(agent.timestep.response)
+            agent.next_timestep.observation = deepcopy(observation)
+            agent.timestep.reward           = deepcopy(reward)
+            agent.timestep.is_last_step     = deepcopy(is_last_step)
             agent.when_timestep_ends()
             
             yield episode_index, agent.timestep

@@ -28,6 +28,31 @@ layers_enum = LazyDict(dict(
     fire=2,
 ))
 
+class Grid(torch.Tensor):
+    @property
+    def position(self):
+        return self[layers_enum.position]
+    
+    @position.setter
+    def position(self, value):
+        self[layers_enum.position] = value
+    
+    @property
+    def water(self):
+        return self[layers_enum.water]
+    
+    @water.setter
+    def water(self, value):
+        self[layers_enum.water] = value
+    
+    @property
+    def fire(self):
+        return self[layers_enum.fire]
+    
+    @fire.setter
+    def fire(self, value):
+        self[layers_enum.fire] = value
+
 class Position(list):
     @property
     def x(self): return self[0]
@@ -65,9 +90,7 @@ def generate_random_map(width, height):
     min_y_index = 0
     max_x_index = width-1
     max_y_index = height-1
-    layers = torch.zeros(shape) != 0 # boolean tensor with default of false
-    for each_key, each_value in layers_enum.items():
-        setattr(layers, each_key, layers[each_value])
+    grid_layers = Grid(torch.zeros(shape)).bool()
     start_x = randint(min_x_index+1,max_x_index-1) if min_x_index!=max_x_index else min_x_index
     start_y = randint(min_y_index+1,max_y_index-1) if min_y_index!=max_y_index else min_y_index
     center_square_location = (start_x, start_y)
@@ -79,7 +102,7 @@ def generate_random_map(width, height):
     possible_water_positions = []
     if height == 1 or random() > 0.5:
         # use start_x as dividing line
-        for column_index, each_row in enumerate(layers.position):
+        for column_index, each_row in enumerate(grid_layers.position):
             for row_index, each_cell in enumerate(each_row):
                 if column_index > start_x:
                     possible_fire_positions.append((column_index, row_index))
@@ -87,7 +110,7 @@ def generate_random_map(width, height):
                     possible_water_positions.append((column_index, row_index))
     else:
         # use start_y as dividing line
-        for column_index, each_row in enumerate(layers.position):
+        for column_index, each_row in enumerate(grid_layers.position):
             for row_index, each_cell in enumerate(each_row):
                 if row_index > start_y:
                     possible_fire_positions.append((column_index, row_index))
@@ -95,7 +118,7 @@ def generate_random_map(width, height):
                     possible_water_positions.append((column_index, row_index))
     
     # set current location
-    layers.position[start_x, start_y] = True
+    grid_layers.position[start_x, start_y] = True
     
     # generate fires
     number_of_fires_minus_one = randint(0, round(len(possible_fire_positions)/2))
@@ -104,7 +127,7 @@ def generate_random_map(width, height):
         if each_fire_index > number_of_fires_minus_one:
             break
         else:
-            layers.fire[x, y] = True
+            grid_layers.fire[x, y] = True
     
     # generate waters
     number_of_waters_minus_one = randint(0, round(len(possible_water_positions)/2))
@@ -113,13 +136,13 @@ def generate_random_map(width, height):
         if each_water_index > number_of_waters_minus_one:
             break
         else:
-            layers.water[x, y] = True
+            grid_layers.water[x, y] = True
         
     number_of_states = (
-        product(layers.position.shape) # number of positions the player can be in
-        * (2 ** product(layers.fire.shape)) # squares cannot be both a fire and a water square, so we treat them as binary. This should still be an overestimate of true possible number of states
+        product(grid_layers.position.shape) # number of positions the player can be in
+        * (2 ** product(grid_layers.fire.shape)) # squares cannot be both a fire and a water square, so we treat them as binary. This should still be an overestimate of true possible number of states
     )
-    return layers, Position((start_x, start_y)), number_of_states
+    return grid_layers, Position((start_x, start_y)), number_of_states
 
 class Discrete(spaces.Discrete):
     @property
@@ -163,7 +186,7 @@ class World:
             
             @property
             def observation(self):
-                return world.deepcopy_of_state().grid
+                return world.state.grid
                 
             def compute_reward(self):
                 fires_before = self.previous_observation.fire.sum()
@@ -188,9 +211,7 @@ class World:
             
             def perform_action(self, action):
                 self.previous_observation = deepcopy(self.observation)
-                for each_key, each_value in layers_enum.items():
-                    setattr(self.previous_observation, each_key, self.previous_observation[each_value])
-                self.previous_action = deepcopy(self.action)
+                self.previous_action      = deepcopy(self.action)
                 self.action = action
                 world.request_change(self, action)
             
@@ -273,17 +294,6 @@ class World:
         world.number_of_states = world.number_of_grid_states + 1
         
         world.has_water = defaultdict(lambda : False)
-    
-    def deepcopy_of_state(self):
-        grid = deepcopy(self.state.grid)
-        for each_key, each_value in layers_enum.items():
-            setattr(grid, each_key, grid[each_value])
-        
-        return Object(
-            grid=grid,
-            has_water=dict(self.state.has_water),
-            position_of=dict(self.state.position_of),
-        )
     
     def request_change(world, player, change):
         if change == World.reset:
