@@ -195,6 +195,14 @@ class OneHotifier(list):
             possible_values = tuple(possible_values)
         
         super(OneHotifier, self).__init__(possible_values)
+    
+    def __repr__(self):
+        string = "OneHotifier(\n"
+        max_length = max([ len(f"{each}") for each in self ])
+        for each in self:
+            string += (f'''    {f"{each}".rjust(max_length)} = {self.value_to_index(each)}, {self.value_to_onehot(each)}\n''')
+        string += ")"
+        return string
         
     def index_to_value(self, index):
         return self[index]
