@@ -141,10 +141,10 @@ class World:
         
         class Player(Env):
             actions = LazyDict(dict(
-                UP    = "UP",
-                DOWN  = "DOWN",
                 LEFT  = "LEFT",
                 RIGHT = "RIGHT",
+                UP    = "UP",
+                DOWN  = "DOWN",
             ))
             action_space      = Discrete(len(actions))
             observation_space = Discrete(world.number_of_grid_states)
