@@ -266,6 +266,7 @@ class Agent(Skeleton):
     def when_mission_starts(self):
         self.discounted_rewards = []
         self.running_epsilon = self.epsilon if self.training else 0
+        self.following_policy = None
         
     def when_episode_starts(self):
         self.discounted_reward_sum = 0
@@ -276,10 +277,12 @@ class Agent(Skeleton):
         # 
         self.random_seed += 1
         random.seed(self.random_seed)
-        if random.random() < self.running_epsilon:
+        
+        self.following_policy = random.random() > self.running_epsilon
+        if self.following_policy:
             self.timestep.response = randomly_pick_from(self.responses)
         # else, take the response with the highest value in the current self.observation
-        elif not self.timestep.response: # self.next_timestep.response may have already been calculated
+        elif not self.timestep.response: # self.next_timestep.response may have already been calculated, 
             self.timestep.response = self.get_greedy_response(self.timestep.observation)
     
     def when_timestep_ends(self):
