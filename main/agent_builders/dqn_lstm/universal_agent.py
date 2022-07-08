@@ -22,7 +22,7 @@ from tools.stat_tools import normalize
 
 from tools.debug import debug
 from tools.basics import sort_keys, randomly_pick_from
-from tools.object import Object
+from tools.object import Object, Options
 
 import torch
 import torch.nn as nn
