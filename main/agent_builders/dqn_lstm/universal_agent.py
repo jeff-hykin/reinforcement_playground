@@ -112,17 +112,17 @@ class FightFireEnhancement(Enhancement):
         original()
         
     def when_timestep_starts(self, original):
-        sanity.when_start.observation = deepcopy(self.timestep.observation.position.clone().detach())
-        self.position = tuple(to_pure(
-            all_argmax_coordinates(self.timestep.observation.position)[0]
+        sanity.when_start.observation = deepcopy(self.episode.timestep.observation.position.clone().detach())
+        self.position = self.timestep.position = tuple(to_pure(
+            all_argmax_coordinates(self.episode.timestep.observation.position)[0]
         ))
-        assert self.position == self.get_position(self.timestep)
+        assert self.position == self.get_position(self.episode.timestep)
         original()
         
     def when_timestep_ends(self, original):
-        self.decision = Decision(self.timestep)
+        self.decision = Decision(self.episode.timestep)
         if self.following_policy:
-            self.reward_table[self.decision] += self.timestep.reward
+            self.reward_table[self.decision] += self.episode.timestep.reward
             self.decision_count[self.decision] += 1
             sort_keys(self.reward_table)
             sort_keys(self.decision_count)
@@ -202,7 +202,9 @@ class ValueCriticEnhancement(Enhancement):
         original()
     
 sanity = LazyDict(
-    when_start=LazyDict(),
+    when_start=LazyDict(
+        picked_left=False,
+    ),
 )
 class QTableEnhancement(Enhancement):
     """
@@ -236,7 +238,7 @@ class QTableEnhancement(Enhancement):
     
     def when_timestep_ends(self, original):
         original()
-        timestep = self.timestep
+        timestep = self.episode.timestep
         
         assert torch.all(sanity.observation == deepcopy(timestep.observation.clone().detach()))
         assert sanity.response == deepcopy(timestep.response)
@@ -249,7 +251,17 @@ class QTableEnhancement(Enhancement):
         compare_string = f"position_key={position_key}, response={timestep.response}"
         self.debug.q_table = self.q_table
         
-
+        if isinstance(sanity.when_start.picked_left, int) and sanity.when_start.picked_left == timestep.index:
+            sanity.when_start.picked_left = None
+            print("")
+            print("\nAFTER")
+            print(f'''    sanity.when_start.picked_left = {sanity.when_start.picked_left}''')
+            print(f'''    timestep = {timestep}''')
+            print(f'''    timestep.response = {timestep.response}''')
+            print(f'''    self.get_position(timestep) = {self.get_position(timestep)}''')
+            print(f'''    self.q_table = {self.q_table}''')
+            input()
+        
 class Agent(Skeleton):
     @enhance_with(EpisodeEnhancement, LoggerEnhancement, ValueCriticEnhancement, FightFireEnhancement, QTableEnhancement)
     def __init__(self,
@@ -305,20 +317,31 @@ class Agent(Skeleton):
             if isinstance(each_value, dict):
                 sort_keys(each_value)
         
-    def get_greedy_response(self, observation):
+    def get_greedy_response(self, timestep):
         import math
-        response_values = []
-        original_response = self.episode.timestep.response
-        max_value = -math.inf
+        observation       = timestep.observation
+        response_values   = []
+        
+        max_value         = -math.inf
         greedy_response = None
         for each_response in self.responses:
             value = self.value_of(
-                Timestep(self.episode.timestep, response=each_response)
+                Timestep(timestep, response=each_response)
             )
             self.debug[each_response] = value
             if value > max_value:
                 max_value       = value
                 greedy_response = each_response
+        
+        if self.get_position(timestep) == (0,0) and greedy_response == "LEFT":
+            sanity.when_start.picked_left = timestep.index
+            print(f'''''')
+            print("\nBEFORE")
+            print(f'''    sanity.when_start.picked_left = {sanity.when_start.picked_left}''')
+            print(f'''    self.q_table = {self.q_table}''')
+            print(f'''    timestep = {timestep}''')
+            input()
+        
         self.debug.best_action = greedy_response
         return greedy_response
     
@@ -348,7 +371,7 @@ class Agent(Skeleton):
             self.timestep.response = randomly_pick_from(self.responses)
         # else, take the response with the highest value in the current self.observation
         elif not self.timestep.response: # self.next_timestep.response may have already been calculated, 
-            self.timestep.response = self.get_greedy_response(self.timestep.observation)
+            self.timestep.response = self.get_greedy_response(self.episode.timestep)
     
     def when_timestep_ends(self):
         assert torch.all(sanity.when_start.observation == self.timestep.observation.position)
@@ -359,7 +382,7 @@ class Agent(Skeleton):
         sanity.response = deepcopy(self.timestep.response)
         self.debug.sanity = f'''self.position = {self.position}, action = {self.timestep.response}, reward = {self.timestep.reward}'''
         
-        self.next_timestep.response = self.get_greedy_response(self.next_timestep.observation)
+        self.next_timestep.response = self.get_greedy_response(self.episode.next_timestep)
         timestep      = self.episode.timestep
         next_timestep = self.episode.next_timestep
         q_value_current = to_pure(self.value_of(timestep))            # q_t0 = Q(s0, a0)
