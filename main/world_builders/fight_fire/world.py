@@ -163,7 +163,7 @@ class World:
             
             @property
             def observation(self):
-                return world.state.grid
+                return world.deepcopy_of_state().grid
                 
             def compute_reward(self):
                 fires_before = self.previous_observation.fire.sum()
@@ -273,6 +273,17 @@ class World:
         world.number_of_states = world.number_of_grid_states + 1
         
         world.has_water = defaultdict(lambda : False)
+    
+    def deepcopy_of_state(self):
+        grid = deepcopy(self.state.grid)
+        for each_key, each_value in layers_enum.items():
+            setattr(grid, each_key, grid[each_value])
+        
+        return Object(
+            grid=grid,
+            has_water=dict(self.state.has_water),
+            position_of=dict(self.state.position_of),
+        )
     
     def request_change(world, player, change):
         if change == World.reset:
