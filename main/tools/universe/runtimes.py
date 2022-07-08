@@ -31,6 +31,8 @@ def basic(*, agent, env, max_timestep_index=math.inf, max_episode_index=math.inf
             agent.next_timestep     = Timestep(index=agent.next_timestep.index+1)
             
             agent.when_timestep_starts()
+            if type(agent.timestep.response) == type(None):
+                agent.timestep.response = env.action_space.sample()
             agent.next_timestep.observation, agent.timestep.reward, agent.timestep.is_last_step, agent.timestep.hidden_info = env.step(agent.timestep.response)
             agent.when_timestep_ends()
             
