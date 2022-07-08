@@ -130,6 +130,7 @@ class Discrete(spaces.Discrete):
     def shape(self, value):
         self._shape = value
 
+reward_scale = 0.001
 class World:
     def __init__(world, *, grid_width, grid_height, visualize=False, debug=False, random_seed=None):
         world._random_seed = time() if random_seed == None else random_seed
@@ -139,12 +140,11 @@ class World:
         world.reset()
         
         class Player(Env):
-            reward_range = (-10,100)
             actions = LazyDict(dict(
-                LEFT  = "LEFT",
-                DOWN  = "DOWN",
-                RIGHT = "RIGHT",
                 UP    = "UP",
+                DOWN  = "DOWN",
+                LEFT  = "LEFT",
+                RIGHT = "RIGHT",
             ))
             action_space      = Discrete(len(actions))
             observation_space = Discrete(world.number_of_grid_states)
@@ -165,7 +165,7 @@ class World:
             def observation(self):
                 return world.state.grid
                 
-            def check_for_reward(self):
+            def compute_reward(self):
                 fires_before = self.previous_observation.fire.sum()
                 fires_now = self.observation.fire.sum()
                 
@@ -197,7 +197,7 @@ class World:
             def step(self, action):
                 self.perform_action(action)
                 next_state = self.observation
-                reward     = self.check_for_reward()
+                reward     = self.compute_reward() * reward_scale
                 done       = self.check_for_done()
                 debug_info = Object(has_water=world.state.has_water[self], position=self.position)
                 

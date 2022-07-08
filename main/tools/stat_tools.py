@@ -235,6 +235,7 @@ def normalize(values, max=None, min=None):
     """
     all elements of the output should be between 0 and 1
     """
+    values = tuple(values)
     if len(values) == 0:
         return values
     if type(max) is type(None):

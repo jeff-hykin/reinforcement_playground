@@ -43,6 +43,12 @@ def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testin
         mr_bond.epsilon = each_epsilon
         for progress, (episode_index, timestep) in ProgressBar(basic(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
             world.random_seed = 1 # same world every time
-            progress.text = f"average_reward:{align(mr_bond.per_episode.average.reward, pad=4, decimals=0)}, reward: {align(mr_bond.episode.reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, {align(mr_bond.epsilon*100, pad=3, decimals=0)}% random, \n{mr_bond.decision_table}"
+            progress.text = f"""average_reward:{align(mr_bond.per_episode.average.reward, pad=4, decimals=0)}, reward: {align(mr_bond.episode.reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, {align(mr_bond.epsilon*100, pad=3, decimals=0)}% random,
+actions: {mr_bond.responses}
+update value sum: {mr_bond._sum_table}
+q value update-value: {mr_bond.q_value_per_decision}
+ideal Q's: {mr_bond._ideal_table}
+critic Q's: {mr_bond._critic_table}
+policy decisions: {mr_bond.decision_table}"""
                 
 run()

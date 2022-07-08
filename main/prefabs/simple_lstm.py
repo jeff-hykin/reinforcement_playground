@@ -31,6 +31,7 @@ class SimpleLstm(nn.LSTM):
         self.output_size = output_size
         self.number_of_layers = number_of_layers
         super(SimpleLstm, self).__init__(input_size, output_size, number_of_layers, batch_first=True, **kwargs)
+        self.scale_outputs = lambda outputs: outputs
     
     def forward(self, sequence_or_batch, hidden_init=None):
         sequence_or_batch = to_tensor(sequence_or_batch)
@@ -39,7 +40,7 @@ class SimpleLstm(nn.LSTM):
         # batch
         if len(sequence_or_batch.shape) == 3:
             output, (initial_hidden_states, cell_states) = real_forward(sequence_or_batch, hidden_init)
-            return output
+            return self.scale_outputs(output)
             
         # no batch
         else:
@@ -53,7 +54,7 @@ class SimpleLstm(nn.LSTM):
                 outputs = real_forward(batched_input, (h0, c0))
             
             output, (initial_hidden_states, cell_states) = outputs
-            return output.reshape((sequence_length, self.output_size))
+            return self.scale_outputs(output.reshape((sequence_length, self.output_size)))
     
     def forward_full(self, sequence_or_batch, hidden_init=None):
         sequence_or_batch = to_tensor(sequence_or_batch)
@@ -61,7 +62,8 @@ class SimpleLstm(nn.LSTM):
         sequence_length = len(sequence_or_batch)
         # batch
         if len(sequence_or_batch.shape) == 3:
-            return real_forward(sequence_or_batch, hidden_init)
+            output, (initial_hidden_states, cell_states) = real_forward(sequence_or_batch, hidden_init)
+            return self.scale_outputs(output), (initial_hidden_states, cell_states)
         # no batch
         else:
             batch_size = 1
@@ -75,7 +77,9 @@ class SimpleLstm(nn.LSTM):
             
             output, (initial_hidden_states, cell_states) = outputs
             return (
-                output.reshape((sequence_length, self.output_size)),
+                self.scale_outputs(
+                    output.reshape((sequence_length, self.output_size)),
+                ),
                 (
                     initial_hidden_states.reshape((self.number_of_layers, self.output_size)),
                     cell_states.reshape((self.number_of_layers, self.output_size)),

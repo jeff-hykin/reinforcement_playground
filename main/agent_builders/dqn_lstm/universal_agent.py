@@ -102,9 +102,10 @@ class FightFireEnhancement(Enhancement):
         #   RIGHT(2, 0): 0, 
         #      UP(2, 0): 0, 
         # }
-        self._decision_table = LazyDict().setdefault(lambda *args: 0)
-        self.decision_table = LazyDict()
-        self.reward_table = LazyDict().setdefault(lambda *args: 0)
+        self._decision_table_helper = LazyDict().setdefault(lambda *args: 0)
+        self.q_value_per_decision   = LazyDict().setdefault(lambda *args: 0)
+        self.decision_table         = LazyDict()
+        self.reward_table           = LazyDict().setdefault(lambda *args: 0)
         original()
         
     def when_timestep_starts(self, original):
@@ -117,14 +118,14 @@ class FightFireEnhancement(Enhancement):
         self.decision = Decision(self.timestep.response, self.position)
         if self.following_policy:
             self.reward_table[self.decision] += self.timestep.reward
-            self._decision_table[self.decision] += 1
+            self._decision_table_helper[self.decision] += 1
             self.reward_table    = sort_keys(self.reward_table)
-            self._decision_table = sort_keys(self._decision_table)
-            # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
-            # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
+            self._decision_table_helper = sort_keys(self._decision_table_helper)
+            # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table_helper.values())) ]
+            # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table_helper.keys(), noramlized_values)  })
             self.decision_table = LazyDict({
                 each_decision : f"{decision_count:b}".rjust(18)+", # immediate reward per action: "+ f"{reward_total/decision_count:.5f}".rjust(9)
-                    for each_decision, decision_count, reward_total in zip(self._decision_table.keys(), self._decision_table.values(), self.reward_table.values())
+                    for each_decision, decision_count, reward_total in zip(self._decision_table_helper.keys(), self._decision_table_helper.values(), self.reward_table.values())
             })
         original()
     
@@ -142,42 +143,21 @@ class ValueCriticEnhancement(Enhancement):
     def when_mission_starts(self, original, ):
         observation_shape = self.observation_space.shape or (self.observation_space.n,)
         
-        self._critic_table = {}
+        self._critic_cache = {}
         self._critic_pipeline = None
         self._critic = CriticNetwork(
             input_size=product(observation_shape),
             output_size=len(self.responses),
             number_of_layers=2,
         )
+        self._sum_table   = Object(Options(default=lambda each, self: 0))
+        self._count_table = Object(Options(default=lambda each, self: 0))
+        self._ideal_table = Object(Options(default=lambda each, self: 0))
+        self._critic_table  = Object(Options(default=lambda each, self: 0))
         
         def value_of(timestep):
             response_index = self.responses.index(timestep.response)
-            return self._critic_table[timestep.index][response_index]
-        
-        def bellman_update(timestep, new_value):
-            response_index = self.responses.index(timestep.response)
-            
-            # this action is the one we want the loss to affect
-            ideal_output = list(to_pure(each) for each in timestep.critic.output)
-            ideal_output[response_index] = new_value
-            ideal_output = to_tensor(ideal_output)
-            
-            # replay the timestep (bellman caused us to be on t+1, and we need to be update t+0)
-            self._critic.optimizer.zero_grad()
-            self._critic_pipeline.previous_hidden_values = timestep.critic.hidden_inputs # go back to older previous values
-            self._critic_pipeline( # replay the observation and hidden inputs
-                to_tensor(timestep.observation).float().requires_grad_(True)
-            )
-            
-            # now update weights
-            loss = self._critic.loss_function(timestep.critic.output, ideal_output)
-            loss.backward()
-            self._critic.optimizer.step()
-            
-            # go back to the t+1 state
-            assert self.next_timestep.index == timestep.index + 1
-            self._critic_update_pipeline(self.next_timestep)
-            
+            return self._critic_cache[timestep.index][response_index]
         
         def _critic_update_pipeline(timestep):
             observation = to_tensor(timestep.observation).float()
@@ -189,14 +169,14 @@ class ValueCriticEnhancement(Enhancement):
                 ),
                 output=None,
             )
-            timestep.critic.output = self._critic_table[timestep.index] = self._critic_pipeline(observation)
+            timestep.critic.output = self._critic_cache[timestep.index] = self._critic_pipeline(observation)
         
         # 
         # attch methods
         # 
         self._critic_update_pipeline = _critic_update_pipeline
         self.value_of                = value_of
-        self.bellman_update          = bellman_update
+        # self.bellman_update          = bellman_update
         original()
         
     def when_episode_starts(self, original, ):
@@ -204,7 +184,7 @@ class ValueCriticEnhancement(Enhancement):
         original()
         # cache the values in a table to allow self.value_of() to be called multiple times
         # (because the normal way, e.g. on-demand, would screw up the pipeline order/sequence)
-        self._critic_table = {}
+        self._critic_cache = {}
         # preemtively get the first one (must be done for eveything else to work)
         self._critic_update_pipeline(self.episode.next_timestep)
     
@@ -222,7 +202,7 @@ class Agent(Skeleton):
         responses=None,
         training=True,
         learning_rate=0.5,
-        discount_factor=0.9,
+        discount_factor=0.01,
         epsilon=1.0,
         epsilon_decay=0.0001,
         default_value_assumption=0,
@@ -298,11 +278,46 @@ class Agent(Skeleton):
         
         if self.training:
             # update q value
-            more_accurate_prev_q_value = q_value_current + self.learning_rate * (timestep.reward + delta)
-            self.bellman_update(
-                timestep,
-                more_accurate_prev_q_value,
+            more_accurate_curr_q_value = q_value_current + self.learning_rate * (timestep.reward + delta)
+            new_value = more_accurate_curr_q_value
+            
+            # log it to a table
+            self.q_value_per_decision[self.decision] = more_accurate_curr_q_value
+            sort_keys(self.q_value_per_decision)
+            
+            # response_index is the action we want the loss to affect (so only change that part of the tensor)
+            response_index = self.responses.index(timestep.response)
+            ideal_output = list(to_pure(each) for each in timestep.critic.output) # get whatever the weights wouldve been
+            ideal_output[response_index] = new_value                              # replace this one weight in the copy
+            ideal_output = to_tensor(ideal_output)                                 
+            
+            # replay the timestep (doing "self.next_timestep.response = ..." caused the pipeline to be on t+1, and we need to update the weights for t+0)
+            self._critic.optimizer.zero_grad()
+            self._critic_pipeline.previous_hidden_values = timestep.critic.hidden_inputs
+            timestep.critic.output = self._critic_pipeline( # replay the observation and hidden inputs to get the normal t+0 output with gradient tracking
+                to_tensor(timestep.observation).float().requires_grad_(True)
             )
+            
+            # 
+            # calculate average ideal update values for debugging
+            # 
+            self._sum_table[  self.position] += ideal_output
+            self._count_table[self.position] += 1
+            average_ideal = self._sum_table[self.position]/self._count_table[self.position] # NOTE: debugging only, averaging ideal defeats the ability of memory
+            
+            # now update weights
+            loss = self._critic.loss_function(timestep.critic.output, average_ideal)
+            loss.backward()
+            self._critic.optimizer.step()
+            
+            self._critic_table[self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(timestep.critic.output.clone().detach())]
+            self._ideal_table[ self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(average_ideal.clone().detach())]
+            sort_keys(self._critic_table)
+            sort_keys(self._ideal_table)
+            
+            # go back to the t+1 state
+            assert self.next_timestep.index == timestep.index + 1
+            self._critic_update_pipeline(self.next_timestep)
         
     def when_episode_ends(self):
         self.discounted_rewards.append(self.discounted_reward_sum)
