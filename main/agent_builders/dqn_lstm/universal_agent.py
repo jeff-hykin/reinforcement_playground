@@ -114,17 +114,18 @@ class FightFireEnhancement(Enhancement):
         original()
         
     def when_timestep_ends(self, original):
-        decision = Decision(self.timestep.response, self.position)
-        self.reward_table[decision] += self.timestep.reward
-        self._decision_table[decision] += 1
-        self.reward_table    = sort_keys(self.reward_table)
-        self._decision_table = sort_keys(self._decision_table)
-        # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
-        # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
-        self.decision_table = LazyDict({
-            each_decision : f"{decision_count:b}".rjust(18)+", # immediate reward per action: "+ f"{reward_total/decision_count:.1f}".rjust(9)
-                for each_decision, decision_count, reward_total in zip(self._decision_table.keys(), self._decision_table.values(), self.reward_table.values())
-        })
+        self.decision = Decision(self.timestep.response, self.position)
+        if self.following_policy:
+            self.reward_table[self.decision] += self.timestep.reward
+            self._decision_table[self.decision] += 1
+            self.reward_table    = sort_keys(self.reward_table)
+            self._decision_table = sort_keys(self._decision_table)
+            # noramlized_values = [ round(each * 1000)/1000 for each in normalize(tuple(self._decision_table.values())) ]
+            # self.decision_table = LazyDict({  each_key: each_value for each_key, each_value in zip(self._decision_table.keys(), noramlized_values)  })
+            self.decision_table = LazyDict({
+                each_decision : f"{decision_count:b}".rjust(18)+", # immediate reward per action: "+ f"{reward_total/decision_count:.5f}".rjust(9)
+                    for each_decision, decision_count, reward_total in zip(self._decision_table.keys(), self._decision_table.values(), self.reward_table.values())
+            })
         original()
     
 class ValueCriticEnhancement(Enhancement):
