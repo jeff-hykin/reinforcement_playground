@@ -267,7 +267,6 @@ class Agent(Skeleton):
             "actions": self.responses.__repr__(),
             "update value sum": self._sum_table,
             "q value update-value": self.q_value_per_decision,
-            "pure q_table": self.q_table,
             "ideal Q's": self._ideal_table,
             "critic Q's": self._critic_table,
             "policy decisions": self.decision_table,
@@ -283,10 +282,11 @@ class Agent(Skeleton):
             value = self.value_of(
                 Timestep(self.episode.timestep, response=each_response)
             )
+            self.debug[each_response] = value
             if value > max_value:
-                max_value       = max_value
+                max_value       = value
                 greedy_response = each_response
-            
+        self.debug.best_action = greedy_response
         return greedy_response
     
     # 
@@ -311,7 +311,7 @@ class Agent(Skeleton):
         self.following_policy = random.random() > self.running_epsilon
         random.seed(time.time()) # go back to actual random for other things
         
-        if self.following_policy:
+        if not self.following_policy:
             self.timestep.response = randomly_pick_from(self.responses)
         # else, take the response with the highest value in the current self.observation
         elif not self.timestep.response: # self.next_timestep.response may have already been calculated, 
@@ -331,7 +331,8 @@ class Agent(Skeleton):
             # update q value
             more_accurate_curr_q_value = q_value_current + self.learning_rate * (timestep.reward + delta)
             average_reward = self.reward_table[self.decision] / self.decision_count[self.decision] if self.decision_count[self.decision] > 0 else 0
-            self.bellman_update(timestep, average_reward)
+            
+            self.bellman_update(timestep, more_accurate_curr_q_value)
             
             # LSTM critic update
             if False:
