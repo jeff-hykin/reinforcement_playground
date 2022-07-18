@@ -184,7 +184,6 @@ class ValueCriticEnhancement(Enhancement):
         # 
         self._critic_update_pipeline = _critic_update_pipeline
         self.value_of                = value_of
-        # self.bellman_update          = bellman_update
         original()
         
     def when_episode_starts(self, original, ):
@@ -201,47 +200,56 @@ class ValueCriticEnhancement(Enhancement):
         self._critic_update_pipeline(self.episode.next_timestep)
         original()
         
-        # LSTM critic update
-        new_value = self.timestep.updated_q_value
-        timestep = self.timestep
-        
-        # log it to a table
-        self.q_value_per_decision[self.decision] = new_value
-        sort_keys(self.q_value_per_decision)
-        
-        # response_index is the action we want the loss to affect (so only change that part of the tensor)
-        response_index = self.responses.value_to_index(timestep.response)
-        # ideal_output = list(to_pure(each) for each in timestep.critic.output) # get whatever the weights wouldve been
-        # ideal_output[response_index] = new_value                              # replace this one weight in the copy
-        # ideal_output = to_tensor(ideal_output)                                 
-        
-        # # replay the timestep (doing "self.next_timestep.response = ..." caused the pipeline to be on t+1, and we need to update the weights for t+0)
-        # self._critic.optimizer.zero_grad()
-        # self._critic_pipeline.previous_hidden_values = timestep.critic.hidden_inputs
-        # timestep.critic.output = self._critic_pipeline( # replay the observation and hidden inputs to get the normal t+0 output with gradient tracking
-        #     to_tensor(timestep.observation).float().requires_grad_(True)
-        # )
-        
-        # # 
-        # # calculate average ideal update values for debugging
-        # # 
-        # self._sum_table[  self.position] += ideal_output
-        # self._count_table[self.position] += 1
-        # average_ideal = self._sum_table[self.position]/self._count_table[self.position] # NOTE: debugging only, averaging ideal defeats the ability of memory
-        
-        # # now update weights
-        # loss = self._critic.loss_function(timestep.critic.output, average_ideal)
-        # loss.backward()
-        # self._critic.optimizer.step()
-        
-        # self._critic_table[self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(timestep.critic.output.clone().detach())]
-        # self._ideal_table[ self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(average_ideal.clone().detach())]
-        # sort_keys(self._critic_table)
-        # sort_keys(self._ideal_table)
-        
-        # # go back to the t+1 state
-        # assert self.next_timestep.index == timestep.index + 1
-        # self._critic_update_pipeline(self.next_timestep)
+        # 
+        # update weights
+        # 
+        if True:
+            timestep        = self.timestep
+            updated_q_value = self.timestep.updated_q_value
+            # logging
+            self.q_value_per_decision[self.decision] = updated_q_value; sort_keys(self.q_value_per_decision)
+            
+            
+            # 
+            # get tensor form of choice (for the loss function)
+            # 
+            response_index = self.responses.value_to_index(timestep.response)     # response_index is the action we want the loss to affect (so we only change that part of the tensor)
+            ideal_output = list(to_pure(each) for each in timestep.critic.output) # get whatever the weights wouldve been
+            ideal_output[response_index] = updated_q_value                        # replace this one weight in the copy
+            ideal_output = to_tensor(ideal_output)                                 
+            
+            
+            # 
+            # replay the older timestep
+            # 
+            # (the critic update above has caused the pipeline to be on t+1, and we need to update the weights for t+0)
+            self._critic.optimizer.zero_grad()
+            self._critic_pipeline.previous_hidden_values = timestep.critic.hidden_inputs # t+0
+            timestep.critic.output = self._critic_pipeline( # replay the observation and hidden inputs to get the normal t+0 output with gradient tracking
+                to_tensor(timestep.observation).float().requires_grad_(True)
+            )
+            
+            # 
+            # calculate average ideal update values for debugging
+            # 
+            self._sum_table[  self.position] += ideal_output
+            self._count_table[self.position] += 1
+            average_ideal = self._sum_table[self.position]/self._count_table[self.position] # NOTE: debugging only, averaging ideal defeats the ability of memory
+            
+            # 
+            # actually update the weights
+            # 
+            loss = self._critic.loss_function(timestep.critic.output, average_ideal)
+            loss.backward()
+            self._critic.optimizer.step()
+            
+            # logging
+            self._critic_table[self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(timestep.critic.output.clone().detach())] ; sort_keys(self._critic_table)
+            self._ideal_table[ self.position] = [ f"{each:.3f}".rjust(7) for each in to_pure(average_ideal.clone().detach())]          ; sort_keys(self._ideal_table)
+            
+            # go back to the t+1 state
+            assert self.next_timestep.index == timestep.index + 1
+            self._critic_update_pipeline(self.next_timestep)
     
 sanity = LazyDict(
     when_start=LazyDict(
@@ -310,7 +318,7 @@ class QTableEnhancement(Enhancement):
             input()
         
 class Agent(Skeleton):
-    @enhance_with(EpisodeEnhancement, LoggerEnhancement, ValueCriticEnhancement, FightFireEnhancement, QTableEnhancement)
+    @enhance_with(EpisodeEnhancement, LoggerEnhancement, FightFireEnhancement, QTableEnhancement)
     def __init__(self,
         observation_space,
         response_space,
