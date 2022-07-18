@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+import json_fix
+
 @dataclass
 class Timestep:
     index        : int   = None
@@ -24,6 +26,14 @@ class Timestep:
         self.reward       = reward       if not (type(reward      ) == type(None)) else self.reward
         self.is_last_step = is_last_step if not (type(is_last_step) == type(None)) else self.is_last_step
         self.hidden_info  = hidden_info  if not (type(hidden_info ) == type(None)) else self.hidden_info
+    
+    def __json__(self):
+        return 1
+        return dict(self.__dict__)
+    
+    @classmethod
+    def from_dict(cls, dict_data):
+        return Timestep(**dict_data)
 
 class MockTimestep(Timestep):
     def __init__(self, timestep, *, index):

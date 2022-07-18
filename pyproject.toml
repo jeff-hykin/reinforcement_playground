@@ -40,7 +40,7 @@ optuna = "^2.9.1" # see during_start/021_001_get_around_broken_poetry.sh
 # poetry add git+https://github.com/carla-simulator/carla@0.9.12
 
 
-json-fix = "^0.1.2"
+json-fix = "^0.3.0"
 informative-iterator = "0.0.3"
 distro = "^1.7.0"
 # carla = "0.9.12"
@@ -51,7 +51,7 @@ Shapely = "1.8"
 networkx = "2.7"
 atari-py = "0.2.9"
 jupyterthemes = "0.20.0"
-blissful-basics = "^0.0.2"
+blissful-basics = "^0.1.0"
 trivial-torch-tools = "^0.5.1"
 
 [tool.poetry.dev-dependencies]

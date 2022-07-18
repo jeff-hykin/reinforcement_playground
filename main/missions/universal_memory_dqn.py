@@ -1,3 +1,5 @@
+import json_fix
+import json
 import torch
 import torch.nn as nn
 import random
@@ -28,7 +30,8 @@ world = World(
     # this is probably what is needed to overcome the greedy/probabilistic problem
     # may also be related to feature extraction
 
-def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testing=100_000):
+offline_timesteps = []
+def run(number_of_timesteps_for_training=100_000):
     env = world.Player()
     mr_bond = Agent(
         observation_space=env.observation_space,
@@ -39,10 +42,16 @@ def run(number_of_timesteps_for_training=100_000, number_of_timesteps_for_testin
     # 
     # training
     # 
-    for each_epsilon in [ 0.5, 0.05, 0 ]:
+    for each_epsilon in [ 1.0 ]:
         mr_bond.epsilon = each_epsilon
         for progress, (episode_index, timestep) in ProgressBar(basic(agent=mr_bond, env=env), iterations=number_of_timesteps_for_training):
+            timestep.hidden_info = dict(episode_index=episode_index)
+            offline_timesteps.append(timestep)
             world.random_seed = 1 # same world every time
             progress.text = f"""average_reward:{align(mr_bond.per_episode.average.reward, pad=4, decimals=0)}, reward: {align(mr_bond.episode.reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, {align(mr_bond.epsilon*100, pad=3, decimals=0)}% random,\n{mr_bond.debug}"""
-                
+    
+    from os.path import join, dirname
+    with open(join(dirname(__file__), './fire_fight_offline.json'), 'w') as outfile:
+        json.dump(offline_timesteps, outfile)
+
 run()

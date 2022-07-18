@@ -5,6 +5,7 @@
         "**/*.code-search": true,
         "modules/**/*": true,
         "resources/**/*": true,
+        ".venv/**/*": true,
     },
     "python.pythonPath": "wrapped_commands/python3",
     "jupyter.jupyterServerType": "remote",
