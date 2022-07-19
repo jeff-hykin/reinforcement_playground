@@ -400,15 +400,15 @@ def create_buckets(values, number_of_buckets):
     import math
     max_value = max(values)
     min_value = min(values)
-    value_range = min_value - max_value
+    value_range = max_value - min_value
     bucket_size = value_range / number_of_buckets
     buckets = [ [ ] for each in range(number_of_buckets) ]
     if bucket_size == 0: # edgecase
         # all the buckets go in the middle
-        buckets[ math.floor(number_of_buckets/2) ] = buckets
+        buckets[ math.floor(number_of_buckets/2) ] = values
     else:
         for each_value in values:
-            which_bucket = math.floor((each_value-min_value) / bucket_size)
+            which_bucket = min(math.floor((each_value-min_value) / bucket_size), number_of_buckets-1)
             buckets[which_bucket].append(each_value)
     
     bucket_ranges = [

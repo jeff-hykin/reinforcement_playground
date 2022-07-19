@@ -7,6 +7,7 @@ import pickle
 import gym
 import numpy as np
 import time
+import math
 from collections import defaultdict
 
 import ez_yaml
@@ -35,27 +36,24 @@ def permutation_generator(digits, possible_values):
                 yield [ each ] + each_subcell
     # else: dont yield anything
 
+def random_memory_configuration():
+    return tuple(randomly_pick_from(
+        tuple(permutation_generator(
+            memory_size,
+            possible_values=[True,False],
+        ))
+    ))
+
 def generate_random_memory_functions():
     while True:
         mapping = {}
         # start values (no memory)
         for each_possible_input in permutation_generator(input_vector_size-1, possible_values=[True,False]):
-            mapping[tuple(each_possible_input)] = tuple(randomly_pick_from(
-                tuple(permutation_generator(
-                    memory_size,
-                    possible_values=[True,False],
-                ))
-            ))
+            mapping[tuple(each_possible_input)] = random_memory_configuration()
         # subsequent values (memory as input)
         for each_possible_input in permutation_generator(input_vector_size, possible_values=[True,False]):
-            mapping[tuple(each_possible_input)] = tuple(randomly_pick_from(
-                tuple(permutation_generator(
-                    memory_size,
-                    possible_values=[True,False],
-                ))
-            ))
+            mapping[tuple(each_possible_input)] = random_memory_configuration()
         
-        keys = tuple(mapping.keys())
         random_memory_function = lambda observation: mapping[observation]
         random_memory_function.table = mapping
         yield random_memory_function
@@ -89,18 +87,55 @@ def evaluate_prediction_performance(memory_function):
             if predicted_value != reward:
                 number_of_incorrect_predictions += 1
     
-    return ( len(timesteps)-number_of_incorrect_predictions ) / len(timesteps)
+    score = ( len(timesteps)-number_of_incorrect_predictions ) / len(timesteps)
+    return score
 
 
-def run_many_evaluations(iterations=10_000):
+def randomly_mutate(memory_function, number_of_mutations):
+    def mutate_check():
+        nonlocal number_of_mutations
+        if number_of_mutations > 0:
+            number_of_mutations -= 1
+            return True
+        else:
+            return False
+    new_table = {
+        each_key : (each_value if not mutate_check() else random_memory_configuration())
+            for each_key, each_value in memory_function.table.items()
+    }
+    mutatated_memory_function = lambda observation: new_table[observation]
+    mutatated_memory_function.table = new_table
+    return mutatated_memory_function
+
+def run_many_evaluations(iterations=10_000, competition_size=100):
+    import math
     memory_functions = []
+    next_generation = []
     score_of = {}
-    for progress, each_memory_function in ProgressBar(generate_random_memory_functions(), iterations=iterations):
+    
+    
+    for each in generate_random_memory_functions():
+        next_generation.append(each)
+        if len(next_generation) == competition_size:
+            break
+    
+    for progress, *_ in ProgressBar(iterations):
         if progress.index >= iterations:
             break
         
-        memory_functions.append(each_memory_function)
-        score_of[each_memory_function] = evaluate_prediction_performance(each_memory_function)
+        # evaluate new ones
+        for each_memory_function in next_generation:
+            score_of[id(each_memory_function)] = evaluate_prediction_performance(each_memory_function)
+        memory_functions += next_generation
+        sorted_memory_functions = sorted(memory_functions, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
+        top_100 = sorted_memory_functions[0:100]
+        memory_functions = top_100
+        number_of_mutations = math.floor(random.random() * len(top_100[0].table.values())) # 1% of all values
+        next_generation.clear()
+        for each_memory_function in memory_functions:
+            next_generation.append(
+                randomly_mutate(each_memory_function, number_of_mutations)
+            )
         
         # logging and checkpoints
         if progress.updated:
@@ -110,23 +145,22 @@ def run_many_evaluations(iterations=10_000):
             scores = tuple(score_of.values())
             max_score = max(scores)
             buckets, bucket_ranges = create_buckets(scores, number_of_buckets=20)
-            progress.text += f"{max_score}"
-            progress.text += tui_distribution(buckets, [ f"[ {small*100:3.2f}, {big*100:3.2f} )"  for small, big in bucket_ranges ])
+            buckets, bucket_ranges = reversed(buckets), reversed(bucket_ranges)
+            progress.pretext += tui_distribution(buckets, [ f"( {small*100:3.2f}, {big*100:3.2f} ]" for small, big in bucket_ranges ])
             
             # 
             # save top 100  to disk
             # 
-            sorted_memory_functions = sorted(memory_functions, key=lambda func: -score_of[func]) # python puts smallest values at the begining (so negative reverses that)
-            top_100 = sorted_memory_functions[0:100]
+            sorted_memory_functions = sorted(memory_functions, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
+            top_10 = sorted_memory_functions[0:10]
             with_scores = [
                 dict(
-                    score=score_of[each_func],
+                    score=score_of[id(each_func)],
                     table=each_func.table,
                 )
-                    for each_func in top_100
+                    for each_func in top_10
             ]
             path = FS.local_path("top_100_memory_maps.ignore.yaml")
-            print(f'''path = {path}''')
             FS.write(
                 ez_yaml.to_string(obj=with_scores),
                 to=path,
