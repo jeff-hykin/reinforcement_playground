@@ -108,8 +108,10 @@ def run_many_evaluations(iterations=10_000):
             # update the terminal charts
             # 
             scores = tuple(score_of.values())
+            max_score = max(scores)
             buckets, bucket_ranges = create_buckets(scores, number_of_buckets=20)
-            progress.text = tui_distribution(buckets, [ f"[ {small*100:3.2f}, {big*100:3.2f} )"  for small, big in bucket_ranges ])
+            progress.text += f"{max_score}"
+            progress.text += tui_distribution(buckets, [ f"[ {small*100:3.2f}, {big*100:3.2f} )"  for small, big in bucket_ranges ])
             
             # 
             # save top 100  to disk
@@ -123,9 +125,11 @@ def run_many_evaluations(iterations=10_000):
                 )
                     for each_func in top_100
             ]
+            path = FS.local_path("top_100_memory_maps.ignore.yaml")
+            print(f'''path = {path}''')
             FS.write(
                 ez_yaml.to_string(obj=with_scores),
-                to=FS.local_path("top_100_memory_maps.ignore.json")
+                to=path,
             )
     
 run_many_evaluations()

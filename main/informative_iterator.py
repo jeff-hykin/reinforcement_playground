@@ -5,12 +5,26 @@ import time
 import sys
 import math
 
-from super_map import LazyDict
+from super_map import Map
 
 try:
-    from IPython.display import display, HTML, clear_output, get_ipython
+    from IPython.display import display, HTML, clear_output
     from io import StringIO
-    ipython_exists = 'IPKernelApp' in get_ipython().config
+    ipython_exists = False
+    
+    try:
+        from IPython.display import get_ipython
+        ipython_exists = 'IPKernelApp' in get_ipython().config
+        ipython_exists = True
+    except Exception as error:
+        pass
+    
+    try:
+        from google.colab import output
+        ipython_exists = True
+    except Exception as error:
+        pass
+    
 except ImportError:
     ipython_exists = False
 except AttributeError:
@@ -77,7 +91,11 @@ class ProgressBar:
         self.next_percent_mark = self.percent_per_print
         self.prev_time         = -math.inf
         self.times             = [time.time()]
-        self.progress_data     = LazyDict(
+        self.opacity = 0.7
+        self.colors = Map(
+            progress="#9b68ab",
+        )
+        self.progress_data     = Map(
             index=0,
             percent=0,
             updated=True,
@@ -85,6 +103,7 @@ class ProgressBar:
             total_iterations=(len(original_generator) if iterations is None else iterations),
             deviation=None,
             expected_number_of_updates_needed=None,
+            pretext="",
             text="",
         )
         # setup print
@@ -106,6 +125,8 @@ class ProgressBar:
             layout = subsequence_replace(layout, [ 'spacer', 'spacer'            ], ['spacer'])
             self.layout = layout
             self.string_buffer = ""
+            self.html_created = False
+            self.should_flush = False
             def ipython_print(*args, **kwargs):
                 # get the string value
                 string_stream = StringIO()
@@ -117,31 +138,89 @@ class ProgressBar:
                 self.string_buffer = self.string_buffer.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('‘', "'").replace('"', "&quot;").replace("\n", "<br>")
                 
                 # clear output whenever newline is created
-                if kwargs.get("end", "\n") in ['\n', '\r']:
-                    clear_output(wait=True)
-                    display(HTML(f'''
-                        <div style="width: 100%; background: transparent; color: white; position: relative; padding: 1.2rem 0.4rem; box-sizing: border-box;">
-                            <div style="position: relative; background: #46505a; height: 2.7rem; width: 100%; border-radius: 10rem; border: transparent solid 0.34rem; box-sizing: border-box;">
-                                <!-- color bar -->
-                                <div style="height: 100%; width: {self.progress_data.percent}%; background: #9b68ab; border-radius: 10rem;"></div>
-                                <!-- percentage text -->
-                                <div style="height: 100%; width: 100%; position: absolute; top: 0; left: 0; display: flex; flex-direction: column; align-items: center; align-content: center; justify-items: center;  justify-content: center;">
-                                    <span>
-                                        {self.progress_data.percent:0.2f}%
-                                    </span>
+                if self.should_flush:
+                    self.should_flush = False
+                    if not self.html_created:
+                        self.html_created = True
+                        clear_output(wait=True)
+                        display(HTML(f'''
+                            <div id="progressContainer" style="left: 0; top: 0; width: 95%; background: transparent; color: white; position: sticky; padding: 1.2rem 0.4rem; box-sizing: border-box;">
+                                <div style="position: relative; background: #46505a; height: 2.7rem; width: 100%; border-radius: 10rem; border: transparent solid 0.34rem; box-sizing: border-box; opacity: {self.opacity};">
+                                    <!-- color bar -->
+                                    <div id="progressBar" style="height: 100%; background: {self.colors.progress}; border-radius: 10rem; transition: all 0.5s ease-in-out 0s;"></div>
+                                    <!-- percentage text -->
+                                    <div style="height: 100%; width: 100%; position: absolute; top: 0; left: 0; display: flex; flex-direction: column; align-items: center; align-content: center; justify-items: center;  justify-content: center;">
+                                        <span id="progressPercent">
+                                            {self.progress_data.percent:0.2f}%
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div style="width: 100%; height: 1rem;">
-                            </div>
-                            <div style="position: relative; height: fit-content; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; align-content: center; justify-items: center;  justify-content: center;">
-                                <div style="position: relative;background: #46505a;height: fit-content;width: fit-content; min-width: 50%; border-radius: 1.2rem;border: transparent solid 0.5rem;box-sizing: border-box;display: flex;flex-direction: column;align-items: center;align-content: center;justify-items: center;justify-content: center;padding: 1rem;">
-                                    <code style="whitespace: pre; color: whitesmoke;" >
-                                        {self.string_buffer}
-                                    </code>
+                                <div style="width: 100%; height: 1rem;">
                                 </div>
+                                <div style="position: relative; height: fit-content; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; align-content: center; justify-items: center;  justify-content: center;">
+                                    <div style="position: relative;background: #46505a;height: fit-content;width: fit-content; min-width: 50%; border-radius: 1.2rem;border: transparent solid 0.5rem;box-sizing: border-box;display: flex;flex-direction: column;align-items: center;align-content: center;justify-items: center;justify-content: center;padding: 1rem; padding-top: 0;">
+                                        <code id="progressText" style="white-space: pre; color: whitesmoke;" >{self.string_buffer}</code>
+                                        <code id="customProgressText" style="white-space: pre; color: whitesmoke; padding-top: 1rem;" >{self.progress_data.text}</code>
+                                    </div>
+                                </div>
+                                <style>
+                                </style>
+                                <script>
+                                    var progressContainer = document.getElementById("progressContainer")
+                                    var progressFooter = document.getElementById("progressFooter")
+                                    var outputArea = document.getElementById("output-area")
+                                    var outputHeader = document.getElementById("output-header")
+                                    var outputBody = document.getElementById("output-body")
+                                    outputHeader.appendChild(progressContainer)
+                                    
+                                    var scrollBoxSize = 27
+                                    // outputArea
+                                    outputArea.style.maxHeight = `${"{scrollBoxSize+10}"}rem`
+                                    outputArea.style.minHeight = `${"{scrollBoxSize+10}"}rem`
+
+                                    // outputHeader
+                                    outputHeader.style.position = "absolute"
+                                    outputHeader.style.top = "0"
+                                    outputHeader.style.left = "0"
+                                    outputHeader.style.width = "100%"
+
+                                    // outputBody
+                                    outputBody.style.paddingTop = "10.5rem"
+                                    outputBody.style.position = "absolute"
+                                    outputBody.style.height = `${"{scrollBoxSize}"}rem`
+                                    outputBody.style.overflow = "auto"
+                                    outputBody.style.minHeight = "50vh"
+                                    outputBody.style.top = "0"
+                                    outputBody.style.width = "97%"
+
+                                    outputBody.scrollTo(0, outputBody.scrollHeight)
+                                </script>
                             </div>
-                        </div>
-                    '''))
+                        '''))
+                    else:
+                        from random import random
+                        random_id_1 = f"id_{random()}".replace('.','')
+                        random_id_2 = f"id_{random()}".replace('.','')
+                        display(HTML(f'''
+                            <div>
+                                <code id="{random_id_1}" style="display: none;" >{self.string_buffer}</code>
+                                <code id="{random_id_2}" style="display: none;" >{self.progress_data.text}</code>
+                                <script>
+                                    var bar = document.getElementById("progressBar")
+                                    var percent = document.getElementById("progressPercent")
+                                    var text = document.getElementById("progressText")
+                                    var customText = document.getElementById("customProgressText")
+                                    var textContainer = document.getElementById("{random_id_1}")
+                                    var customTextContainer = document.getElementById("{random_id_2}")
+                                    bar.style.width = `{self.progress_data.percent}%`
+                                    percent.innerHTML = `{self.progress_data.percent:0.2f}%`
+                                    // swap out contents (performed this way so that self.string_buffer uses html-escapes instead of javascript-string escapes)
+                                    text.innerHTML = textContainer.innerHTML
+                                    if (customTextContainer.innerHTML.trim().length > 0) customText.innerHTML = customTextContainer.innerHTML
+                                </script>
+                            </div>
+                        '''))
+                        
                     # clear the buffer
                     self.string_buffer = ""
             self.print = ipython_print
@@ -193,16 +272,18 @@ class ProgressBar:
                         
                         list_of_iterations_per_update = tuple(each-prev for prev, each in zip(recent_indicies[0:-1], recent_indicies[1:]))
                         average_number_of_iterations_per_update = mean(list_of_iterations_per_update)
-                        partial_deviation                       = (1 - (self.progress_data.percent/100)) * stdev(list_of_iterations_per_update)
-                        iterations_per_update_lowerbound        = average_number_of_iterations_per_update - partial_deviation
+                        stdev_of_iters_per_update               = stdev(list_of_iterations_per_update) # TODO: the proper way to do this would be with a one sided bell curve
+                        partial_deviation                       = (1 - (self.progress_data.percent/100)) * stdev_of_iters_per_update
+                        iterations_per_update_lowerbound        = max((average_number_of_iterations_per_update-partial_deviation, min(list_of_iterations_per_update)))
+                        soft_lowerbound                         = mean((iterations_per_update_lowerbound, average_number_of_iterations_per_update))
                         expected_number_of_updates_needed       = remaining_number_of_iterations / iterations_per_update_lowerbound
                         
                         self.secs_remaining = time_per_update * expected_number_of_updates_needed
                     
-                    if self.progress_data.text:
+                    if self.progress_data.pretext:
                         self.print('', end='\r')
                         self.print('                                                                                                                        ', end='\r')
-                        self.print(self.progress_data.text, end='\n')
+                        self.print(self.progress_data.pretext, end='\n')
                     
                     if self.inline:
                         self.print('', end='\r')
@@ -211,9 +292,16 @@ class ProgressBar:
                     for each in self.layout:
                         getattr(self, f"show_{each}", lambda : None)()
                     
+                    if not ipython_exists:
+                        if self.progress_data.text:
+                            self.print(self.progress_data.text, end='')
+                        
                     if not self.inline:
                         self.print()
                     
+                    # convoluted so that it handles both GUI and CLI
+                    self.should_flush = True
+                    self.print(end="")
                     sys.stdout.flush()
                     
                 yield self.progress_data, each_original
@@ -282,9 +370,12 @@ class ProgressBar:
     def show_end_time(self):
         if self.progress_data.percent != 100:
             time_format = "%H:%M:%S"
+            if self.secs_remaining > (86400/2): # more than half a day
+                time_format = "%D %H:%M:%S"
+            
             try:
                 endtime = self.start_time + timedelta(seconds=self.total_eslaped_time + self.secs_remaining)
-                self.print(f'eta: {endtime.strftime("%H:%M:%S")}',  end='')
+                self.print(f'eta: {endtime.strftime(time_format)}',  end='')
             except:
                 self.print(f'eta: {"_"*len(time_format)}',  end='')
     
