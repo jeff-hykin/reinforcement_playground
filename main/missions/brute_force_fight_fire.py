@@ -9,7 +9,8 @@ import numpy as np
 import time
 from collections import defaultdict
 
-from blissful_basics import flatten_once, product, max_index, to_pure, FS
+import ez_yaml
+from blissful_basics import flatten_once, product, max_index, to_pure, flatten, FS
 from super_map import LazyDict
 from super_hash import super_hash
 from informative_iterator import ProgressBar
@@ -37,13 +38,24 @@ def permutation_generator(digits, possible_values):
 def generate_random_memory_functions():
     while True:
         mapping = {}
-        for each_possible_input in permutation_generator(input_vector_size, possible_values=[0,1]):
+        # start values (no memory)
+        for each_possible_input in permutation_generator(input_vector_size-1, possible_values=[True,False]):
             mapping[tuple(each_possible_input)] = tuple(randomly_pick_from(
                 tuple(permutation_generator(
                     memory_size,
-                    possible_values=[0,1],
+                    possible_values=[True,False],
                 ))
             ))
+        # subsequent values (memory as input)
+        for each_possible_input in permutation_generator(input_vector_size, possible_values=[True,False]):
+            mapping[tuple(each_possible_input)] = tuple(randomly_pick_from(
+                tuple(permutation_generator(
+                    memory_size,
+                    possible_values=[True,False],
+                ))
+            ))
+        
+        keys = tuple(mapping.keys())
         random_memory_function = lambda observation: mapping[observation]
         random_memory_function.table = mapping
         yield random_memory_function
@@ -58,6 +70,7 @@ timesteps = [ Timestep.from_dict(each) for each in timestep_json_list ]
 def evaluate_prediction_performance(memory_function):
     number_of_incorrect_predictions = 0
     reward_predictor_table = {}
+    memory_value = None
     for each_timestep in timesteps:
         index        = each_timestep.index
         observation  = tuple(flatten(each_timestep.observation))
@@ -66,7 +79,8 @@ def evaluate_prediction_performance(memory_function):
         is_last_step = each_timestep.is_last_step
         hidden_info  = each_timestep.hidden_info
         
-        observation_and_memory = memory_function(observation)
+        memory_value = memory_function(observation) if memory_value is None else memory_function(tuple(flatten((observation, memory_value))))
+        observation_and_memory = tuple(flatten((observation, memory_value)))
         if observation_and_memory not in reward_predictor_table:
             reward_predictor_table[observation_and_memory] = reward
         else:
@@ -94,7 +108,7 @@ def run_many_evaluations(iterations=100_000):
             # update the terminal charts
             # 
             scores = tuple(score_of.values())
-            progress.text = tui_distribution(create_buckets(scores, number_of_buckets=20))
+            progress.text = tui_distribution(*create_buckets(scores, number_of_buckets=20))
             
             # 
             # save top 100  to disk
@@ -109,7 +123,7 @@ def run_many_evaluations(iterations=100_000):
                     for each_func in top_100
             ]
             FS.write(
-                json.dumps(with_scores),
+                ez_yaml.to_string(obj=with_scores),
                 to=FS.local_path("top_100_memory_maps.ignore.json")
             )
     

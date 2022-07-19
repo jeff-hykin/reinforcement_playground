@@ -403,11 +403,21 @@ def create_buckets(values, number_of_buckets):
     value_range = min_value - max_value
     bucket_size = value_range / number_of_buckets
     buckets = [ [ ] for each in range(number_of_buckets) ]
-    for each_value in values:
-        which_bucket = math.floor((each_value-min_value) / bucket_size)
-        buckets[which_bucket].append(each_value)
+    if bucket_size == 0: # edgecase
+        # all the buckets go in the middle
+        buckets[ math.floor(number_of_buckets/2) ] = buckets
+    else:
+        for each_value in values:
+            which_bucket = math.floor((each_value-min_value) / bucket_size)
+            buckets[which_bucket].append(each_value)
     
-    bucket_ranges = [ [bucket_index*bucket_size, (bucket_index+1)*bucket_size] for bucket_index in range(number_of_buckets) ]
+    bucket_ranges = [
+        [
+            min_value + (bucket_index+0)*bucket_size,
+            min_value + (bucket_index+1)*bucket_size,
+        ]
+            for bucket_index in range(number_of_buckets)
+    ]
     return buckets, bucket_ranges
 
 def tui_distribution(buckets, names, char="="):

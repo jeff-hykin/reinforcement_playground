@@ -10,7 +10,7 @@ class Timestep:
     is_last_step : bool  = False
     hidden_info  : None  = None
     
-    def __init__(self, timestep=None, *, index=None, observation=None, response=None, reward=None, is_last_step=None, hidden_info=None):
+    def __init__(self, timestep=None, *, index=None, observation=None, response=None, reward=None, is_last_step=None, hidden_info=None, **kwargs):
         if timestep:
             for each_attr in dir(timestep):
                 # skip magic attributes
