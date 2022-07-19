@@ -66,7 +66,8 @@ from os.path import join
 with open(FS.local_path('../world_builders/fight_fire/fire_fight_offline.ignore.json'), 'r') as in_file:
     timestep_json_list = json.load(in_file)
 
-timesteps = [ Timestep.from_dict(each) for each in timestep_json_list ]
+max_number_of_eval_timesteps = 1000
+timesteps = [ Timestep.from_dict(each) for each in timestep_json_list ][:max_number_of_eval_timesteps]
 def evaluate_prediction_performance(memory_function):
     number_of_incorrect_predictions = 0
     reward_predictor_table = {}
@@ -88,10 +89,10 @@ def evaluate_prediction_performance(memory_function):
             if predicted_value != reward:
                 number_of_incorrect_predictions += 1
     
-    return number_of_incorrect_predictions
+    return ( len(timesteps)-number_of_incorrect_predictions ) / len(timesteps)
 
 
-def run_many_evaluations(iterations=100_000):
+def run_many_evaluations(iterations=10_000):
     memory_functions = []
     score_of = {}
     for progress, each_memory_function in ProgressBar(generate_random_memory_functions(), iterations=iterations):
@@ -99,8 +100,7 @@ def run_many_evaluations(iterations=100_000):
             break
         
         memory_functions.append(each_memory_function)
-        number_incorrect = evaluate_prediction_performance(each_memory_function)
-        score_of[each_memory_function] = -number_incorrect
+        score_of[each_memory_function] = evaluate_prediction_performance(each_memory_function)
         
         # logging and checkpoints
         if progress.updated:
@@ -108,7 +108,8 @@ def run_many_evaluations(iterations=100_000):
             # update the terminal charts
             # 
             scores = tuple(score_of.values())
-            progress.text = tui_distribution(*create_buckets(scores, number_of_buckets=20))
+            buckets, bucket_ranges = create_buckets(scores, number_of_buckets=20)
+            progress.text = tui_distribution(buckets, [ f"[ {small*100:3.2f}, {big*100:3.2f} )"  for small, big in bucket_ranges ])
             
             # 
             # save top 100  to disk
