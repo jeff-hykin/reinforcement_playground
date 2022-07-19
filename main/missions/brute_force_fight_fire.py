@@ -18,7 +18,7 @@ from world_builders.fight_fire.world import World
 from agent_builders.dqn_lstm.universal_agent import Agent
 from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
-from tools.basics import sort_keys, randomly_pick_from, align
+from tools.basics import sort_keys, randomly_pick_from, align, create_buckets, tui_distribution
 
 observation_size = 3 * 3 # three cells, three layers (self_position, fire_position, water_position)
 memory_size = 1
@@ -44,7 +44,9 @@ def generate_random_memory_functions():
                     possible_values=[0,1],
                 ))
             ))
-        yield lambda observation: mapping[observation]
+        random_memory_function = lambda observation: mapping[observation]
+        random_memory_function.table = mapping
+        yield random_memory_function
             
 
 import json
@@ -75,6 +77,40 @@ def evaluate_prediction_performance(memory_function):
     return number_of_incorrect_predictions
 
 
-def run_many_evaluations():
-    pass
+def run_many_evaluations(iterations=100_000):
+    memory_functions = []
+    score_of = {}
+    for progress, each_memory_function in ProgressBar(generate_random_memory_functions(), iterations=iterations):
+        if progress.index >= iterations:
+            break
         
+        memory_functions.append(each_memory_function)
+        number_incorrect = evaluate_prediction_performance(each_memory_function)
+        score_of[each_memory_function] = -number_incorrect
+        
+        # logging and checkpoints
+        if progress.updated:
+            # 
+            # update the terminal charts
+            # 
+            scores = tuple(score_of.values())
+            progress.text = tui_distribution(create_buckets(scores, number_of_buckets=20))
+            
+            # 
+            # save top 100  to disk
+            # 
+            sorted_memory_functions = sorted(memory_functions, key=lambda func: -score_of[func]) # python puts smallest values at the begining (so negative reverses that)
+            top_100 = sorted_memory_functions[0:100]
+            with_scores = [
+                dict(
+                    score=score_of[each_func],
+                    table=each_func.table,
+                )
+                    for each_func in top_100
+            ]
+            FS.write(
+                json.dumps(with_scores),
+                to=FS.local_path("top_100_memory_maps.ignore.json")
+            )
+    
+run_many_evaluations()

@@ -395,6 +395,54 @@ def align(value, pad=3, digits=5, decimals=3):
     else:
         return f"{value}".rjust(pad)
 
+
+def create_buckets(values, number_of_buckets):
+    import math
+    max_value = max(values)
+    min_value = min(values)
+    value_range = min_value - max_value
+    bucket_size = value_range / number_of_buckets
+    buckets = [ [ ] for each in range(number_of_buckets) ]
+    for each_value in values:
+        which_bucket = math.floor((each_value-min_value) / bucket_size)
+        buckets[which_bucket].append(each_value)
+    
+    bucket_ranges = [ [bucket_index*bucket_size, (bucket_index+1)*bucket_size] for bucket_index in range(number_of_buckets) ]
+    return buckets, bucket_ranges
+
+def tui_distribution(buckets, names, char="="):
+    import math
+    output = "\n"
+    
+    # 
+    # transform names
+    # 
+    names      = [ f"{each}" for each in names ]
+    max_length = max([ len(each) for each in names ])
+    names      = [ each.ljust(max_length) for each in names ]
+    
+    # 
+    # transform buckets
+    # 
+    buckets = [len(each) for each in buckets]
+    max_count = max(buckets)
+    if max_count > 100:
+        unit = math.ceil(max_count/100)
+        output = f"note: 1 char = {unit} count\n"
+        buckets = [ round(each/unit) for each in buckets ]
+    bars = [ each*char for each in buckets ]
+    
+        
+    # 
+    # create graph
+    # 
+    for each_name, each_bar in zip(names, bars):
+        output += f"{each_name}: {each_bar}\n"
+    
+    return output
+    
+
+
 here = "os.path.dirname(__file__)"
 project_folder = os.environ.get('FORNIX_FOLDER', ".")
 if os.environ.get('FORNIX_FOLDER', None):
