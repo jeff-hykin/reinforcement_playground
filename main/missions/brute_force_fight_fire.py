@@ -140,6 +140,7 @@ def evaluate_prediction_performance(memory_agent):
             reward_predictor_table[observation_and_memory] = reward
         else:
             predicted_value = reward_predictor_table[observation_and_memory]
+            print(f'''predicted_value = {predicted_value}, reward = {reward}''')
             if predicted_value != reward:
                 number_of_incorrect_predictions += 1
         
