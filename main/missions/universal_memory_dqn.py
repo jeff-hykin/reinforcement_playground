@@ -9,7 +9,7 @@ import numpy as np
 import time
 from collections import defaultdict
 
-from blissful_basics import flatten_once, product, max_index, to_pure
+from blissful_basics import flatten_once, product, max_index, to_pure, FS
 from super_map import LazyDict
 from super_hash import super_hash
 from informative_iterator import ProgressBar
@@ -50,8 +50,9 @@ def run(number_of_timesteps_for_training=100_000):
             world.random_seed = 1 # same world every time
             progress.text = f"""average_reward:{align(mr_bond.per_episode.average.reward, pad=4, decimals=0)}, reward: {align(mr_bond.episode.reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, {align(mr_bond.epsilon*100, pad=3, decimals=0)}% random,\n{mr_bond.debug}"""
     
-    from os.path import join, dirname
-    with open(join(dirname(__file__), './fire_fight_offline.json'), 'w') as outfile:
-        json.dump(offline_timesteps, outfile)
+    FS.write(
+        data=json.dumps(offline_timesteps),
+        path=FS.local_path('./fire_fight_offline.json')
+    )
 
 run()

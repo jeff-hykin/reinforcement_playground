@@ -28,8 +28,7 @@ class Timestep:
         self.hidden_info  = hidden_info  if not (type(hidden_info ) == type(None)) else self.hidden_info
     
     def __json__(self):
-        return 1
-        return dict(self.__dict__)
+        return self.__dict__
     
     @classmethod
     def from_dict(cls, dict_data):
