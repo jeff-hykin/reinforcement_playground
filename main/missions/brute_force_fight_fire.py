@@ -89,24 +89,32 @@ class MemoryAgent:
             duplicate.table[each] = MemoryAgent.random_memory_configuration()
         
         return duplicate
-            
-        
 
-perfect_agent_table = defaultdict(lambda *arguments: [True])
-def perfect_agent(values):
-    agent_position_1, agent_position_2, agent_position_3, *others = values
-    rest_of_observation = others[:memory_size]
-    memory = others[-memory_size:]
-    if agent_position_1:
-        memory_out = [ True ]
-    else:
-        memory_out = list(memory)
-    key = tuple([ agent_position_1, agent_position_2, agent_position_3, *rest_of_observation, *memory ])
-    perfect_agent_table[key] = memory_out
-    return memory
+class PerfectMemoryAgent(MemoryAgent):
+    def __init__(self):
+        self.table = {}
     
-perfect_agent.table = perfect_agent_table
+    def get_next_memory_state(self, observation, memory_value):
+        agent_position_0, *others = observation
+        key = tuple(flatten([observation, memory_value])) if type(memory_value) != type(None) else tuple(observation)
+        
+        memory_value = flatten(memory_value)
+        if agent_position_0:
+            memory_out = [ True ]
+        else:
+            memory_out = list(memory_value)
+            
+        self.table[key] = memory_out
+        return memory_out
+        
+    def duplicate(self):
+        return self
     
+    def generate_mutated_copy(self, number_of_mutations):
+        a_copy = MemoryAgent()
+        a_copy.table.update(self.table)
+        return a_copy
+
 
 import json
 from os.path import join
@@ -143,9 +151,10 @@ def evaluate_prediction_performance(memory_agent):
 def run_many_evaluations(iterations=10_000, competition_size=100):
     import math
     memory_agents = []
-    next_generation = []
+    next_generation = [
+        PerfectMemoryAgent()
+    ]
     score_of = {}
-    
     
     for each in range(competition_size):
         next_generation.append(MemoryAgent())
