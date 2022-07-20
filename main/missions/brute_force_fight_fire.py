@@ -23,7 +23,7 @@ from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
 from tools.basics import sort_keys, randomly_pick_from, align, create_buckets, tui_distribution
 
-observation_size = 3 * 3 # three cells, three layers (self_position, fire_position, water_position)
+observation_size = 5 # position (3), action (2)
 memory_size = 1
 input_vector_size = observation_size + memory_size
 
@@ -36,6 +36,18 @@ def permutation_generator(digits, possible_values):
             for each in possible_values:
                 yield [ each ] + each_subcell
     # else: dont yield anything
+
+def convert_action_observation(observation, action):
+    observation = observation[0:3]
+    if action == "UP":
+        action = [ 1, 1 ]
+    if action == "DOWN":
+        action = [ 0, 0 ]
+    if action == "LEFT":
+        action = [ 1, 0 ]
+    if action == "RIGHT":
+        action = [ 0, 1 ]
+    return tuple(flatten(observation + action))
 
 class MemoryAgent:
     def __init__(self, function_helper=None):
@@ -129,22 +141,23 @@ def evaluate_prediction_performance(memory_agent):
     memory_value = None
     for each_timestep in timesteps:
         index        = each_timestep.index
-        observation  = tuple(flatten(each_timestep.observation))
+        observation  = each_timestep.observation
         response     = each_timestep.response
         reward       = each_timestep.reward
         is_last_step = each_timestep.is_last_step
         hidden_info  = each_timestep.hidden_info
         
-        observation_and_memory = tuple(flatten((observation, memory_value)))
+        state_input = convert_action_observation(observation, response)
+        
+        observation_and_memory = tuple(flatten((state_input, memory_value)))
         if observation_and_memory not in reward_predictor_table:
             reward_predictor_table[observation_and_memory] = reward
         else:
             predicted_value = reward_predictor_table[observation_and_memory]
-            print(f'''predicted_value = {predicted_value}, reward = {reward}''')
             if predicted_value != reward:
                 number_of_incorrect_predictions += 1
         
-        memory_value = memory_agent.get_next_memory_state(observation, memory_value)
+        memory_value = memory_agent.get_next_memory_state(state_input, memory_value)
     
     score = ( len(timesteps)-number_of_incorrect_predictions ) / len(timesteps)
     return score
