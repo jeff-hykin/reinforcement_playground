@@ -452,6 +452,15 @@ def tui_distribution(buckets, names, char="="):
     return output
     
 
+def permutation_generator(digits, possible_values):
+    if digits == 1:
+        for each in possible_values:
+            yield [ each ]
+    elif digits > 1:
+        for each_subcell in permutation_generator(digits-1, possible_values):
+            for each in possible_values:
+                yield [ each ] + each_subcell
+    # else: dont yield anything
 
 here = "os.path.dirname(__file__)"
 project_folder = os.environ.get('FORNIX_FOLDER', ".")
