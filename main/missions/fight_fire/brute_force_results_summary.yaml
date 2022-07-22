@@ -1,6 +1,6 @@
 methods:
     dynamically generated points:
-        timesteps: 100
+        timesteps: 200
         genetic_mutations_with_perfect:
             note: 1 char = 2 count
             ( 99.75, 100.00 ]: ==
