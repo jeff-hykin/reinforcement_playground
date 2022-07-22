@@ -273,12 +273,10 @@ if True:
 # 
 # runtime
 # 
-def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation", disable_memory=False, deviation_proportion=0.1):
+def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation", disable_memory=False, deviation_proportion=0.1, enable_perfect=False):
     import math
     memory_agents = []
-    next_generation = [
-        # PerfectMemoryAgent()
-    ]
+    next_generation = [ PerfectMemoryAgent() ] if enable_perfect else []
     score_of = {}
     
     for each in range(competition_size):
@@ -405,4 +403,27 @@ if True:
         return tuple(flatten(observation + action))
 
 print.flush.always = False # optimization    
-run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False)
+
+print("#")
+print("# genetic_mutations_with_perfect")
+print("#")
+with print.indent:
+    run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False, enable_perfect=True)
+
+print("#")
+print("# genetic_mutations")
+print("#")
+with print.indent:
+    run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False)
+
+print("#")
+print("# pure random")
+print("#")
+with print.indent:
+    run_many_evaluations(iterations=5, genetic_method="random", disable_memory=False)
+
+print("#")
+print("# no_memory")
+print("#")
+with print.indent:
+    run_many_evaluations(iterations=5, genetic_method="random", disable_memory=True)
