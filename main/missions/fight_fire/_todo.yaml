@@ -1,5 +1,8 @@
 todo:
+    - test it on the randomly collected samples:
+        - will need to filter out all the up and down actions
     - make the corridor longer and measure regular vs genetic performance:
+        - generate worlds and offline samples on-demand
         - add a length variable
         - make the printing toggle-able
 
