@@ -235,16 +235,16 @@ if True:
         was_last_step = True
         for training_index, each_timestep in timesteps:
             if was_last_step: memory_value = None
-            index        = each_timestep.index
-            observation  = each_timestep.observation
-            response     = each_timestep.response
-            reward       = each_timestep.reward
-            is_last_step = each_timestep.is_last_step
-            hidden_info  = each_timestep.hidden_info
+            index         = each_timestep.index
+            observation   = each_timestep.observation
+            response      = each_timestep.response
+            reward        = each_timestep.reward
+            is_last_step  = each_timestep.is_last_step
+            hidden_info   = each_timestep.hidden_info
+            episode_index = each_timestep.hidden_info["episode_index"]
             
             state_input = simplify_observation_and_reaction(observation, response)
             
-            episode_index = each_timestep.hidden_info["episode_index"]
             with print.indent.block(f"episode: {episode_index}"):
                 memory_value = memory_agent.get_next_memory_state(state_input, memory_value)
                 observation_and_memory = tuple(flatten((state_input, memory_value)))
