@@ -229,13 +229,14 @@ def evaluate_prediction_performance(memory_agent):
         was_last_step = is_last_step
     
     score = ( len(timesteps)-number_of_incorrect_predictions ) / len(timesteps)
+    print(f'''score = {score}''')
     return score
 
 def run_many_evaluations(iterations=10_000, competition_size=100):
     import math
     memory_agents = []
     next_generation = [
-        PerfectMemoryAgent()
+        # PerfectMemoryAgent()
     ]
     score_of = {}
     
@@ -247,8 +248,9 @@ def run_many_evaluations(iterations=10_000, competition_size=100):
             break
         
         # evaluate new ones
-        for each_memory_agent in next_generation:
-            score_of[id(each_memory_agent)] = evaluate_prediction_performance(each_memory_agent)
+        with print.indent:
+            for each_memory_agent in next_generation:
+                score_of[id(each_memory_agent)] = evaluate_prediction_performance(each_memory_agent)
         memory_agents += next_generation
         sorted_memory_agents = sorted(memory_agents, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
         top_100 = sorted_memory_agents[0:100]
