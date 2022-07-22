@@ -33,19 +33,37 @@ input_vector_size = observation_size + memory_size
 if True:
     _number_of_memory_agents = 0
     class MemoryAgent:
-        def __init__(self):
+        def __init__(self, id=None, is_stupid=False, table=None):
+            # 
+            # set id
+            # 
             global _number_of_memory_agents
-            _number_of_memory_agents += 1
-            mapping = {}
-            # start values (no memory)
-            for each_possible_input in permutation_generator(input_vector_size-1, possible_values=[True,False]):
-                mapping[tuple(each_possible_input)] = MemoryAgent.random_memory_configuration()
-            # subsequent values (memory as input)
-            for each_possible_input in permutation_generator(input_vector_size, possible_values=[True,False]):
-                mapping[tuple(each_possible_input)] = MemoryAgent.random_memory_configuration()
+            if type(id) != type(None):
+                self.id = id
+            else:
+                _number_of_memory_agents += 1
+                self.id = _number_of_memory_agents
             
-            self.table = mapping
-            self.id = _number_of_memory_agents
+            # 
+            # is_stupid
+            # 
+            self.is_stupid = is_stupid
+            
+            # 
+            # table
+            # 
+            if table:
+                self.table = table
+            else:
+                mapping = {}
+                # start values (no memory)
+                for each_possible_input in permutation_generator(input_vector_size-1, possible_values=[True,False]):
+                    mapping[tuple(each_possible_input)] = MemoryAgent.random_memory_configuration()
+                # subsequent values (memory as input)
+                for each_possible_input in permutation_generator(input_vector_size, possible_values=[True,False]):
+                    mapping[tuple(each_possible_input)] = MemoryAgent.random_memory_configuration()
+                self.table = mapping
+            
         
         def get_next_memory_state(self, observation, memory_value):
             if memory_value is None:
@@ -53,7 +71,10 @@ if True:
             else:
                 key = tuple(flatten((observation, memory_value)))
             
-            return self.table[key]
+            if self.is_stupid:
+                return [ False for each in range(memory_size) ]
+            else:
+                return self.table[key]
             
         
         @staticmethod
@@ -66,9 +87,10 @@ if True:
             ))
         
         def duplicate(self):
-            the_copy = MemoryAgent()
-            the_copy.table = copy(self.table)
-            return the_copy
+            return MemoryAgent(
+                is_stupid=self.is_stupid,
+                table=copy(self.table),
+            )
 
         def generate_mutated_copy(self, number_of_mutations):
             duplicate = self.duplicate()
@@ -80,6 +102,34 @@ if True:
                 duplicate.table[each] = MemoryAgent.random_memory_configuration()
             
             return duplicate
+        
+        def __json__(self):
+            json_friendly_table = [
+                [ each_key, each_value ]
+                    for each_key, each_value in self.table.items()
+            ]
+            return {
+                "class": "MemoryAgent",
+                "kwargs": dict(
+                    id=self.id,
+                    is_stupid=self.is_stupid
+                ),
+                "json_friendly_table": json_friendly_table,
+            }
+        
+        @staticmethod
+        def from_json(json_data):
+            # parse if needed
+            if isinstance(json_data, str):
+                import json
+                json_data = json.loads(json_data)
+            
+            real_table = {}
+            for each_key, each_value in json_data["json_friendly_table"]:
+                real_table[each_key] = each_value
+            
+            json_data["kwargs"]["table"] = real_table
+            return MemoryAgent(**json_data["kwargs"])
 
     class PerfectMemoryAgent(MemoryAgent):
         def __init__(self):
@@ -209,7 +259,7 @@ if True:
 # 
 # runtime
 # 
-def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation"):
+def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation", disable_memory=False):
     import math
     memory_agents = []
     next_generation = [
@@ -218,7 +268,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
     score_of = {}
     
     for each in range(competition_size):
-        next_generation.append(MemoryAgent())
+        next_generation.append(MemoryAgent(is_stupid=disable_memory))
     
     for progress, *_ in ProgressBar(iterations):
         if progress.index >= iterations:
@@ -246,7 +296,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
                     )
                 else:
                     next_generation.append(
-                        MemoryAgent()
+                        MemoryAgent(is_stupid=disable_memory)
                     )
         # logging and checkpoints
         if progress.updated:
@@ -299,4 +349,4 @@ if True:
         return tuple(flatten(observation + action))
 
     
-run_many_evaluations()
+run_many_evaluations(iterations=10, genetic_method="mutation")
