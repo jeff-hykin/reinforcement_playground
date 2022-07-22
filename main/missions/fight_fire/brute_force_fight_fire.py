@@ -146,8 +146,8 @@ if True:
             else:
                 memory_out = list(memory_value)
                 
-            self.table[key] = memory_out
-            return [ not not each for each in memory_out ]
+            self.table[key] = [ not not each for each in memory_out ]
+            return self.table[key]
             
         def duplicate(self):
             return self
