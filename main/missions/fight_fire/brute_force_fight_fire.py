@@ -209,7 +209,7 @@ if True:
 # 
 # runtime
 # 
-def run_many_evaluations(iterations=3, competition_size=100):
+def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation"):
     import math
     memory_agents = []
     next_generation = [
@@ -228,18 +228,26 @@ def run_many_evaluations(iterations=3, competition_size=100):
         with print.indent:
             for each_memory_agent in next_generation:
                 score_of[id(each_memory_agent)] = evaluate_prediction_performance(each_memory_agent)
-        memory_agents += next_generation
-        sorted_memory_agents = sorted(memory_agents, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
-        top_100 = sorted_memory_agents[0:100]
-        memory_agents = top_100
-        number_of_values = len(top_100[0].table.values())
-        next_generation.clear()
-        for each_memory_agent in memory_agents:
-            number_of_mutations = math.floor(random.random() * number_of_values) # ranomd % of all values
-            next_generation.append(
-                each_memory_agent.generate_mutated_copy(number_of_mutations)
-            )
-        
+        # only keep top 100
+        with print.indent:
+            memory_agents += next_generation
+            sorted_memory_agents = sorted(memory_agents, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
+            top_100 = sorted_memory_agents[0:100]
+            memory_agents = top_100
+        # create next generation
+        with print.indent:
+            next_generation.clear()
+            number_of_values = len(top_100[0].table.values())
+            for each_memory_agent in memory_agents:
+                if genetic_method == "mutation":
+                    number_of_mutations = math.floor(random.random() * number_of_values) # ranomd % of all values
+                    next_generation.append(
+                        each_memory_agent.generate_mutated_copy(number_of_mutations)
+                    )
+                else:
+                    next_generation.append(
+                        MemoryAgent()
+                    )
         # logging and checkpoints
         if progress.updated:
             # 
