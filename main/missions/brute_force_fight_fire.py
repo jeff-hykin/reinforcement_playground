@@ -117,7 +117,7 @@ class PerfectMemoryAgent(MemoryAgent):
             memory_out = list(memory_value)
             
         self.table[key] = memory_out
-        return memory_out
+        return [ not not each for each in memory_out ]
         
     def duplicate(self):
         return self
@@ -127,6 +127,10 @@ class PerfectMemoryAgent(MemoryAgent):
         a_copy.table.update(self.table)
         return a_copy
 
+def observation_and_memory_as_human_string(observation_and_memory):
+    keys = ["is_left", "is_center", "is_right", "going_left", "going_right", "memory"]
+    with_names = [ f"{each_key}:{(each_val or f'{each_val}'.lower())}" for each_key, each_val in zip(keys, observation_and_memory)]
+    return ", ".join(with_names)
 
 import json
 from os.path import join
@@ -199,7 +203,7 @@ def evaluate_prediction_performance(memory_agent):
             reward_predictor_table[observation_and_memory] = reward
             if is_perfect_agent:
                 with print.indent.block(f"{training_index}: reward init"):
-                    print(f'''observation_and_memory = {observation_and_memory}''')
+                    print(f'''observation_and_memory = {observation_and_memory_as_human_string(observation_and_memory)}''')
                     print(f'''reward = {reward}''')
         else:
             predicted_value = reward_predictor_table[observation_and_memory]
@@ -208,7 +212,7 @@ def evaluate_prediction_performance(memory_agent):
                 number_of_incorrect_predictions += 1
             if is_perfect_agent:
                 with print.indent.block(f"{training_index}: reward check"):
-                    print(f'''observation_and_memory = {observation_and_memory}''')
+                    print(f'''observation_and_memory = {observation_and_memory_as_human_string(observation_and_memory)}''')
                     print(f'''reward = {reward}''')
                     print(f'''predicted_value: {predicted_value}''')
                     print(f'''was_wrong: {was_wrong}''')
