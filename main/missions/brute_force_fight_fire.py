@@ -12,7 +12,7 @@ from copy import copy
 from collections import defaultdict
 
 import ez_yaml
-from blissful_basics import flatten_once, product, max_index, to_pure, flatten, FS
+from blissful_basics import flatten_once, product, max_index, to_pure, flatten, print, FS
 from super_map import LazyDict
 from super_hash import super_hash
 from informative_iterator import ProgressBar
@@ -40,13 +40,13 @@ def permutation_generator(digits, possible_values):
 def convert_action_observation(observation, action):
     observation = observation[0:3]
     if action == "UP":
-        action = [ 1, 1 ]
+        action = [ True , True  ]
     if action == "DOWN":
-        action = [ 0, 0 ]
+        action = [ False, False ]
     if action == "LEFT":
-        action = [ 1, 0 ]
+        action = [ True , False ]
     if action == "RIGHT":
-        action = [ 0, 1 ]
+        action = [ False, True ]
     return tuple(flatten(observation + action))
 
 class MemoryAgent:
@@ -134,12 +134,56 @@ with open(FS.local_path('../world_builders/fight_fire/fire_fight_offline.ignore.
     timestep_json_list = json.load(in_file)
 
 max_number_of_eval_timesteps = 1000
-timesteps = [ Timestep.from_dict(each) for each in timestep_json_list ][:max_number_of_eval_timesteps]
+timesteps = [
+    Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info={}),
+    
+    Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info={}),
+    
+    Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info={}),
+    
+    Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info={}),
+    
+    Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info={}),
+    
+    Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info={}),
+    Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info={}),
+    Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info={}),
+]
 def evaluate_prediction_performance(memory_agent):
+    is_perfect_agent = isinstance(memory_agent, PerfectMemoryAgent)
+    
     number_of_incorrect_predictions = 0
     reward_predictor_table = {}
     memory_value = None
+    was_last_step = True
     for each_timestep in timesteps:
+        if was_last_step: memory_value = None
         index        = each_timestep.index
         observation  = each_timestep.observation
         response     = each_timestep.response
@@ -149,15 +193,18 @@ def evaluate_prediction_performance(memory_agent):
         
         state_input = convert_action_observation(observation, response)
         
+        memory_value = memory_agent.get_next_memory_state(state_input, memory_value)
         observation_and_memory = tuple(flatten((state_input, memory_value)))
         if observation_and_memory not in reward_predictor_table:
             reward_predictor_table[observation_and_memory] = reward
         else:
             predicted_value = reward_predictor_table[observation_and_memory]
+            # if is_perfect_agent: print(f"observation_and_memory: {observation_and_memory}, predicted_value: {predicted_value}, reward: {reward}")
             if predicted_value != reward:
+                if is_perfect_agent: print("    WRONG :/")
                 number_of_incorrect_predictions += 1
         
-        memory_value = memory_agent.get_next_memory_state(state_input, memory_value)
+        was_last_step = is_last_step
     
     score = ( len(timesteps)-number_of_incorrect_predictions ) / len(timesteps)
     return score
