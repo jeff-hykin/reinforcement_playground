@@ -232,7 +232,7 @@ def evaluate_prediction_performance(memory_agent):
     print(f'''score = {score}''')
     return score
 
-def run_many_evaluations(iterations=10_000, competition_size=100):
+def run_many_evaluations(iterations=3, competition_size=100):
     import math
     memory_agents = []
     next_generation = [
