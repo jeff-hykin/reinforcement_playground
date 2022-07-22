@@ -1,0 +1,9 @@
+todo:
+    - make the corridor longer and measure regular vs genetic performance:
+        - add a length variable
+        - make the printing toggle-able
+
+done:
+    - graph of genetic performance
+    - graph of regular performance
+    - evaluate with no memory
