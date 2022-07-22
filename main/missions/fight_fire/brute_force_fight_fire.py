@@ -207,16 +207,16 @@ if True:
     #     (34, Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=6))),
     # ]
     
-    max_number_of_eval_timesteps = 1000
+    max_number_of_eval_timesteps = 100
     import json
     from os.path import join
     with open(FS.local_path(f'{project_folder}/main/world_builders/fight_fire/fire_fight_offline.ignore.json'), 'r') as in_file:
         timestep_json_list = json.load(in_file)
     
-    timesteps = enumerate([
+    timesteps = tuple(enumerate([
         Timestep(**each)
             for each in timestep_json_list[0:max_number_of_eval_timesteps]
-    ])
+    ]))
 
     @print.indent.function_block
     def evaluate_prediction_performance(memory_agent):
@@ -320,20 +320,20 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
             # 
             # save top 10  to disk
             # 
-            sorted_memory_agents = sorted(memory_agents, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
-            top_10 = sorted_memory_agents[0:10]
-            with_scores = [
-                dict(
-                    score=score_of[id(each_func)],
-                    table=each_func.table,
-                )
-                    for each_func in top_10
-            ]
-            path = FS.local_path("top_10_memory_maps.ignore.yaml")
-            FS.write(
-                ez_yaml.to_string(obj=with_scores),
-                to=path,
-            )
+                # sorted_memory_agents = sorted(memory_agents, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
+                # top_10 = sorted_memory_agents[0:10]
+                # with_scores = [
+                #     dict(
+                #         score=score_of[id(each_func)],
+                #         table=each_func.table,
+                #     )
+                #         for each_func in top_10
+                # ]
+                # path = FS.local_path("top_10_memory_maps.ignore.yaml")
+                # FS.write(
+                #     ez_yaml.to_string(obj=with_scores),
+                #     to=path,
+                # )
 
 # 
 # helpers
@@ -356,5 +356,5 @@ if True:
             action = [ False, True ]
         return tuple(flatten(observation + action))
 
-    
-run_many_evaluations(iterations=10, genetic_method="random", disable_memory=True)
+print.flush.always = False # optimization    
+run_many_evaluations(iterations=2, genetic_method="random", disable_memory=True)
