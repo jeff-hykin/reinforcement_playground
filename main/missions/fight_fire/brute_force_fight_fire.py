@@ -349,4 +349,4 @@ if True:
         return tuple(flatten(observation + action))
 
     
-run_many_evaluations(iterations=10, genetic_method="mutation")
+run_many_evaluations(iterations=10, genetic_method="random", disable_memory=True)
