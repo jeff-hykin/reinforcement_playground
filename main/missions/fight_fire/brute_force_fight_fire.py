@@ -345,16 +345,23 @@ if True:
         return ", ".join(with_names)
 
     def simplify_observation_and_reaction(observation, action):
+        observation = list(flatten(observation))
         observation = observation[0:corridor_length]
         if action == "UP":
             action = [ True , True  ]
-        if action == "DOWN":
+        elif action == "DOWN":
             action = [ False, False ]
-        if action == "LEFT":
+        elif action == "LEFT":
             action = [ True , False ]
-        if action == "RIGHT":
+        elif action == "RIGHT":
             action = [ False, True ]
+        else:
+            raise Exception(f'''
+                action = {action}
+                expected up/down/left/right
+            ''')
+        
         return tuple(flatten(observation + action))
 
 print.flush.always = False # optimization    
-run_many_evaluations(iterations=2, genetic_method="random", disable_memory=True)
+run_many_evaluations(iterations=5, genetic_method="random")
