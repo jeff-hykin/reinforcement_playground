@@ -162,61 +162,61 @@ if True:
 # evaluation function
 # 
 if True:
-    # timesteps = [
-    #     (1 , Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (2 , Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (3 , Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (4 , Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (5 , Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (6 , Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (7 , Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=1))),
-    # 
-    #     (8 , Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=2))),
-    #     (9 , Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=2))),
-    #     (10, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=2))),
-    # 
-    #     (11, Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=3))),
-    #     (12, Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=3))),
-    #     (13, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=3))),
-    # 
-    #     (14, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (16, Timestep(index=1, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (14, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (16, Timestep(index=3, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (17, Timestep(index=4, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (18, Timestep(index=5, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (19, Timestep(index=6, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (17, Timestep(index=7, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (19, Timestep(index=8, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (20, Timestep(index=9, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=4))),
-    # 
-    #     (21, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (22, Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (23, Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (24, Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (25, Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (26, Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (27, Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=5))),
-    # 
-    #     (28, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (29, Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (30, Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (31, Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (32, Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (33, Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (34, Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=6))),
-    # ]
-    
     max_number_of_eval_timesteps = 100
     import json
     from os.path import join
     with open(FS.local_path(f'{project_folder}/main/world_builders/fight_fire/fire_fight_offline.ignore.json'), 'r') as in_file:
         timestep_json_list = json.load(in_file)
     
-    timesteps = tuple(enumerate([
+    timesteps = list(enumerate([
         Timestep(**each)
             for each in timestep_json_list[0:max_number_of_eval_timesteps]
     ]))
+    
+    timesteps += [
+        (1 , Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
+        (2 , Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=1))),
+        (3 , Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
+        (4 , Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
+        (5 , Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=1))),
+        (6 , Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
+        (7 , Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=1))),
+    
+        (8 , Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=2))),
+        (9 , Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=2))),
+        (10, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=2))),
+    
+        (11, Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=3))),
+        (12, Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=3))),
+        (13, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=3))),
+    
+        (14, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (16, Timestep(index=1, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (14, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (16, Timestep(index=3, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (17, Timestep(index=4, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (18, Timestep(index=5, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (19, Timestep(index=6, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (17, Timestep(index=7, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (19, Timestep(index=8, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
+        (20, Timestep(index=9, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=4))),
+    
+        (21, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
+        (22, Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=5))),
+        (23, Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
+        (24, Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
+        (25, Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=5))),
+        (26, Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
+        (27, Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=5))),
+    
+        (28, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
+        (29, Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=6))),
+        (30, Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
+        (31, Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
+        (32, Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=6))),
+        (33, Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
+        (34, Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=6))),
+    ]
 
     @print.indent.function_block
     def evaluate_prediction_performance(memory_agent):
@@ -267,7 +267,7 @@ if True:
 # 
 # runtime
 # 
-def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation", disable_memory=False):
+def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation", disable_memory=False, deviation_proportion=0.1):
     import math
     memory_agents = []
     next_generation = [
@@ -285,12 +285,14 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
         # evaluate new ones
         with print.indent:
             for each_memory_agent in next_generation:
+                print.disable.always = True
                 score_of[id(each_memory_agent)] = evaluate_prediction_performance(each_memory_agent)
+                print.disable.always = False
         # only keep top 100
         with print.indent:
             memory_agents += next_generation
             sorted_memory_agents = sorted(memory_agents, key=lambda func: -score_of[id(func)]) # python puts smallest values at the begining (so negative reverses that)
-            top_100 = sorted_memory_agents[0:100]
+            top_100 = sorted_memory_agents[0:competition_size]
             memory_agents = top_100
         # create next generation
         with print.indent:
@@ -298,7 +300,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
             number_of_values = len(top_100[0].table.values())
             for each_memory_agent in memory_agents:
                 if genetic_method == "mutation":
-                    number_of_mutations = math.floor(random.random() * number_of_values) # ranomd % of all values
+                    number_of_mutations = math.floor(random.random()/deviation_proportion * number_of_values) # random % of all values
                     next_generation.append(
                         each_memory_agent.generate_mutated_copy(number_of_mutations)
                     )
@@ -364,4 +366,4 @@ if True:
         return tuple(flatten(observation + action))
 
 print.flush.always = False # optimization    
-run_many_evaluations(iterations=5, genetic_method="random")
+run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False)
