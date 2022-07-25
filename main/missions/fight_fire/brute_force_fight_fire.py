@@ -29,7 +29,7 @@ action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
 input_vector_size = observation_size + memory_size
-verbose           = True
+verbose           = False
 
 # 
 # memory agent
@@ -140,15 +140,15 @@ if True:
             self.table = {}
             self.id = 0
         
-        def get_next_memory_state(self, observation, memory_value):
+        def get_next_memory_state(self, observation, prev_memory):
             agent_position_0, *others = observation
-            key = tuple(flatten([observation, memory_value])) if type(memory_value) != type(None) else tuple(observation)
+            key = tuple(flatten([observation, prev_memory])) if type(prev_memory) != type(None) else tuple(observation)
             
-            memory_value = flatten(memory_value)
+            prev_memory = flatten(prev_memory)
             if agent_position_0:
                 memory_out = [ True ]
             else:
-                memory_out = list(memory_value)
+                memory_out = list(prev_memory)
                 
             self.table[key] = [ not not each for each in memory_out ]
             return self.table[key]
@@ -413,7 +413,6 @@ print("# genetic_mutations_with_perfect")
 print("#")
 with print.indent:
     run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False, enable_perfect=True)
-exit()
 
 print("#")
 print("# genetic_mutations")
