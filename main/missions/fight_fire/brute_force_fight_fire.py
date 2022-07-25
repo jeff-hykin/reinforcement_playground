@@ -29,6 +29,7 @@ action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
 input_vector_size = observation_size + memory_size
+verbose           = True
 
 # 
 # memory agent
@@ -229,6 +230,7 @@ if True:
         
         is_perfect_agent = isinstance(memory_agent, PerfectMemoryAgent)
         print(f"memory_agent: {memory_agent.id}")
+        print(f'''is_perfect_agent = {is_perfect_agent}''')
         
         number_of_incorrect_predictions = 0
         reward_predictor_table = {}
@@ -290,9 +292,9 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
         # evaluate new ones
         with print.indent:
             for each_memory_agent in next_generation:
-                # print.disable.always = True
+                if not verbose: print.disable.always = True
                 score_of[id(each_memory_agent)] = evaluate_prediction_performance(each_memory_agent)
-                # print.disable.always = False
+                if not verbose: print.disable.always = False
         # only keep top 100
         with print.indent:
             memory_agents += next_generation
@@ -411,6 +413,7 @@ print("# genetic_mutations_with_perfect")
 print("#")
 with print.indent:
     run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False, enable_perfect=True)
+exit()
 
 print("#")
 print("# genetic_mutations")
