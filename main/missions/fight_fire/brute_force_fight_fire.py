@@ -24,9 +24,10 @@ from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
 number_of_timesteps = 200
-corridor_length   = 3
-observation_size  = 5 # position (corridor_length), action (2)
+corridor_length   = 5
+action_length     = 2
 memory_size       = 1
+observation_size  = corridor_length + action_length
 input_vector_size = observation_size + memory_size
 
 # 
@@ -289,9 +290,9 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
         # evaluate new ones
         with print.indent:
             for each_memory_agent in next_generation:
-                print.disable.always = True
+                # print.disable.always = True
                 score_of[id(each_memory_agent)] = evaluate_prediction_performance(each_memory_agent)
-                print.disable.always = False
+                # print.disable.always = False
         # only keep top 100
         with print.indent:
             memory_agents += next_generation
