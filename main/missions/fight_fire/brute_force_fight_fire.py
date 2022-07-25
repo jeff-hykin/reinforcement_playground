@@ -353,6 +353,7 @@ def generate_samples(number_of_timesteps=200):
         grid_height=1,
         visualize=False,
         # debug=True,
+        corridor_mode=True,
     )
     env = world.Player()
     mr_bond = Agent(

@@ -155,11 +155,12 @@ class Discrete(spaces.Discrete):
 
 reward_scale = 0.001
 class World:
-    def __init__(world, *, grid_width, grid_height, visualize=False, debug=False, random_seed=None):
+    def __init__(world, *, grid_width, grid_height, visualize=False, debug=False, random_seed=None, corridor_mode=False):
         world._random_seed = time() if random_seed == None else random_seed
         world.visualize = visualize
         world.debug = debug
         world.grid_width, world.grid_height = int(grid_width), int(grid_height)
+        world.corridor_mode = corridor_mode
         world.reset()
         
         class Player(Env):
@@ -288,6 +289,10 @@ class World:
         world.random_seed += 1
         seed(world.random_seed)
         world.state.grid, world.start_position, world.number_of_grid_states = generate_random_map(world.grid_width, world.grid_height)
+        if world.corridor_mode:
+            world.state.grid.water = torch.zeros(world.state.grid.water.shape) != 0; world.state.grid.water[0][ 0] = True
+            world.state.grid.fire  = torch.zeros(world.state.grid.fire.shape ) != 0; world.state.grid.fire[-1][-1] = True
+        
         seed(time()) # make random again so that randomness of other things isnt effected
         world.min_x_index, world.min_y_index = 0, 0
         world.max_x_index, world.max_y_index = world.grid_width-1, world.grid_height-1
