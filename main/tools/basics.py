@@ -420,7 +420,7 @@ def create_buckets(values, number_of_buckets):
     ]
     return buckets, bucket_ranges
 
-def tui_distribution(buckets, names, char="="):
+def tui_distribution(buckets, names, bar_char="="):
     import math
     output = "\n"
     
@@ -435,12 +435,14 @@ def tui_distribution(buckets, names, char="="):
     # transform buckets
     # 
     buckets = [len(each) for each in buckets]
+    partials = [ False ] * len(buckets)
     max_count = max(buckets)
     if max_count > 100:
         unit = math.ceil(max_count/100)
-        output = f"note: 1 char = {unit} count\n"
-        buckets = [ round(each/unit) for each in buckets ]
-    bars = [ each*char for each in buckets ]
+        output = f"note: 1 bar_char = {unit} count\n"
+        buckets  = [ math.floor(each/unit)              for each in buckets ]
+        partials = [ math.floor(each/unit) != each/unit for each in buckets ]
+    bars = [ each_bucket*bar_char + each_parial*'~' for each_bucket, each_parial in zip(buckets, partials) ]
     
         
     # 

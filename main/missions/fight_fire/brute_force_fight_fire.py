@@ -23,8 +23,8 @@ from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
-number_of_timesteps = 200
-corridor_length   = 5
+number_of_timesteps = 1200
+corridor_length   = 7
 action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
@@ -285,6 +285,17 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
     for each in range(competition_size):
         next_generation.append(MemoryAgent(is_stupid=disable_memory))
     
+    # 
+    # for updating terminal charts
+    # 
+    def compute_terminal_chart():
+        scores = tuple(score_of.values())
+        max_score = max(scores)
+        buckets, bucket_ranges = create_buckets(scores, number_of_buckets=20)
+        buckets, bucket_ranges = reversed(buckets), reversed(bucket_ranges)
+        a_string = tui_distribution(buckets, [ f"( {small*100:3.2f}, {big*100:3.2f} ]" for small, big in bucket_ranges ])
+        return a_string
+    
     for progress, *_ in ProgressBar(iterations):
         if progress.index >= iterations:
             break
@@ -317,14 +328,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
                     )
         # logging and checkpoints
         if progress.updated:
-            # 
-            # update the terminal charts
-            # 
-            scores = tuple(score_of.values())
-            max_score = max(scores)
-            buckets, bucket_ranges = create_buckets(scores, number_of_buckets=20)
-            buckets, bucket_ranges = reversed(buckets), reversed(bucket_ranges)
-            progress.pretext += tui_distribution(buckets, [ f"( {small*100:3.2f}, {big*100:3.2f} ]" for small, big in bucket_ranges ])
+            progress.pretext += compute_terminal_chart()
             
             # 
             # save top 10  to disk
@@ -343,6 +347,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
                 #     ez_yaml.to_string(obj=with_scores),
                 #     to=path,
                 # )
+    print(compute_terminal_chart())
 
 # 
 # sample generator
@@ -418,7 +423,7 @@ print("#")
 print("# genetic_mutations")
 print("#")
 with print.indent:
-    run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False)
+    run_many_evaluations(iterations=25*4, genetic_method="mutation", disable_memory=False)
 
 print("#")
 print("# pure random")

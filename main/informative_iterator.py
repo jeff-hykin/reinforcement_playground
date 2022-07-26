@@ -5,6 +5,7 @@ import time
 import sys
 import math
 
+from blissful_basics import print as bliss_print
 from super_map import Map
 
 try:
@@ -280,13 +281,16 @@ class ProgressBar:
                         
                         self.secs_remaining = time_per_update * expected_number_of_updates_needed
                     
+                    indent = ' '*bliss_print.indent.size
                     if self.progress_data.pretext:
                         self.print('', end='\r')
                         self.print('                                                                                                                        ', end='\r')
-                        self.print(self.progress_data.pretext, end='\n')
+                        bliss_print(self.progress_data.pretext, end='\n')
                     
                     if self.inline:
                         self.print('', end='\r')
+                    
+                    self.print(indent, end="")
                     
                     # display each thing according to the layout
                     for each in self.layout:
