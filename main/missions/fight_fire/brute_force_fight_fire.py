@@ -37,6 +37,101 @@ verbose           = False
 if True:
     _number_of_memory_agents = 0
     class MemoryAgent:
+        def get_next_memory_state(self, observation, memory_value):
+            return [ False for each in range(memory_size) ]
+    
+    class MemoryTriggerAgent:
+        def __init__(self, id=None, is_stupid=False, triggers=None):
+            # 
+            # set id
+            # 
+            global _number_of_memory_agents
+            if type(id) != type(None):
+                self.id = id
+            else:
+                _number_of_memory_agents += 1
+                self.id = _number_of_memory_agents
+            
+            # 
+            # is_stupid
+            # 
+            self.is_stupid = is_stupid
+            
+            # 
+            # table
+            # 
+            if triggers:
+                self.triggers = triggers
+            else:
+                self.triggers = []
+        
+        def generate_random_trigger(self):
+            # 
+            # what to pay attention to
+            # 
+            how_many_values_to_pay_attention_to = random.randint(1,input_vector_size)
+            indicies_of_inputs = [ each for each in range(input_vector_size) ]
+            random.shuffle(indicies_of_inputs)
+            selected_indicies = indicies_of_inputs[0:how_many_values_to_pay_attention_to]
+            input_trigger_conditions = {
+                input_index : randomly_pick_from([ True, False ])
+                    for input_index in selected_indicies 
+            }
+            
+            # 
+            # where/what to output
+            # 
+            how_many_memory_values_to_set = random.randint(1,input_vector_size)
+            indicies_of_memory = [ each for each in range(memory_size) ]
+            random.shuffle(indicies_of_memory)
+            selected_memory_indicies = indicies_of_memory[0:how_many_memory_values_to_set]
+            new_memory_mapping = {
+                memory_index : randomly_pick_from([ True, False ])
+                    for memory_index in selected_memory_indicies 
+            }
+            
+            return input_trigger_conditions, new_memory_mapping
+    
+        def get_next_memory_state(self, observation, memory_value):
+            input_vector = flatten([ observation, memory_value ])
+            for input_trigger_conditions, new_memory_mapping in self.triggers:
+                failed_conditions = False
+                for each_key, each_value in input_trigger_conditions.items():
+                    if input_vector[each_key] != each_value:
+                        failed_conditions = True
+                        break
+                if failed_conditions: continue
+                        
+                # if all the checks pass
+                memory_copy = list(memory)
+                for each_key, each_value in new_memory_mapping.items():
+                    memory_copy[each_key] = each_value
+                
+                return memory_copy 
+            
+            # if all triggers fail, preserve memory
+            return tuple(memory_value)
+            
+        def generate_mutated_copy(self, number_of_mutations):
+            # just fully randomize it since 
+            return MemoryTriggerAgent()
+        
+        def __json__(self):
+            return {
+                "class": "MemoryTriggerAgent",
+                "kwargs": dict(
+                    id=self.id,
+                    is_stupid=self.is_stupid,
+                    triggers=self.triggers,
+                ),
+            }
+        
+        @staticmethod
+        def from_json(json_data):
+            return MemoryTriggerAgent(**json_data["kwargs"])
+
+    
+    class MemoryMapAgent(MemoryAgent):
         def __init__(self, id=None, is_stupid=False, table=None):
             # 
             # set id
@@ -62,10 +157,10 @@ if True:
                 mapping = {}
                 # start values (no memory)
                 for each_possible_input in permutation_generator(input_vector_size-1, possible_values=[True,False]):
-                    mapping[tuple(each_possible_input)] = MemoryAgent.random_memory_configuration()
+                    mapping[tuple(each_possible_input)] = MemoryMapAgent.random_memory_configuration()
                 # subsequent values (memory as input)
                 for each_possible_input in permutation_generator(input_vector_size, possible_values=[True,False]):
-                    mapping[tuple(each_possible_input)] = MemoryAgent.random_memory_configuration()
+                    mapping[tuple(each_possible_input)] = MemoryMapAgent.random_memory_configuration()
                 self.table = mapping
             
         
@@ -91,7 +186,7 @@ if True:
             ))
         
         def duplicate(self):
-            return MemoryAgent(
+            return MemoryMapAgent(
                 is_stupid=self.is_stupid,
                 table=copy(self.table),
             )
@@ -103,7 +198,7 @@ if True:
             selected_keys = keys[0:number_of_mutations]
             
             for each in selected_keys:
-                duplicate.table[each] = MemoryAgent.random_memory_configuration()
+                duplicate.table[each] = MemoryMapAgent.random_memory_configuration()
             
             return duplicate
         
@@ -113,7 +208,7 @@ if True:
                     for each_key, each_value in self.table.items()
             ]
             return {
-                "class": "MemoryAgent",
+                "class": "MemoryMapAgent",
                 "kwargs": dict(
                     id=self.id,
                     is_stupid=self.is_stupid
@@ -133,7 +228,7 @@ if True:
                 real_table[each_key] = each_value
             
             json_data["kwargs"]["table"] = real_table
-            return MemoryAgent(**json_data["kwargs"])
+            return MemoryMapAgent(**json_data["kwargs"])
 
     class PerfectMemoryAgent(MemoryAgent):
         def __init__(self):
