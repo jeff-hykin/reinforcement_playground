@@ -1,11 +1,12 @@
 todo:
+    - create an efficient way of generating ideal trajectories for the reward predictor
+done:
+    - create memory trigger agent
     - generate results with larger sample sizes, maybe analyze slices of them if anything seems suspicious
     - make the corridor longer and measure regular vs genetic performance:
         - generate worlds and offline samples on-demand
         - add a length variable
         - make the printing toggle-able
-
-done:
     - test it on the randomly collected samples
     - graph of genetic performance
     - graph of regular performance
