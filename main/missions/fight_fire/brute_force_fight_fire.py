@@ -23,8 +23,8 @@ from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
-number_of_timesteps = 1200
-corridor_length   = 7
+number_of_timesteps = 400
+corridor_length   = 5
 action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
@@ -41,7 +41,7 @@ if True:
             return [ False for each in range(memory_size) ]
     
     class MemoryTriggerAgent:
-        def __init__(self, id=None, is_stupid=False, triggers=None):
+        def __init__(self, id=None, is_stupid=False, triggers=None, number_of_triggers=1):
             # 
             # set id
             # 
@@ -63,9 +63,12 @@ if True:
             if triggers:
                 self.triggers = triggers
             else:
-                self.triggers = []
+                self.triggers = [ self.generate_random_trigger() for each in range(number_of_triggers) ]
         
         def generate_random_trigger(self):
+            """
+            returns input_trigger_conditions={ input_index : required_value }, new_memory_mapping={ memory_index: new output value }
+            """
             # 
             # what to pay attention to
             # 
@@ -103,17 +106,22 @@ if True:
                 if failed_conditions: continue
                         
                 # if all the checks pass
-                memory_copy = list(memory)
+                memory_copy = list(flatten(memory_value))
                 for each_key, each_value in new_memory_mapping.items():
                     memory_copy[each_key] = each_value
                 
                 return memory_copy 
             
+            # one technically hardcoded trigger
+            if type(memory_value) == type(None):
+                return [False] * memory_size
+            
             # if all triggers fail, preserve memory
             return tuple(memory_value)
             
         def generate_mutated_copy(self, number_of_mutations):
-            # just fully randomize it since 
+            # just fully randomize it since its hard to mutate
+            # TODO: change this in the future
             return MemoryTriggerAgent()
         
         def __json__(self):
@@ -230,7 +238,7 @@ if True:
             json_data["kwargs"]["table"] = real_table
             return MemoryMapAgent(**json_data["kwargs"])
 
-    class PerfectMemoryAgent(MemoryAgent):
+    class PerfectMemoryMapAgent(MemoryAgent):
         def __init__(self):
             self.table = {}
             self.id = 0
@@ -255,66 +263,31 @@ if True:
             a_copy = MemoryAgent()
             a_copy.table.update(self.table)
             return a_copy
+    
+    class PerfectMemoryTriggerAgent(MemoryTriggerAgent):
+        def __init__(self):
+            self.id = 0
+            self.triggers = [
+                [
+                    # conditions (position0 needs to be True)
+                    { 0 : True }, 
+                    # consequences (memory slot 0 is set to true)
+                    { 0 : True }
+                ]
+            ]
+        
+        def duplicate(self):
+            return self
+        
+        def generate_mutated_copy(self, number_of_mutations):
+            a_copy = MemoryAgent()
+            a_copy.table.update(self.table)
+            return a_copy
 
 # 
 # evaluation function
 # 
 if True:
-    # max_number_of_eval_timesteps = 100
-    # import json
-    # from os.path import join
-    # with open(FS.local_path(f'{project_folder}/main/world_builders/fight_fire/fire_fight_offline.ignore.json'), 'r') as in_file:
-    #     timestep_json_list = json.load(in_file)
-    
-    # timesteps = list(enumerate([
-    #     Timestep(**each)
-    #         for each in timestep_json_list[0:max_number_of_eval_timesteps]
-    # ]))
-    
-    # timesteps += [
-    #     (1 , Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (2 , Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (3 , Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (4 , Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (5 , Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (6 , Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=1))),
-    #     (7 , Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=1))),
-    
-    #     (8 , Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=2))),
-    #     (9 , Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=2))),
-    #     (10, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=2))),
-    
-    #     (11, Timestep(index=0, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=3))),
-    #     (12, Timestep(index=1, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=3))),
-    #     (13, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=3))),
-    
-    #     (14, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (16, Timestep(index=1, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (14, Timestep(index=2, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (16, Timestep(index=3, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (17, Timestep(index=4, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (18, Timestep(index=5, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (19, Timestep(index=6, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (17, Timestep(index=7, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (19, Timestep(index=8, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=4))),
-    #     (20, Timestep(index=9, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=4))),
-    
-    #     (21, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (22, Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (23, Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (24, Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (25, Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (26, Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=5))),
-    #     (27, Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=5))),
-    
-    #     (28, Timestep(index=0, observation=[[False,True ,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (29, Timestep(index=1, observation=[[False,False,True ]], response="RIGHT", reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (30, Timestep(index=2, observation=[[False,False,True ]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (31, Timestep(index=3, observation=[[False,True ,False]], response="LEFT" , reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (32, Timestep(index=4, observation=[[True ,False,False]], response="LEFT" , reward=-0.02 , is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (33, Timestep(index=5, observation=[[True ,False,False]], response="RIGHT", reward=-0.001, is_last_step=False, hidden_info=LazyDict(episode_index=6))),
-    #     (34, Timestep(index=6, observation=[[False,True ,False]], response="RIGHT", reward=0.05  , is_last_step=True , hidden_info=LazyDict(episode_index=6))),
-    # ]
     timesteps = []
 
     @print.indent.function_block
@@ -323,7 +296,7 @@ if True:
         if not timesteps:
             timesteps = list(enumerate(generate_samples(number_of_timesteps=number_of_timesteps)))
         
-        is_perfect_agent = isinstance(memory_agent, PerfectMemoryAgent)
+        is_perfect_agent = isinstance(memory_agent, PerfectMemoryMapAgent)
         print(f"memory_agent: {memory_agent.id}")
         print(f'''is_perfect_agent = {is_perfect_agent}''')
         
@@ -374,11 +347,11 @@ if True:
 def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mutation", disable_memory=False, deviation_proportion=0.1, enable_perfect=False):
     import math
     memory_agents = []
-    next_generation = [ PerfectMemoryAgent() ] if enable_perfect else []
+    next_generation = [ PerfectMemoryTriggerAgent() ] if enable_perfect else []
     score_of = {}
     
     for each in range(competition_size):
-        next_generation.append(MemoryAgent(is_stupid=disable_memory))
+        next_generation.append(MemoryTriggerAgent(is_stupid=disable_memory))
     
     # 
     # for updating terminal charts
@@ -410,16 +383,16 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
         # create next generation
         with print.indent:
             next_generation.clear()
-            number_of_values = len(top_100[0].table.values())
             for each_memory_agent in memory_agents:
                 if genetic_method == "mutation":
+                    number_of_values = len(top_100[0].table.values())
                     number_of_mutations = math.floor(random.random()/deviation_proportion * number_of_values) # random % of all values
                     next_generation.append(
                         each_memory_agent.generate_mutated_copy(number_of_mutations)
                     )
                 else:
                     next_generation.append(
-                        MemoryAgent(is_stupid=disable_memory)
+                        MemoryTriggerAgent(is_stupid=disable_memory)
                     )
         # logging and checkpoints
         if progress.updated:
@@ -447,7 +420,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
 # 
 # sample generator
 # 
-def generate_samples(number_of_timesteps=200):
+def generate_samples(number_of_timesteps):
     offline_timesteps = []
     
     world = World(
@@ -508,17 +481,17 @@ if True:
 
 print.flush.always = False # optimization    
 
-print("#")
-print("# genetic_mutations_with_perfect")
-print("#")
-with print.indent:
-    run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False, enable_perfect=True)
+# print("#")
+# print("# genetic_mutations_with_perfect")
+# print("#")
+# with print.indent:
+#     run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False, enable_perfect=True)
 
-print("#")
-print("# genetic_mutations")
-print("#")
-with print.indent:
-    run_many_evaluations(iterations=25*4, genetic_method="mutation", disable_memory=False)
+# print("#")
+# print("# genetic_mutations")
+# print("#")
+# with print.indent:
+#     run_many_evaluations(iterations=25, genetic_method="mutation", disable_memory=False)
 
 print("#")
 print("# pure random")
