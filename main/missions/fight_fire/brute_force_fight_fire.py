@@ -23,8 +23,8 @@ from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
-number_of_timesteps = 700
-corridor_length   = 9
+number_of_timesteps = 500
+corridor_length   = 13
 action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
@@ -420,6 +420,9 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
                 #     to=path,
                 # )
     print(compute_terminal_chart())
+    
+    # return the best score
+    return max(score_of.values())
 
 # 
 # sample generator
@@ -489,7 +492,12 @@ print("#")
 print("# no_memory")
 print("#")
 with print.indent:
-    run_many_evaluations(iterations=1, genetic_method="random", disable_memory=True)
+    best_score = 1
+    while best_score == 1:
+        # regenerate the timesteps until they require memory
+        timesteps = []
+        best_score = run_many_evaluations(iterations=1, competition_size=1, genetic_method="random", disable_memory=True)
+    
 
 # print("#")
 # print("# genetic_mutations_with_perfect")

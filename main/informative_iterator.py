@@ -5,9 +5,21 @@ import time
 import sys
 import math
 
-from blissful_basics import print as bliss_print
 from super_map import Map
 
+# nested indentation support
+try:
+    from blissful_basics import print as bliss_print
+except Exception as error:
+    # create a placeholder/stand-in
+    def bliss_print(*args, **kwargs):
+        print(*args, **kwargs)
+    class Indent:
+        size = 0
+        string = " "
+    bliss_print.indent = Indent()
+
+# GUI progress support in notebooks
 try:
     from IPython.display import display, HTML, clear_output
     from io import StringIO
@@ -277,7 +289,7 @@ class ProgressBar:
                         partial_deviation                       = (1 - (self.progress_data.percent/100)) * stdev_of_iters_per_update
                         iterations_per_update_lowerbound        = max((average_number_of_iterations_per_update-partial_deviation, min(list_of_iterations_per_update)))
                         soft_lowerbound                         = mean((iterations_per_update_lowerbound, average_number_of_iterations_per_update))
-                        expected_number_of_updates_needed       = remaining_number_of_iterations / iterations_per_update_lowerbound
+                        expected_number_of_updates_needed       = remaining_number_of_iterations / soft_lowerbound
                         
                         self.secs_remaining = time_per_update * expected_number_of_updates_needed
                     
