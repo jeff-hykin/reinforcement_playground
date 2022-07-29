@@ -281,7 +281,7 @@ class ProgressBar:
                         
                         self.secs_remaining = time_per_update * expected_number_of_updates_needed
                     
-                    indent = ' '*bliss_print.indent.size
+                    indent = bliss_print.indent.string*bliss_print.indent.size
                     if self.progress_data.pretext:
                         self.print('', end='\r')
                         self.print('                                                                                                                        ', end='\r')
@@ -390,7 +390,8 @@ class ProgressBar:
         end_time = datetime.now().strftime("%H:%M:%S")
         self.progress_data.percent = 100.0
         self.string_buffer = "" # for ipython
-        self.print(f'Done in {duration}sec at {end_time}')
+        indent = bliss_print.indent.string * bliss_print.indent.size
+        self.print(f'{indent}Done in {duration}sec at {end_time}')
 
     def __iter__(self):
         return self
