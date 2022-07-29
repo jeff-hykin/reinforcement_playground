@@ -29,7 +29,7 @@ action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
 input_vector_size = observation_size + memory_size
-verbose           = False
+verbose           = True
 
 # 
 # memory agent
@@ -514,7 +514,8 @@ def generate_samples(number_of_timesteps):
             self.default_value_assumption = default_value_assumption
             self._get_greedy_response       = get_greedy_response
         
-        def get_position(self, timestep):
+        def get_position(self, timestep=None):
+            timestep = timestep or self.timestep
             for row_index, each_row in enumerate(timestep.observation.position):
                 for column_index, each_cell in enumerate(each_row):
                     if each_cell:
@@ -533,15 +534,23 @@ def generate_samples(number_of_timesteps):
         def predicted_position(self, action):
             x, y = self.get_position()
             if action == env.actions.LEFT:
-                return max(x-1,0), y
+                x -= 1
             elif action == env.actions.RIGHT:
-                return min(x+1, world.grid_width-1), y
-            elif action == env.actions.UP:
-                return x, min(y+1, world.grid_height-1)
+                x += 1
             elif action == env.actions.DOWN:
-                return x, max(y-1, 0)
+                y -= 1
+            elif action == env.actions.UP:
+                y += 1
             else:
                 raise Exception(f'''unknown action: {action}''')
+            
+            # stay in bounds
+            if x > world.max_x_index: x = world.max_x_index
+            if x < world.min_x_index: x = world.min_x_index
+            if y > world.max_y_index: y = world.max_y_index
+            if y < world.min_y_index: y = world.min_y_index
+            
+            return x, y
         # 
         # mission hooks
         # 
@@ -553,8 +562,8 @@ def generate_samples(number_of_timesteps):
             self.has_water = False
             self.has_visited_fire = False
             self.has_almost_visted_water = False
-            self.fire_coordinates = all_argmax_coordinates(world.grid.fire)
-            self.water_coordinates = all_argmax_coordinates(world.grid.water)
+            self.fire_coordinates = all_argmax_coordinates(world.state.grid.fire)
+            self.water_coordinates = all_argmax_coordinates(world.state.grid.water)
             self.ideal_positions = self.water_coordinates
             
         def when_timestep_starts(self):
@@ -569,7 +578,7 @@ def generate_samples(number_of_timesteps):
                 
             # keep ideal coordiates up to date
             if self.is_really_smart:
-                self.ideal_positions = self.fire_coordinates if self.has_water   else  self.water_coordinate
+                self.ideal_positions = self.fire_coordinates if self.has_water   else  self.water_coordinates
             else:
                 if (self.has_almost_visted_water and not self.has_visited_fire) or self.has_water:
                     self.ideal_positions = self.fire_coordinates
@@ -584,7 +593,7 @@ def generate_samples(number_of_timesteps):
             random.shuffle(possible_responses)
             for each_response in possible_responses:
                 would_be_position = self.predicted_position(each_response)
-                if self.get_distance_score(would_be_position) >= current_distance_score:
+                if self.get_distance_score(would_be_position) <= current_distance_score:
                     self.timestep.response = each_response
                     return
             # if all of them were bad, just pick one
