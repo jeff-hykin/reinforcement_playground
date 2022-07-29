@@ -23,8 +23,8 @@ from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
-number_of_timesteps = 400
-corridor_length   = 5
+number_of_timesteps = 700
+corridor_length   = 7
 action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
@@ -96,6 +96,9 @@ if True:
             return input_trigger_conditions, new_memory_mapping
     
         def get_next_memory_state(self, observation, memory_value):
+            if self.is_stupid:
+                return [False] * memory_size
+            
             input_vector = flatten([ observation, memory_value ])
             for input_trigger_conditions, new_memory_mapping in self.triggers:
                 failed_conditions = False
@@ -493,14 +496,14 @@ print.flush.always = False # optimization
 # with print.indent:
 #     run_many_evaluations(iterations=25, genetic_method="mutation", disable_memory=False)
 
-print("#")
-print("# pure random")
-print("#")
-with print.indent:
-    run_many_evaluations(iterations=5, genetic_method="random", disable_memory=False)
+# print("#")
+# print("# pure random")
+# print("#")
+# with print.indent:
+#     run_many_evaluations(iterations=5, genetic_method="random", disable_memory=False)
 
 print("#")
 print("# no_memory")
 print("#")
 with print.indent:
-    run_many_evaluations(iterations=5, genetic_method="random", disable_memory=True)
+    run_many_evaluations(iterations=1, genetic_method="random", disable_memory=True)

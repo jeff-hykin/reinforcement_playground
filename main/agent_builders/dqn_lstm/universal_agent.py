@@ -270,9 +270,6 @@ class QTableEnhancement(Enhancement):
     def when_mission_starts(self, original, ):
         self.q_table = LazyDict()
         
-        print(f'''self = {self}''')
-        print(f'''self.q_table = {self.q_table}''')
-        
         def value_of(timestep):
             position_key = self.get_position(timestep)
             # position_key = hash(tuple(flatten(to_pure(timestep.observation))))
