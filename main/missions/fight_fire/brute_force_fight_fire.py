@@ -634,9 +634,24 @@ def generate_samples(number_of_timesteps):
 # 
 if True:
     def observation_and_memory_as_human_string(observation_and_memory):
-        keys = [ *([f"position{each}" for each in range(corridor_length)]), "going_left", "going_right", "memory"]
-        with_names = [ f"{each_key}:{(each_val or f'{each_val}'.lower())}" for each_key, each_val in zip(keys, observation_and_memory)]
-        return ", ".join(with_names)
+        *position, going_left, going_right, memory =  observation_and_memory
+        output = "\n"
+        if going_left and going_right:
+            output += "  ^  \n"
+            output += "  |  \n"
+        elif not going_left and not going_right:
+            output += "  |  \n"
+            output += "  v  \n"
+        elif going_left:
+            output += "     \n"
+            output += " <-- \n"
+        elif going_right:
+            output += "     \n"
+            output += " --> \n"
+        
+        output += "position = " + "".join([ ' __' if not each else f'{index}'.rjust(3) for index, each in enumerate(position)])+"\n"
+        output += f"memory = [ {int(memory)} ]\n"
+        return output
 
     def simplify_observation_and_reaction(observation, action):
         observation = list(flatten(to_pure(observation)))
