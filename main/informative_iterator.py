@@ -298,7 +298,11 @@ class ProgressBar:
                     
                     if not ipython_exists:
                         if self.progress_data.text:
-                            self.print(self.progress_data.text, end='')
+                            line_1, *other_lines = self.progress_data.text.split('\n')
+                            self.print(line_1, end='')
+                            if other_lines:
+                                nextline_text = f"\n{indent}" + f"\n{indent}".join(other_lines)
+                                self.print(nextline_text, end='')
                         
                     if not self.inline:
                         self.print()

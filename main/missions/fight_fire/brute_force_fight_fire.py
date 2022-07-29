@@ -24,7 +24,7 @@ from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
 number_of_timesteps = 700
-corridor_length   = 7
+corridor_length   = 9
 action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
@@ -268,7 +268,8 @@ if True:
             return a_copy
     
     class PerfectMemoryTriggerAgent(MemoryTriggerAgent):
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
             self.id = 0
             self.triggers = [
                 [
@@ -484,6 +485,12 @@ if True:
 
 print.flush.always = False # optimization    
 
+print("#")
+print("# no_memory")
+print("#")
+with print.indent:
+    run_many_evaluations(iterations=1, genetic_method="random", disable_memory=True)
+
 # print("#")
 # print("# genetic_mutations_with_perfect")
 # print("#")
@@ -496,14 +503,14 @@ print.flush.always = False # optimization
 # with print.indent:
 #     run_many_evaluations(iterations=25, genetic_method="mutation", disable_memory=False)
 
-# print("#")
-# print("# pure random")
-# print("#")
-# with print.indent:
-#     run_many_evaluations(iterations=5, genetic_method="random", disable_memory=False)
-
 print("#")
-print("# no_memory")
+print("# pure with perfect")
 print("#")
 with print.indent:
-    run_many_evaluations(iterations=1, genetic_method="random", disable_memory=True)
+    run_many_evaluations(iterations=1, genetic_method="random", disable_memory=False, enable_perfect=True)
+
+print("#")
+print("# pure random")
+print("#")
+with print.indent:
+    run_many_evaluations(iterations=5, genetic_method="random", disable_memory=False)
