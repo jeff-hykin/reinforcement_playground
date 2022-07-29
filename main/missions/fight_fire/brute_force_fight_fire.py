@@ -24,7 +24,7 @@ from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
 number_of_timesteps = 500
-corridor_length   = 13
+corridor_length   = 17
 action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
@@ -293,7 +293,6 @@ if True:
 # 
 if True:
     timesteps = []
-
     @print.indent.function_block
     def evaluate_prediction_performance(memory_agent):
         global timesteps
@@ -438,6 +437,169 @@ def generate_samples(number_of_timesteps):
         corridor_mode=True,
     )
     env = world.Player()
+    
+    import torch
+    import torch.nn as nn
+    import random
+    from tqdm import tqdm
+    import pickle 
+    import gym
+    import numpy as np
+    import collections 
+    import cv2
+    import time
+    from collections import defaultdict
+    from copy import deepcopy
+
+    from blissful_basics import product, max_index, flatten
+    from super_hash import super_hash
+    from super_map import LazyDict
+
+    from tools.universe.agent import Skeleton, Enhancement, enhance_with
+    from tools.universe.timestep import Timestep
+    from tools.universe.enhancements.basic import EpisodeEnhancement, LoggerEnhancement
+    from tools.file_system_tools import FileSystem
+    from tools.stat_tools import normalize
+
+    from tools.debug import debug
+    from tools.basics import sort_keys, randomly_pick_from
+    from tools.object import Object, Options
+
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    import torch.optim as optim
+
+    from prefabs.simple_lstm import SimpleLstm
+    from tools.pytorch_tools import opencv_image_to_torch_image, to_tensor, init, forward, misc, Sequential, tensor_to_image, OneHotifier, all_argmax_coordinates
+    from trivial_torch_tools import Sequential, init, convert_each_arg, product
+    from trivial_torch_tools.generics import to_pure, flatten
+    
+    # a cheating agent thats really good at creating trajectories
+    class Agent(Skeleton):
+        @enhance_with(EpisodeEnhancement, LoggerEnhancement,)
+        def __init__(self,
+            observation_space,
+            response_space,
+            responses=None,
+            training=True,
+            learning_rate=0.5,
+            discount_factor=0.9,
+            epsilon=1.0,
+            epsilon_decay=0.0001,
+            default_value_assumption=0,
+            get_greedy_response=None,
+            random_seed=None,
+        ):
+            self.has_water = None
+            self.is_really_smart = randomly_pick_from([ True, False ])
+            
+            self.observation_space = observation_space
+            self.observation_shape = self.observation_space.shape or (self.observation_space.n,)
+            self.observation_size  = product(self.observation_shape)
+            self.response_space    = response_space
+            self.response_shape    = self.response_space.shape or (self.response_space.n,)
+            self.response_size     = product(self.response_shape)
+            self.learning_rate     = learning_rate
+            self.discount_factor   = discount_factor
+            self.responses         = OneHotifier(
+                possible_values=(  responses or tuple(range(self.response_size))  ),
+            )
+            self.random_seed       = random_seed or time.time()
+            self.training          = training
+            self.epsilon           = epsilon        # Amount of randomness in the response selection
+            self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
+            self.debug             = LazyDict()
+            
+            self.default_value_assumption = default_value_assumption
+            self._get_greedy_response       = get_greedy_response
+        
+        def get_position(self, timestep):
+            for row_index, each_row in enumerate(timestep.observation.position):
+                for column_index, each_cell in enumerate(each_row):
+                    if each_cell:
+                        return row_index, column_index
+        
+        def get_distance_score(self, new_position, ideal_positions=None):
+            ideal_positions = self.ideal_positions if type(ideal_positions) == type(None)       else ideal_positions
+                
+            x, y = new_position
+            minimum_distance = min(
+                abs(x-good_x) + abs(y-good_y)
+                    for good_x, good_y in ideal_positions
+            )
+            return minimum_distance
+        
+        def predicted_position(self, action):
+            x, y = self.get_position()
+            if action == env.actions.LEFT:
+                return max(x-1,0), y
+            elif action == env.actions.RIGHT:
+                return min(x+1, world.grid_width-1), y
+            elif action == env.actions.UP:
+                return x, min(y+1, world.grid_height-1)
+            elif action == env.actions.DOWN:
+                return x, max(y-1, 0)
+            else:
+                raise Exception(f'''unknown action: {action}''')
+        # 
+        # mission hooks
+        # 
+        
+        def when_mission_starts(self):
+            pass
+            
+        def when_episode_starts(self):
+            self.has_water = False
+            self.has_visited_fire = False
+            self.has_almost_visted_water = False
+            self.fire_coordinates = all_argmax_coordinates(world.grid.fire)
+            self.water_coordinates = all_argmax_coordinates(world.grid.water)
+            self.ideal_positions = self.water_coordinates
+            
+        def when_timestep_starts(self):
+            current_position = self.get_position()
+            # update flags
+            if not self.has_water:
+                self.has_water = 0 == self.get_distance_score(new_position=current_position, ideal_positions=self.water_coordinates)
+            if not self.has_almost_visted_water:
+                self.has_almost_visted_water = 1 == self.get_distance_score(new_position=current_position, ideal_positions=self.water_coordinates)
+            if not self.has_visited_fire:
+                self.has_visited_fire = 0 == self.get_distance_score(new_position=current_position, ideal_positions=self.fire_coordinates)
+                
+            # keep ideal coordiates up to date
+            if self.is_really_smart:
+                self.ideal_positions = self.fire_coordinates if self.has_water   else  self.water_coordinate
+            else:
+                if (self.has_almost_visted_water and not self.has_visited_fire) or self.has_water:
+                    self.ideal_positions = self.fire_coordinates
+                else:
+                    self.ideal_positions = self.water_coordinates
+            # 
+            # pick action that doesn't hurt the distance to the nearest ideal position
+            # 
+            current_distance_score = self.get_distance_score(current_position)
+            new_score = -math.inf
+            possible_responses = [ each for each in self.responses ]
+            random.shuffle(possible_responses)
+            for each_response in possible_responses:
+                would_be_position = self.predicted_position(each_response)
+                if self.get_distance_score(would_be_position) >= current_distance_score:
+                    self.timestep.response = each_response
+                    return
+            # if all of them were bad, just pick one
+            self.timestep.response = possible_responses[0]
+            
+        def when_timestep_ends(self):
+            pass
+            
+        def when_episode_ends(self):
+            pass
+            
+        def when_mission_ends(self):
+            pass
+
+    
     mr_bond = Agent(
         observation_space=env.observation_space,
         response_space=env.action_space,
