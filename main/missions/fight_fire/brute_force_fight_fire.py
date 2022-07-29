@@ -23,13 +23,13 @@ from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
-number_of_timesteps = 500
-corridor_length   = 17
+number_of_timesteps = 200
+corridor_length   = 55
 action_length     = 2
 memory_size       = 1
 observation_size  = corridor_length + action_length
 input_vector_size = observation_size + memory_size
-verbose           = True
+verbose           = False
 
 # 
 # memory agent
@@ -672,7 +672,7 @@ if True:
         
         return tuple(flatten(observation + action))
 
-print.flush.always = False # optimization    
+print.flush.always = not verbose # False=>optimizes throughput, True=>optimizes responsiveness
 
 print("#")
 print("# no_memory")
@@ -682,6 +682,7 @@ with print.indent:
     while best_score == 1:
         # regenerate the timesteps until they require memory
         timesteps = []
+        number_of_timesteps *= 2 # scale up until it works
         best_score = run_many_evaluations(iterations=1, competition_size=1, genetic_method="random", disable_memory=True)
     
 
@@ -701,7 +702,7 @@ print("#")
 print("# pure with perfect")
 print("#")
 with print.indent:
-    run_many_evaluations(iterations=1, genetic_method="random", disable_memory=False, enable_perfect=True)
+    run_many_evaluations(iterations=1, competition_size=2, genetic_method="random", disable_memory=False, enable_perfect=True)
 
 print("#")
 print("# pure random")
