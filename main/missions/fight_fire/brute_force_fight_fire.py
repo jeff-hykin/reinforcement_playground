@@ -512,6 +512,8 @@ def generate_samples(number_of_timesteps):
             self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
             self.debug             = LazyDict()
             
+            self.scenic_route_propensity = 0.4 # 0.4==40% of the time, if the first not-bad option is a scenic route, it'll take it
+            
             self.default_value_assumption = default_value_assumption
             self._get_greedy_response       = get_greedy_response
         
@@ -522,7 +524,7 @@ def generate_samples(number_of_timesteps):
                     if each_cell:
                         return row_index, column_index
         
-        def get_distance_score(self, new_position, ideal_positions=None):
+        def get_distance_between(self, new_position, ideal_positions=None):
             ideal_positions = self.ideal_positions if type(ideal_positions) == type(None)       else ideal_positions
                 
             x, y = new_position
@@ -571,11 +573,11 @@ def generate_samples(number_of_timesteps):
             current_position = self.get_position()
             # update flags
             if not self.has_water:
-                self.has_water = 0 == self.get_distance_score(new_position=current_position, ideal_positions=self.water_coordinates)
+                self.has_water = 0 == self.get_distance_between(new_position=current_position, ideal_positions=self.water_coordinates)
             if not self.has_almost_visted_water:
-                self.has_almost_visted_water = 1 == self.get_distance_score(new_position=current_position, ideal_positions=self.water_coordinates)
+                self.has_almost_visted_water = 1 == self.get_distance_between(new_position=current_position, ideal_positions=self.water_coordinates)
             if not self.has_visited_fire:
-                self.has_visited_fire = 0 == self.get_distance_score(new_position=current_position, ideal_positions=self.fire_coordinates)
+                self.has_visited_fire = 0 == self.get_distance_between(new_position=current_position, ideal_positions=self.fire_coordinates)
                 
             # keep ideal coordiates up to date
             if self.is_really_smart:
@@ -588,17 +590,30 @@ def generate_samples(number_of_timesteps):
             # 
             # pick action that doesn't hurt the distance to the nearest ideal position
             # 
-            current_distance_score = self.get_distance_score(current_position)
+            current_distance = self.get_distance_between(current_position)
             new_score = -math.inf
             possible_responses = [ each for each in self.responses ]
             random.shuffle(possible_responses)
+            fallback_option = possible_responses[0]
             for each_response in possible_responses:
                 would_be_position = self.predicted_position(each_response)
-                if self.get_distance_score(would_be_position) <= current_distance_score:
+                would_be_new_distance = self.get_distance_between(would_be_position)
+                # skip all the definitely-bad options
+                if would_be_new_distance > current_distance:
+                    continue
+                # immediately take good options
+                elif would_be_new_distance < current_distance:
                     self.timestep.response = each_response
                     return
+                else:
+                    fallback_option = each_response
+                    # only occasionally confirm neutral options
+                    if random.random() < self.scenic_route_propensity:
+                        self.timestep.response = each_response
+                        return
+            
             # if all of them were bad, just pick one
-            self.timestep.response = possible_responses[0]
+            self.timestep.response = fallback_option
             
         def when_timestep_ends(self):
             pass
