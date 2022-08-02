@@ -24,10 +24,10 @@ from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
 number_of_timesteps = 200
-corridor_length   = 55
+world_shape       = (9, 9)
 action_length     = 2
 memory_size       = 1
-observation_size  = corridor_length + action_length
+observation_size  = product(world_shape) + action_length
 input_vector_size = observation_size + memory_size
 verbose           = False
 
@@ -430,11 +430,12 @@ def generate_samples(number_of_timesteps):
     offline_timesteps = []
     
     world = World(
-        grid_width=corridor_length,
-        grid_height=1,
+        grid_width=world_shape[0],
+        grid_height=world_shape[1],
         visualize=False,
         # debug=True,
-        corridor_mode=True,
+        fire_locations=[(-1,-1)],
+        water_locations=[(0,0)],
     )
     env = world.Player()
     
@@ -655,7 +656,7 @@ if True:
 
     def simplify_observation_and_reaction(observation, action):
         observation = list(flatten(to_pure(observation)))
-        observation = observation[0:corridor_length]
+        observation = observation[0:product(world_shape)]
         if action == "UP":
             action = [ True , True  ]
         elif action == "DOWN":
