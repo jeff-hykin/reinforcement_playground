@@ -367,7 +367,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
         a_string = tui_distribution(buckets, [ f"( {small*100:3.2f}, {big*100:3.2f} ]" for small, big in bucket_ranges ])
         return a_string
     
-    for progress, *_ in ProgressBar(iterations):
+    for progress, *_ in ProgressBar(iterations, title=" generation"):
         if progress.index >= iterations:
             break
         
@@ -636,7 +636,7 @@ def generate_samples(number_of_timesteps):
     # 
     for each_epsilon in [ 1.0 ]:
         mr_bond.epsilon = each_epsilon
-        for progress, (episode_index, timestep) in ProgressBar(basic(agent=mr_bond, env=env), iterations=number_of_timesteps):
+        for progress, (episode_index, timestep) in ProgressBar(basic(agent=mr_bond, env=env), iterations=number_of_timesteps, title=" creating timesteps"):
             timestep.hidden_info = dict(episode_index=episode_index)
             offline_timesteps.append(timestep)
             world.random_seed = 1 # same world every time
