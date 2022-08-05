@@ -76,7 +76,7 @@ if True:
             random.shuffle(indicies_of_inputs)
             selected_indicies = indicies_of_inputs[0:how_many_values_to_pay_attention_to]
             input_trigger_conditions = {
-                input_index : randomly_pick_from(set([ each_input[input_index] for each_input in observed_inputs ])) # TODO: this is pretty inefficient. Should pre-compute this when new inputs are observed and then just look it up
+                input_index : randomly_pick_from(set([ each_input[input_index] for each_input in MemoryTriggerAgent.observed_inputs ])) # TODO: this is pretty inefficient. Should pre-compute this when new inputs are observed and then just look it up
                     for input_index in selected_indicies 
             }
             
