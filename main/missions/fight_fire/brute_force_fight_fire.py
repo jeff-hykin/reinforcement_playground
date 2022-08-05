@@ -373,7 +373,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
         
         # evaluate new ones
         with print.indent:
-            for each_memory_agent in next_generation:
+            for evaluation_progress, each_memory_agent in ProgressBar(next_generation, title=" evaluating this generation"):
                 if not verbose: print.disable.always = True
                 score_of[id(each_memory_agent)] = evaluate_prediction_performance(each_memory_agent)
                 if not verbose: print.disable.always = False
@@ -399,7 +399,7 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
                     )
         # logging and checkpoints
         if progress.updated:
-            progress.pretext += compute_terminal_chart()
+            progress.pretext = compute_terminal_chart()
             
             # 
             # save top 10  to disk
@@ -724,4 +724,4 @@ print("#")
 print("# pure random")
 print("#")
 with print.indent:
-    run_many_evaluations(iterations=5, genetic_method="random", disable_memory=False)
+    run_many_evaluations(iterations=100, genetic_method="random", disable_memory=False)
