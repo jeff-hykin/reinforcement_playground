@@ -41,6 +41,7 @@ if True:
             return [ False for each in range(memory_size) ]
     
     class MemoryTriggerAgent:
+        observed_inputs = set()
         def __init__(self, id=None, is_stupid=False, triggers=None, number_of_triggers=1):
             # 
             # set id
@@ -60,10 +61,8 @@ if True:
             # 
             # table
             # 
-            if triggers:
-                self.triggers = triggers
-            else:
-                self.triggers = [ self.generate_random_trigger() for each in range(number_of_triggers) ]
+            self.number_of_triggers = number_of_triggers
+            self.triggers = []
         
         def generate_random_trigger(self):
             """
@@ -77,7 +76,7 @@ if True:
             random.shuffle(indicies_of_inputs)
             selected_indicies = indicies_of_inputs[0:how_many_values_to_pay_attention_to]
             input_trigger_conditions = {
-                input_index : randomly_pick_from([ True, False ])
+                input_index : randomly_pick_from(set([ each_input[input_index] for each_input in observed_inputs ])) # TODO: this is pretty inefficient. Should pre-compute this when new inputs are observed and then just look it up
                     for input_index in selected_indicies 
             }
             
@@ -96,10 +95,17 @@ if True:
             return input_trigger_conditions, new_memory_mapping
     
         def get_next_memory_state(self, observation, memory_value):
-            if self.is_stupid:
-                return [False] * memory_size
+            input_vector = tuple(flatten([ observation, memory_value ]))
+            MemoryTriggerAgent.observed_inputs.add(input_vector)
             
-            input_vector = flatten([ observation, memory_value ])
+            # little bit of a startup issue where triggers need to see a state before creating a trigger for it
+            if self.is_stupid or len(MemoryTriggerAgent.observed_inputs) == 1:
+                return [False] * memory_size
+            else:
+                # only make one trigger at a time
+                if len(self.triggers) < self.number_of_triggers:
+                    self.triggers.append(self.generate_random_trigger())
+            
             for input_trigger_conditions, new_memory_mapping in self.triggers:
                 failed_conditions = False
                 for each_key, each_value in input_trigger_conditions.items():
@@ -113,7 +119,7 @@ if True:
                 for each_key, each_value in new_memory_mapping.items():
                     memory_copy[each_key] = each_value
                 
-                return memory_copy 
+                return tuple(memory_copy) 
             
             # one technically hardcoded trigger
             if type(memory_value) == type(None):
