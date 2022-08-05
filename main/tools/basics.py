@@ -46,7 +46,13 @@ def sort_keys(a_dict):
 def randomly_pick_from(a_list):
     from random import randint
     index = randint(0, len(a_list)-1)
-    return a_list[index]
+    try:
+        return a_list[index]
+    except Exception as error:
+        # iterables
+        for each_index, each in enumerate(a_list):
+            if index == each_index:
+                return each
 
 def list_module_names(system_only=False, installed_only=False):
     def item_is_python_module(item_name, parent_path):
