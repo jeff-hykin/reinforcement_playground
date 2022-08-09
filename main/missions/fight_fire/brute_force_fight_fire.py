@@ -37,7 +37,7 @@ verbose           = False
 if True:
     _number_of_memory_agents = 0
     class MemoryAgent:
-        def get_next_memory_state(self, observation, memory_value):
+        def get_next_memory_state(self, observation, prev_memory):
             return [ False for each in range(memory_size) ]
     
     class MemoryTriggerAgent:
@@ -94,8 +94,8 @@ if True:
             
             return input_trigger_conditions, new_memory_mapping
     
-        def get_next_memory_state(self, observation, memory_value):
-            input_vector = tuple(flatten([ observation, memory_value ]))
+        def get_next_memory_state(self, observation, prev_memory):
+            input_vector = tuple(flatten([ observation, prev_memory ]))
             MemoryTriggerAgent.observed_inputs.add(input_vector)
             
             # little bit of a startup issue where triggers need to see a state before creating a trigger for it
@@ -115,18 +115,18 @@ if True:
                 if failed_conditions: continue
                         
                 # if all the checks pass
-                memory_copy = list(flatten(memory_value))
+                memory_copy = list(flatten(prev_memory))
                 for each_key, each_value in new_memory_mapping.items():
                     memory_copy[each_key] = each_value
                 
                 return tuple(memory_copy) 
             
             # one technically hardcoded trigger
-            if type(memory_value) == type(None):
+            if type(prev_memory) == type(None):
                 return [False] * memory_size
             
             # if all triggers fail, preserve memory
-            return tuple(memory_value)
+            return tuple(prev_memory)
             
         def generate_mutated_copy(self, number_of_mutations):
             # just fully randomize it since its hard to mutate
@@ -181,11 +181,11 @@ if True:
                 self.table = mapping
             
         
-        def get_next_memory_state(self, observation, memory_value):
-            if memory_value is None:
+        def get_next_memory_state(self, observation, prev_memory):
+            if prev_memory is None:
                 key = observation
             else:
-                key = tuple(flatten((observation, memory_value)))
+                key = tuple(flatten((observation, prev_memory)))
             
             if self.is_stupid:
                 return [ False for each in range(memory_size) ]
@@ -293,7 +293,13 @@ if True:
             a_copy = MemoryAgent()
             a_copy.table.update(self.table)
             return a_copy
-
+    
+    class RewardPredictor:
+        def __init__(self, table=None):
+            self.table = table or {}
+        
+        def check(observation_and_reaction, )
+        
 # 
 # evaluation function
 # 
@@ -309,11 +315,26 @@ if True:
         print(f"memory_agent: {memory_agent.id}")
         print(f'''is_perfect_agent = {is_perfect_agent}''')
         
-        number_of_incorrect_predictions = 0
+        discrepancies = find_discrepancies(trajectory=timesteps, memory_agent=memory_agent)
+        
+        score = ( len(timesteps)-len(discrepancies) ) / len(timesteps)
+        print(f'''score = {score}''')
+        return score
+
+# 
+# discrepancy function
+# 
+if True:
+    @print.indent.function_block
+    def find_discrepancies(trajectory, memory_agent):
+        if not trajectory:
+            trajectory = list(enumerate(generate_samples(number_of_timesteps=number_of_timesteps)))
+        
+        discrepancies = []
         reward_predictor_table = {}
         memory_value = None
         was_last_step = True
-        for training_index, each_timestep in timesteps:
+        for training_index, each_timestep in trajectory:
             if was_last_step: memory_value = None
             index         = each_timestep.index
             observation   = each_timestep.observation
@@ -323,32 +344,88 @@ if True:
             hidden_info   = each_timestep.hidden_info
             episode_index = each_timestep.hidden_info["episode_index"]
             
-            state_input = simplify_observation_and_reaction(observation, response)
+            observation_and_action = simplify_observation_and_reaction(observation, response)
             
             with print.indent.block(f"episode: {episode_index}"):
-                memory_value = memory_agent.get_next_memory_state(state_input, memory_value)
-                observation_and_memory = tuple(flatten((state_input, memory_value)))
-                if observation_and_memory not in reward_predictor_table:
-                    reward_predictor_table[observation_and_memory] = reward
+                memory_value = memory_agent.get_next_memory_state(observation_and_action, prev_memory=memory_value)
+                reward_prediction_input = tuple(flatten((observation_and_action, memory_value)))
+                if reward_prediction_input not in reward_predictor_table:
+                    reward_predictor_table[reward_prediction_input] = reward
                     with print.indent.block(f"{training_index}: reward init"):
-                        print(f'''observation_and_memory = {observation_and_memory_as_human_string(observation_and_memory)}''')
+                        print(f'''reward_prediction_input = {reward_prediction_input_as_human_string(reward_prediction_input)}''')
                         print(f'''reward = {reward}''')
                 else:
-                    predicted_value = reward_predictor_table[observation_and_memory]
-                    was_wrong = predicted_value != reward
+                    predicted_reward = reward_predictor_table[reward_prediction_input]
+                    was_wrong = predicted_reward != reward
                     if was_wrong:
-                        number_of_incorrect_predictions += 1
+                        discrepancies.append((predicted_reward, observation_and_action, each_timestep))
                     with print.indent.block(f"{training_index}: reward check"):
-                        print(f'''observation_and_memory = {observation_and_memory_as_human_string(observation_and_memory)}''')
+                        print(f'''reward_prediction_input = {reward_prediction_input_as_human_string(reward_prediction_input)}''')
                         print(f'''reward = {reward}''')
-                        print(f'''predicted_value: {predicted_value}''')
+                        print(f'''predicted_reward: {predicted_reward}''')
                         print(f'''was_wrong: {was_wrong}''')
                 
             was_last_step = is_last_step
         
-        score = ( len(timesteps)-number_of_incorrect_predictions ) / len(timesteps)
-        print(f'''score = {score}''')
-        return score
+        return discrepancies
+
+# 
+# final_memory_value
+# 
+if True:
+    @print.indent.function_block
+    def final_memory_value(trajectory, memory_agent, memory_weights):
+        memory_weights = to_tensor(memory_weights).requires_grad_()
+        
+        memory_value = None
+        was_last_step = True
+        for training_index, each_timestep in trajectory:
+            if was_last_step: memory_value = None
+            index         = each_timestep.index
+            observation   = each_timestep.observation
+            response      = each_timestep.response
+            reward        = each_timestep.reward
+            is_last_step  = each_timestep.is_last_step
+            hidden_info   = each_timestep.hidden_info
+            episode_index = each_timestep.hidden_info["episode_index"]
+            
+            observation_and_action = simplify_observation_and_reaction(observation, response)
+            
+            # memory_value needs to be a torch tensor that requires grad
+            memory_value = memory_agent.get_next_memory_state(observation_and_action, prev_memory=memory_value)
+            
+            # FIXME; need to handle the case of probability instead of memory_value being 0 or 1
+                
+            was_last_step = is_last_step
+        
+        return memory_value
+
+# 
+# update_weights
+# 
+if True:
+    @print.indent.function_block
+    def update_weights(trajectory, memory_agent, memory_weights, alpha=0.01):
+        memory_weights = to_tensor(memory_weights).requires_grad_()
+        
+        discrepancies = find_discrepancies(trajectory, memory_agent)
+        accumulated_descrepancy = 0
+        
+        for predicted_reward, observation_and_action, each_timestep in discrepancies:
+            partial_trajectory = trajectory[0,each_timestep.index]
+            memory_value = final_memory_value(partial_trajectory, memory_agent, memory_weights)
+            # FIXME: gradient tracking is lost right here, not sure how to track a gradient through a hash-table lookup
+            # maybe there's a way to turn the reward predictor into a tensor, then have the the observation_and_action enumerated, then convert the enumeration to a two-hot vector that gets element-wise multiplied by the reward predictor, then the memory value is a one-hot vector that selects the final value
+            memory_lookup = tuple(flatten(list(to_pure(observation_and_action))+to_pure([memory_value])))
+            predicted_reward_that_should_have_tracking = reward_predictor_table[memory_lookup]
+            loss = (predicted_reward_that_should_have_tracking - each_timestep.reward)**2
+            loss.backwards()
+            grad = memory_weights.grad
+            
+            # not sure if accumulated_descrepancy should be included since its already part of the loss function
+            memory_weights -= alpha * grad
+        
+        return memory_value
 
 # 
 # runtime
@@ -655,8 +732,8 @@ def generate_samples(number_of_timesteps):
 # helpers
 # 
 if True:
-    def observation_and_memory_as_human_string(observation_and_memory):
-        *position, going_left, going_right, memory =  observation_and_memory
+    def reward_prediction_input_as_human_string(reward_prediction_input):
+        *position, going_left, going_right, memory =  reward_prediction_input
         output = "\n"
         if going_left and going_right:
             output += "  ^  \n"
