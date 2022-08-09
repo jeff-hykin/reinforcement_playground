@@ -399,6 +399,49 @@ if True:
             was_last_step = is_last_step
         
         return memory_value
+    
+    @print.indent.function_block
+    def final_memory_probability(trajectory, memory_agent, memory_weights):
+        memory_weights = to_tensor(memory_weights).requires_grad_()
+        
+        outcome_probabilities = []
+        
+        memory_value = None
+        was_last_step = True
+        for training_index, each_timestep in trajectory:
+            if was_last_step: memory_value = None
+            index         = each_timestep.index
+            observation   = each_timestep.observation
+            response      = each_timestep.response
+            reward        = each_timestep.reward
+            is_last_step  = each_timestep.is_last_step
+            hidden_info   = each_timestep.hidden_info
+            episode_index = each_timestep.hidden_info["episode_index"]
+            
+            observation_and_action = simplify_observation_and_reaction(observation, response)
+            
+            if len(outcome_probabilities) == 0:
+                probability_of_1 = memory_agent.get_next_memory_state(observation_and_action, prev_memory=memory_value)
+                outcome_probabilities.append(
+                    (
+                        probability_of_1,
+                        1-probability_of_1
+                    )
+                )
+            else:
+                probability_of_given_1, probability_of_not_given_1 = outcome_probabilities[-1]
+                probability_of_1_given_1     = memory_agent.get_next_memory_state(observation_and_action, prev_memory=[True])
+                probability_of_1_given_not_1 = memory_agent.get_next_memory_state(observation_and_action, prev_memory=[False])
+                outcome_probabilities.append(
+                    (
+                        (probability_of_given_1 *   probability_of_1_given_1  ) + (probability_of_not_given_1 *   probability_of_1_given_not_1  ),
+                        (probability_of_given_1 * (1-probability_of_1_given_1)) + (probability_of_not_given_1 * (1-probability_of_1_given_not_1)),
+                    )
+                )
+                
+            was_last_step = is_last_step
+        
+        return outcome_probabilities[-1]
 
 # 
 # update_weights
