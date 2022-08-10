@@ -79,6 +79,7 @@ if True:
             trajectory = list(enumerate(generate_samples(number_of_timesteps=number_of_timesteps)))
         
         discrepancies = {}
+        previous_index_for = defaultdict(lambda : 0)
         reward_predictor_table = {}
         memory_value = None
         was_last_step = True
@@ -123,12 +124,14 @@ if True:
                 
                 # add every trajectory that leads to a discrepancy state
                 if is_known_discrepency_state:
+                    previous_index = previous_index_for[discrepancy_state.as_tuple]
                     discrepency = discrepancies[discrepancy_state.as_tuple]
                     if reward not in discrepency:
                         discrepancy[reward] = set()
                     
-                    sub_trajectory = tuple(trajectory[0:index])
+                    sub_trajectory = tuple(trajectory[previous_index:index])
                     discrepancy[reward].add(sub_trajectory)
+                    previous_index_for[discrepancy_state.as_tuple] = index
         
         return discrepancies
 
@@ -273,11 +276,67 @@ if True:
             # 
             self.number_of_triggers = number_of_triggers
             self.triggers = []
+            self.attempted_triggers = set()
         
-        def generate_next_trigger(self, ):
+        def generate_next_trigger(self, reward_discrepancies):
             """
             returns input_trigger_conditions={ input_index : required_value }, new_memory_mapping={ memory_index: new output value }
             """
+            first_discrepency = next(iter(reward_discrepancies.items()))
+            
+            # 
+            # compute unions and intersections
+            # 
+            union_for        = {}
+            intersection_for = {}
+            for each_reward, sub_trajectories in first_discrepency.items():
+                intersection = None
+                union = set()
+                for each_trajectory in sub_trajectories:
+                    states = set(
+                        DiscrepancyStateFormat(
+                            observation=simplify_observation(each_timestep.observation),
+                            action=simplify_reaction(each_timestep.reaction),
+                        ).as_tuple
+                            for training_index, each_timestep in each_trajectory
+                    )
+                    union        = union | states
+                    intersection = intersection & states if not (intersection is None) else states
+                union_for[each_reward]        = union
+                intersection_for[each_reward] = intersection
+                    
+            # 
+            # create possibilities
+            # 
+            possible_trigger_states_for = {}
+            for each_reward, sub_trajectories in first_discrepency.items():
+                union_of_others = set(flatten(other_union for other_reward, other_union in union_for if other_reward != each_reward))
+                possible_trigger_states_for[each_reward] = intersection_for[each_reward] - union_of_others
+            
+            # 
+            # select best
+            # 
+            import math
+            minimum_value = math.inf
+            minimum_possible_states = None
+            for each_reward, possible_states in possible_trigger_states_for.items():
+                if len(possible_states) == 0:
+                    raise Exception(f'''There's an issue with the {each_reward}, as apparently there is no state that uniquely predicts it. Additional info:\n{first_discrepency}''')
+                
+                if len(possible_states) < minimum_value:
+                    minimum_value = minimum_value
+                    minimum_possible_states = possible_states
+            
+            for each_state in minimum_possible_states:
+                trigger = (reward, each_state)
+                if trigger not in self.attempted_triggers:
+                    self.attempted_triggers.add(trigger)
+                    # FIXME need to return this in a different format
+                    # FIXME need to handle adding the inverse trigger (if its already false, cant set it to false)
+                    return trigger
+            # FIXME handle if all triggers have been tried
+            return
+            
             # 
             # what to pay attention to
             # 
