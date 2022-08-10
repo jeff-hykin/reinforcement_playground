@@ -32,12 +32,114 @@ input_vector_size = observation_size + memory_size
 verbose           = False
 
 # 
+# definitions
+# 
+if True:
+    class PrimaryState:
+        def __init__(self, observation):
+            self.observation = observation
+            
+            self.as_tuple = tuple(flatten([self.observation]))
+    
+    class DiscrepancyStateFormat:
+        def __init__(self, observation, action):
+            self.observation           = observation
+            self.action                = action
+            
+            self.as_tuple = tuple(flatten([ self.observation, self.action ]))
+    
+    class MemoryState:
+        def __init__(self, previous_memory_value, observation, action):
+            self.previous_memory_value = previous_memory_value
+            self.observation           = observation
+            self.action                = action
+            
+            self.as_tuple = tuple(flatten([self.previous_memory_value, self.observation, self.action]))
+        
+    class RewardPredictionState:
+        def __init__(self, observation, action, next_memory_value):
+            self.observation           = observation
+            self.action                = action
+            self.next_memory_value     = next_memory_value
+            
+            self.as_tuple = tuple(flatten([self.observation, self.action, self.next_memory_value]))
+
+# 
+# discrepancy function
+# 
+if True:
+    class Discrepancy(LazyDict):
+        # reward outcome as keys, trajectories as input
+        pass
+        # what part of the state was exclusively true for a particular reward outcome
+        
+    @print.indent.function_block
+    def find_reward_discrepancies(trajectory, memory_agent):
+        if not trajectory:
+            trajectory = list(enumerate(generate_samples(number_of_timesteps=number_of_timesteps)))
+        
+        discrepancies = {}
+        reward_predictor_table = {}
+        memory_value = None
+        was_last_step = True
+        for phase in ["find_discrepancies", "find_all_trajectories_to_discrepency_states"]:
+            for training_index, each_timestep in trajectory:
+                if was_last_step: memory_value = None
+                index         = each_timestep.index
+                observation   = simplify_observation(each_timestep.observation)
+                reaction      = simplify_reaction(each_timestep.reaction)
+                reward        = each_timestep.reward
+                is_last_step  = each_timestep.is_last_step
+                hidden_info   = each_timestep.hidden_info
+                episode_index = each_timestep.hidden_info["episode_index"]
+                
+                discrepancy_state = DiscrepancyStateFormat(observation=observation, action=reaction)
+                memory_state      = MemoryState(previous_memory_value=memory_value, observation=observation, action=reaction)
+                is_known_discrepency_state = discrepancy_state.as_tuple in discrepancies
+                
+                with print.indent.block(f"episode: {episode_index}"):
+                    memory_value = memory_agent.get_next_memory_value(memory_state)
+                    reward_state = RewardPredictionState(observation=observation, action=reaction, next_memory_value=memory_value)
+                    if reward_state.as_tuple not in reward_predictor_table:
+                        reward_predictor_table[reward_state.as_tuple] = reward
+                        with print.indent.block(f"{training_index}: reward init"):
+                            print(f'''reward_state.as_tuple = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
+                            print(f'''reward = {reward}''')
+                    else:
+                        predicted_reward = reward_predictor_table[reward_state.as_tuple]
+                        was_wrong = predicted_reward != reward
+                        if was_wrong and not is_known_discrepency_state:
+                            sub_trajectory = tuple(trajectory[0:index])
+                            discrepancies[discrepancy_state.as_tuple] = Discrepancy({
+                                reward: set([ sub_trajectory ]),
+                            })
+                        with print.indent.block(f"{training_index}: reward check"):
+                            print(f'''reward_state.as_tuple = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
+                            print(f'''reward = {reward}''')
+                            print(f'''predicted_reward: {predicted_reward}''')
+                            print(f'''was_wrong: {was_wrong}''')
+                    
+                was_last_step = is_last_step
+                
+                # add every trajectory that leads to a discrepancy state
+                if is_known_discrepency_state:
+                    discrepency = discrepancies[discrepancy_state.as_tuple]
+                    if reward not in discrepency:
+                        discrepancy[reward] = set()
+                    
+                    sub_trajectory = tuple(trajectory[0:index])
+                    discrepancy[reward].add(sub_trajectory)
+        
+        return discrepancies
+
+
+# 
 # memory agent
 # 
 if True:
     _number_of_memory_agents = 0
     class MemoryAgent:
-        def get_next_memory_state(self, observation, prev_memory):
+        def get_next_memory_value(self, memory_state):
             return [ False for each in range(memory_size) ]
     
     class MemoryTriggerAgent:
@@ -94,8 +196,8 @@ if True:
             
             return input_trigger_conditions, new_memory_mapping
     
-        def get_next_memory_state(self, observation, prev_memory):
-            input_vector = tuple(flatten([ observation, prev_memory ]))
+        def get_next_memory_value(self, memory_state):
+            input_vector = memory_state.as_tuple
             MemoryTriggerAgent.observed_inputs.add(input_vector)
             
             # little bit of a startup issue where triggers need to see a state before creating a trigger for it
@@ -115,18 +217,126 @@ if True:
                 if failed_conditions: continue
                         
                 # if all the checks pass
-                memory_copy = list(flatten(prev_memory))
+                memory_copy = list(flatten(memory_state.previous_memory_value))
                 for each_key, each_value in new_memory_mapping.items():
                     memory_copy[each_key] = each_value
                 
                 return tuple(memory_copy) 
             
             # one technically hardcoded trigger
-            if type(prev_memory) == type(None):
+            if type(memory_state.previous_memory_value) == type(None):
                 return [False] * memory_size
             
             # if all triggers fail, preserve memory
-            return tuple(prev_memory)
+            return tuple(memory_state.previous_memory_value)
+            
+        def generate_mutated_copy(self, number_of_mutations):
+            # just fully randomize it since its hard to mutate
+            # TODO: change this in the future
+            return MemoryTriggerAgent()
+        
+        def __json__(self):
+            return {
+                "class": "MemoryTriggerAgent",
+                "kwargs": dict(
+                    id=self.id,
+                    is_stupid=self.is_stupid,
+                    triggers=self.triggers,
+                ),
+            }
+        
+        @staticmethod
+        def from_json(json_data):
+            return MemoryTriggerAgent(**json_data["kwargs"])
+
+    
+    class MemoryHypothesisAgent:
+        observed_inputs = set()
+        def __init__(self, id=None, is_stupid=False, triggers=None, number_of_triggers=1):
+            # 
+            # set id
+            # 
+            global _number_of_memory_agents
+            if type(id) != type(None):
+                self.id = id
+            else:
+                _number_of_memory_agents += 1
+                self.id = _number_of_memory_agents
+            
+            # 
+            # is_stupid
+            # 
+            self.is_stupid = is_stupid
+            
+            # 
+            # table
+            # 
+            self.number_of_triggers = number_of_triggers
+            self.triggers = []
+        
+        def generate_next_trigger(self, ):
+            """
+            returns input_trigger_conditions={ input_index : required_value }, new_memory_mapping={ memory_index: new output value }
+            """
+            # 
+            # what to pay attention to
+            # 
+            how_many_values_to_pay_attention_to = random.randint(1,input_vector_size)
+            indicies_of_inputs = [ each for each in range(input_vector_size) ]
+            random.shuffle(indicies_of_inputs)
+            selected_indicies = indicies_of_inputs[0:how_many_values_to_pay_attention_to]
+            input_trigger_conditions = {
+                input_index : randomly_pick_from(set([ each_input[input_index] for each_input in MemoryTriggerAgent.observed_inputs ])) # TODO: this is pretty inefficient. Should pre-compute this when new inputs are observed and then just look it up
+                    for input_index in selected_indicies 
+            }
+            
+            # 
+            # where/what to output
+            # 
+            how_many_memory_values_to_set = random.randint(1,input_vector_size)
+            indicies_of_memory = [ each for each in range(memory_size) ]
+            random.shuffle(indicies_of_memory)
+            selected_memory_indicies = indicies_of_memory[0:how_many_memory_values_to_set]
+            new_memory_mapping = {
+                memory_index : randomly_pick_from([ True, False ])
+                    for memory_index in selected_memory_indicies 
+            }
+            
+            return input_trigger_conditions, new_memory_mapping
+    
+        def get_next_memory_value(self, memory_state):
+            input_vector = memory_state.as_tuple
+            MemoryTriggerAgent.observed_inputs.add(input_vector)
+            
+            # little bit of a startup issue where triggers need to see a state before creating a trigger for it
+            if self.is_stupid or len(MemoryTriggerAgent.observed_inputs) == 1:
+                return [False] * memory_size
+            else:
+                # only make one trigger at a time
+                if len(self.triggers) < self.number_of_triggers:
+                    self.triggers.append(self.generate_random_trigger())
+            
+            for input_trigger_conditions, new_memory_mapping in self.triggers:
+                failed_conditions = False
+                for each_key, each_value in input_trigger_conditions.items():
+                    if input_vector[each_key] != each_value:
+                        failed_conditions = True
+                        break
+                if failed_conditions: continue
+                        
+                # if all the checks pass
+                memory_copy = list(flatten(memory_state.previous_memory_value))
+                for each_key, each_value in new_memory_mapping.items():
+                    memory_copy[each_key] = each_value
+                
+                return tuple(memory_copy) 
+            
+            # one technically hardcoded trigger
+            if type(memory_state.previous_memory_value) == type(None):
+                return [False] * memory_size
+            
+            # if all triggers fail, preserve memory
+            return tuple(memory_state.previous_memory_value)
             
         def generate_mutated_copy(self, number_of_mutations):
             # just fully randomize it since its hard to mutate
@@ -181,16 +391,11 @@ if True:
                 self.table = mapping
             
         
-        def get_next_memory_state(self, observation, prev_memory):
-            if prev_memory is None:
-                key = observation
-            else:
-                key = tuple(flatten((observation, prev_memory)))
-            
+        def get_next_memory_value(self, memory_state):
             if self.is_stupid:
-                return [ False for each in range(memory_size) ]
+                return tuple([ False for each in range(memory_size) ])
             else:
-                return self.table[key]
+                return self.table[memory_state.as_tuple]
             
         
         @staticmethod
@@ -252,17 +457,15 @@ if True:
             self.table = {}
             self.id = 0
         
-        def get_next_memory_state(self, observation, prev_memory):
-            agent_position_0, *others = observation
-            key = tuple(flatten([observation, prev_memory])) if type(prev_memory) != type(None) else tuple(observation)
-            
-            prev_memory = flatten(prev_memory)
+        def get_next_memory_value(self, memory_state):
+            agent_position_0 = next(iter(flatten(memory_state.observation))) # the first element in the observation
             if agent_position_0:
                 memory_out = [ True ]
             else:
-                memory_out = list(prev_memory)
-                
-            self.table[key] = [ not not each for each in memory_out ]
+                memory_out = list(flatten(memory_state.previous_memory_value))
+            
+            key = memory_state.as_tuple
+            self.table[key] = tuple([ not not each for each in memory_out ])
             return self.table[key]
             
         def duplicate(self):
@@ -315,61 +518,17 @@ if True:
         print(f"memory_agent: {memory_agent.id}")
         print(f'''is_perfect_agent = {is_perfect_agent}''')
         
-        discrepancies = find_discrepancies(trajectory=timesteps, memory_agent=memory_agent)
+        discrepancies = find_reward_discrepancies(trajectory=timesteps, memory_agent=memory_agent)
         
         score = ( len(timesteps)-len(discrepancies) ) / len(timesteps)
         print(f'''score = {score}''')
         return score
 
 # 
-# discrepancy function
+# hypothesis machine
 # 
 if True:
-    @print.indent.function_block
-    def find_discrepancies(trajectory, memory_agent):
-        if not trajectory:
-            trajectory = list(enumerate(generate_samples(number_of_timesteps=number_of_timesteps)))
-        
-        discrepancies = []
-        reward_predictor_table = {}
-        memory_value = None
-        was_last_step = True
-        for training_index, each_timestep in trajectory:
-            if was_last_step: memory_value = None
-            index         = each_timestep.index
-            observation   = each_timestep.observation
-            response      = each_timestep.response
-            reward        = each_timestep.reward
-            is_last_step  = each_timestep.is_last_step
-            hidden_info   = each_timestep.hidden_info
-            episode_index = each_timestep.hidden_info["episode_index"]
-            
-            observation_and_action = simplify_observation_and_reaction(observation, response)
-            
-            with print.indent.block(f"episode: {episode_index}"):
-                memory_value = memory_agent.get_next_memory_state(observation_and_action, prev_memory=memory_value)
-                reward_prediction_input = tuple(flatten((observation_and_action, memory_value)))
-                if reward_prediction_input not in reward_predictor_table:
-                    reward_predictor_table[reward_prediction_input] = reward
-                    with print.indent.block(f"{training_index}: reward init"):
-                        print(f'''reward_prediction_input = {reward_prediction_input_as_human_string(reward_prediction_input)}''')
-                        print(f'''reward = {reward}''')
-                else:
-                    predicted_reward = reward_predictor_table[reward_prediction_input]
-                    was_wrong = predicted_reward != reward
-                    if was_wrong:
-                        discrepancies.append((predicted_reward, observation_and_action, each_timestep))
-                    with print.indent.block(f"{training_index}: reward check"):
-                        print(f'''reward_prediction_input = {reward_prediction_input_as_human_string(reward_prediction_input)}''')
-                        print(f'''reward = {reward}''')
-                        print(f'''predicted_reward: {predicted_reward}''')
-                        print(f'''was_wrong: {was_wrong}''')
-                
-            was_last_step = is_last_step
-        
-        return discrepancies
-
-
+    pass
 
 # 
 # runtime
@@ -508,15 +667,15 @@ def generate_samples(number_of_timesteps):
         @enhance_with(EpisodeEnhancement, LoggerEnhancement,)
         def __init__(self,
             observation_space,
-            response_space,
-            responses=None,
+            reaction_space,
+            reactions=None,
             training=True,
             learning_rate=0.5,
             discount_factor=0.9,
             epsilon=1.0,
             epsilon_decay=0.0001,
             default_value_assumption=0,
-            get_greedy_response=None,
+            get_greedy_reaction=None,
             random_seed=None,
         ):
             self.has_water = None
@@ -525,24 +684,24 @@ def generate_samples(number_of_timesteps):
             self.observation_space = observation_space
             self.observation_shape = self.observation_space.shape or (self.observation_space.n,)
             self.observation_size  = product(self.observation_shape)
-            self.response_space    = response_space
-            self.response_shape    = self.response_space.shape or (self.response_space.n,)
-            self.response_size     = product(self.response_shape)
+            self.reaction_space    = reaction_space
+            self.reaction_shape    = self.reaction_space.shape or (self.reaction_space.n,)
+            self.reaction_size     = product(self.reaction_shape)
             self.learning_rate     = learning_rate
             self.discount_factor   = discount_factor
-            self.responses         = OneHotifier(
-                possible_values=(  responses or tuple(range(self.response_size))  ),
+            self.reactions         = OneHotifier(
+                possible_values=(  reactions or tuple(range(self.reaction_size))  ),
             )
             self.random_seed       = random_seed or time.time()
             self.training          = training
-            self.epsilon           = epsilon        # Amount of randomness in the response selection
+            self.epsilon           = epsilon        # Amount of randomness in the reaction selection
             self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
             self.debug             = LazyDict()
             
             self.scenic_route_propensity = 0.4 # 0.4==40% of the time, if the first not-bad option is a scenic route, it'll take it
             
             self.default_value_assumption = default_value_assumption
-            self._get_greedy_response       = get_greedy_response
+            self._get_greedy_reaction       = get_greedy_reaction
         
         def get_position(self, timestep=None):
             timestep = timestep or self.timestep
@@ -619,28 +778,28 @@ def generate_samples(number_of_timesteps):
             # 
             current_distance = self.get_distance_between(current_position)
             new_score = -math.inf
-            possible_responses = [ each for each in self.responses ]
-            random.shuffle(possible_responses)
-            fallback_option = possible_responses[0]
-            for each_response in possible_responses:
-                would_be_position = self.predicted_position(each_response)
+            possible_reactions = [ each for each in self.reactions ]
+            random.shuffle(possible_reactions)
+            fallback_option = possible_reactions[0]
+            for each_reaction in possible_reactions:
+                would_be_position = self.predicted_position(each_reaction)
                 would_be_new_distance = self.get_distance_between(would_be_position)
                 # skip all the definitely-bad options
                 if would_be_new_distance > current_distance:
                     continue
                 # immediately take good options
                 elif would_be_new_distance < current_distance:
-                    self.timestep.response = each_response
+                    self.timestep.reaction = each_reaction
                     return
                 else:
-                    fallback_option = each_response
+                    fallback_option = each_reaction
                     # only occasionally confirm neutral options
                     if random.random() < self.scenic_route_propensity:
-                        self.timestep.response = each_response
+                        self.timestep.reaction = each_reaction
                         return
             
             # if all of them were bad, just pick one
-            self.timestep.response = fallback_option
+            self.timestep.reaction = fallback_option
             
         def when_timestep_ends(self):
             pass
@@ -654,8 +813,8 @@ def generate_samples(number_of_timesteps):
     
     mr_bond = Agent(
         observation_space=env.observation_space,
-        response_space=env.action_space,
-        responses=env.actions.values(),
+        reaction_space=env.action_space,
+        reactions=env.actions.values(),
     )
     
     # 
@@ -696,25 +855,25 @@ if True:
         output += f"memory = [ {int(memory)} ]\n"
         return output
 
-    def simplify_observation_and_reaction(observation, action):
-        observation = list(flatten(to_pure(observation)))
-        observation = observation[0:product(world_shape)]
+    def simplify_observation(observation):
+        observation = tuple(flatten(to_pure(observation)))
+        return observation[0:product(world_shape)]
+    
+    def simplify_reaction(action):
         if action == "UP":
-            action = [ True , True  ]
+            return ( True , True  )
         elif action == "DOWN":
-            action = [ False, False ]
+            return ( False, False )
         elif action == "LEFT":
-            action = [ True , False ]
+            return ( True , False )
         elif action == "RIGHT":
-            action = [ False, True ]
+            return ( False, True )
         else:
             raise Exception(f'''
                 action = {action}
                 expected up/down/left/right
             ''')
         
-        return tuple(flatten(observation + action))
-
 print.flush.always = not verbose # False=>optimizes throughput, True=>optimizes responsiveness
 
 print("#")

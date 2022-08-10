@@ -44,15 +44,15 @@ class Decision:
         self.position = tuple(to_pure(
             all_argmax_coordinates(timestep.observation.position)[0] # there can be many argmax's, but we know there will only ever be 1 for position
         ))
-        self.response = timestep.response
+        self.reaction = timestep.reaction
     def __hash__(self):
-        return hash(tuple((self.response, self.position)))
+        return hash(tuple((self.reaction, self.position)))
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
-        return f"{self.response}".rjust(7)+f"{self.position}"
+        return f"{self.reaction}".rjust(7)+f"{self.position}"
     def __lt__(self, other):
-        return tuple((self.position, self.response)) < tuple((other.position, other.response))
+        return tuple((self.position, self.reaction)) < tuple((other.position, other.reaction))
     def __eq__(self, other):
         return hash(self) == hash(other)
 
@@ -138,11 +138,11 @@ class ValueCriticEnhancement(Enhancement):
     """
         requires:
             self.episode.timestep.index
-            self.responses # finite list of each possible response
+            self.reactions # finite list of each possible reaction
         adds:
-            self.value_of(observation, response, episode_timestep_index)
+            self.value_of(observation, reaction, episode_timestep_index)
                 returns a scalar
-            self.bellman_update((observation, response, episode_timestep_index), new_value)
+            self.bellman_update((observation, reaction, episode_timestep_index), new_value)
     """
     
     def when_mission_starts(self, original, ):
@@ -152,7 +152,7 @@ class ValueCriticEnhancement(Enhancement):
         self._critic_pipeline = None
         self._critic = CriticNetwork(
             input_size=product(observation_shape),
-            output_size=len(self.responses),
+            output_size=len(self.reactions),
             number_of_layers=2,
         )
         self._sum_table     = Object(Options(default=lambda each, self: 0))
@@ -161,7 +161,7 @@ class ValueCriticEnhancement(Enhancement):
         self._critic_table  = Object(Options(default=lambda each, self: 0))
         
         def value_of(timestep):
-            return self._critic_cache[timestep.index][timestep.response]
+            return self._critic_cache[timestep.index][timestep.reaction]
         
         def _critic_update_pipeline(timestep):
             observation = to_tensor(timestep.observation).float()
@@ -175,8 +175,8 @@ class ValueCriticEnhancement(Enhancement):
             )
             timestep.critic.output = self._critic_pipeline(observation)
             self._critic_cache[timestep.index] = {
-                each_response : each_value
-                    for each_response, each_value in zip(self.responses, timestep.critic.output)
+                each_reaction : each_value
+                    for each_reaction, each_value in zip(self.reactions, timestep.critic.output)
             }
         
         # 
@@ -213,9 +213,9 @@ class ValueCriticEnhancement(Enhancement):
             # 
             # get tensor form of choice (for the loss function)
             # 
-            response_index = self.responses.value_to_index(timestep.response)     # response_index is the action we want the loss to affect (so we only change that part of the tensor)
+            reaction_index = self.reactions.value_to_index(timestep.reaction)     # reaction_index is the action we want the loss to affect (so we only change that part of the tensor)
             ideal_output = list(to_pure(each) for each in timestep.critic.output) # get whatever the weights wouldve been
-            ideal_output[response_index] = updated_q_value                        # replace this one weight in the copy
+            ideal_output[reaction_index] = updated_q_value                        # replace this one weight in the copy
             ideal_output = to_tensor(ideal_output)                                 
             
             
@@ -260,11 +260,11 @@ class QTableEnhancement(Enhancement):
     """
         requires:
             self.episode.timestep.index
-            self.responses # finite list of each possible response
+            self.reactions # finite list of each possible reaction
         adds:
-            self.value_of(observation, response, episode_timestep_index)
+            self.value_of(observation, reaction, episode_timestep_index)
                 returns a scalar
-            self.bellman_update((observation, response, episode_timestep_index), new_value)
+            self.bellman_update((observation, reaction, episode_timestep_index), new_value)
     """
     
     def when_mission_starts(self, original, ):
@@ -275,10 +275,10 @@ class QTableEnhancement(Enhancement):
             # position_key = hash(tuple(flatten(to_pure(timestep.observation))))
             if position_key not in self.q_table:
                 self.q_table[position_key] = LazyDict()
-            if timestep.response not in self.q_table[position_key]:
+            if timestep.reaction not in self.q_table[position_key]:
                 return 0
             else:
-                return self.q_table[position_key][timestep.response]
+                return self.q_table[position_key][timestep.reaction]
         
         # 
         # attch methods
@@ -291,52 +291,52 @@ class QTableEnhancement(Enhancement):
         timestep = self.episode.timestep
         
         assert torch.all(sanity.observation == deepcopy(timestep.observation.clone().detach()))
-        assert sanity.response == deepcopy(timestep.response)
+        assert sanity.reaction == deepcopy(timestep.reaction)
         assert self.position == self.get_position(timestep)
         
         position_key = self.get_position(timestep)
         if position_key not in self.q_table:
             self.q_table[position_key] = {}
         
-        self.q_table[position_key][timestep.response] = timestep.updated_q_value
-        debug.sanity_q_table = f"position_key={position_key}, response={timestep.response}, value={timestep.updated_q_value}"
-        compare_string       = f"position_key={position_key}, response={timestep.response}"
+        self.q_table[position_key][timestep.reaction] = timestep.updated_q_value
+        debug.sanity_q_table = f"position_key={position_key}, reaction={timestep.reaction}, value={timestep.updated_q_value}"
+        compare_string       = f"position_key={position_key}, reaction={timestep.reaction}"
         self.debug.q_table = self.q_table
         
 class Agent(Skeleton):
     @enhance_with(EpisodeEnhancement, LoggerEnhancement, FightFireEnhancement, QTableEnhancement)
     def __init__(self,
         observation_space,
-        response_space,
-        responses=None,
+        reaction_space,
+        reactions=None,
         training=True,
         learning_rate=0.5,
         discount_factor=0.9,
         epsilon=1.0,
         epsilon_decay=0.0001,
         default_value_assumption=0,
-        get_greedy_response=None,
+        get_greedy_reaction=None,
         random_seed=None,
     ):
         self.observation_space = observation_space
         self.observation_shape = self.observation_space.shape or (self.observation_space.n,)
         self.observation_size  = product(self.observation_shape)
-        self.response_space    = response_space
-        self.response_shape    = self.response_space.shape or (self.response_space.n,)
-        self.response_size     = product(self.response_shape)
+        self.reaction_space    = reaction_space
+        self.reaction_shape    = self.reaction_space.shape or (self.reaction_space.n,)
+        self.reaction_size     = product(self.reaction_shape)
         self.learning_rate     = learning_rate
         self.discount_factor   = discount_factor
-        self.responses         = OneHotifier(
-            possible_values=(  responses or tuple(range(self.response_size))  ),
+        self.reactions         = OneHotifier(
+            possible_values=(  reactions or tuple(range(self.reaction_size))  ),
         )
         self.random_seed       = random_seed or time.time()
         self.training          = training
-        self.epsilon           = epsilon        # Amount of randomness in the response selection
+        self.epsilon           = epsilon        # Amount of randomness in the reaction selection
         self.epsilon_decay     = epsilon_decay  # Fixed amount to decrease
         self.debug             = LazyDict()
         
         self.default_value_assumption = default_value_assumption
-        self._get_greedy_response       = get_greedy_response
+        self._get_greedy_reaction       = get_greedy_reaction
     
     def get_position(self, timestep):
         for row_index, each_row in enumerate(timestep.observation.position):
@@ -344,24 +344,24 @@ class Agent(Skeleton):
                 if each_cell:
                     return row_index, column_index
     
-    def get_greedy_response(self, timestep):
+    def get_greedy_reaction(self, timestep):
         import math
         observation       = timestep.observation
-        response_values   = []
+        reaction_values   = []
         
         max_value         = -math.inf
-        greedy_response = None
-        for each_response in self.responses:
+        greedy_reaction = None
+        for each_reaction in self.reactions:
             value = self.value_of(
-                Timestep(timestep, response=each_response)
+                Timestep(timestep, reaction=each_reaction)
             )
-            self.debug[each_response] = value
+            self.debug[each_reaction] = value
             if value > max_value:
                 max_value       = value
-                greedy_response = each_response
+                greedy_reaction = each_reaction
         
-        self.debug.best_action = greedy_response
-        return greedy_response
+        self.debug.best_action = greedy_reaction
+        return greedy_reaction
     
     # 
     # mission hooks
@@ -382,14 +382,14 @@ class Agent(Skeleton):
         self.random_seed += 1
         random.seed(self.random_seed)
         self.following_policy = random.random() > self.running_epsilon
-        self.timestep.response = randomly_pick_from(self.responses)
+        self.timestep.reaction = randomly_pick_from(self.reactions)
         random.seed(time.time()) # go back to actual random for other things
         
         # if not self.following_policy:
-        #     self.timestep.response = randomly_pick_from(self.responses)
-        # # else, take the response with the highest value in the current self.observation
-        # elif not self.timestep.response: # self.next_timestep.response may have already been calculated, 
-        #     self.timestep.response = self.get_greedy_response(self.episode.timestep)
+        #     self.timestep.reaction = randomly_pick_from(self.reactions)
+        # # else, take the reaction with the highest value in the current self.observation
+        # elif not self.timestep.reaction: # self.next_timestep.reaction may have already been calculated, 
+        #     self.timestep.reaction = self.get_greedy_reaction(self.episode.timestep)
     
     def when_timestep_ends(self):
         assert torch.all(sanity.when_start.observation == self.timestep.observation.position)
@@ -397,10 +397,10 @@ class Agent(Skeleton):
         assert self.position == self.get_position(self.timestep)
         
         sanity.observation = deepcopy(self.timestep.observation.clone().detach())
-        sanity.response = deepcopy(self.timestep.response)
-        self.debug.sanity = f'''self.position = {self.position}, action = {self.timestep.response}, reward = {self.timestep.reward}'''
+        sanity.reaction = deepcopy(self.timestep.reaction)
+        self.debug.sanity = f'''self.position = {self.position}, action = {self.timestep.reaction}, reward = {self.timestep.reward}'''
         
-        self.next_timestep.response = self.get_greedy_response(self.episode.next_timestep)
+        self.next_timestep.reaction = self.get_greedy_reaction(self.episode.next_timestep)
         timestep      = self.episode.timestep
         next_timestep = self.episode.next_timestep
         q_value_current = to_pure(self.value_of(timestep))            # q_t0 = Q(s0, a0)
