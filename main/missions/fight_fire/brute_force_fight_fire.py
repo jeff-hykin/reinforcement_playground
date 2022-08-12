@@ -23,13 +23,14 @@ from tools.universe.timestep import Timestep
 from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
-number_of_timesteps = 200
-world_shape       = (9, 9)
-action_length     = 2
-memory_size       = 1
-observation_size  = product(world_shape) + action_length
-input_vector_size = observation_size + memory_size
-verbose           = False
+number_of_timesteps    = 200
+world_shape            = (9, 9)
+action_length          = 2
+memory_size            = 1
+possible_memory_values = [0,1] # each bit is 1 or 0 
+observation_size       = product(world_shape) + action_length
+input_vector_size      = observation_size + memory_size
+verbose                = False
 
 # 
 # definitions
@@ -41,12 +42,16 @@ if True:
             
             self.as_tuple = tuple(flatten([self.observation]))
     
+        def __hash__(self): return hash(self.as_tuple)
+    
     class DiscrepancyStateFormat:
         def __init__(self, observation, action):
             self.observation           = observation
             self.action                = action
             
             self.as_tuple = tuple(flatten([ self.observation, self.action ]))
+        
+        def __hash__(self): return hash(self.as_tuple)
     
     class MemoryState:
         def __init__(self, previous_memory_value, observation, action):
@@ -56,6 +61,8 @@ if True:
             
             self.as_tuple = tuple(flatten([self.previous_memory_value, self.observation, self.action]))
         
+        def __hash__(self): return hash(self.as_tuple)
+        
     class RewardPredictionState:
         def __init__(self, observation, action, next_memory_value):
             self.observation           = observation
@@ -63,15 +70,22 @@ if True:
             self.next_memory_value     = next_memory_value
             
             self.as_tuple = tuple(flatten([self.observation, self.action, self.next_memory_value]))
-
+        
+        def __hash__(self): return hash(self.as_tuple)
+    
 # 
 # discrepancy function
 # 
 if True:
     class Discrepancy(LazyDict):
-        # reward outcome as keys, trajectories as input
-        pass
-        # what part of the state was exclusively true for a particular reward outcome
+        def __init__(self, *, state, trajectories_per_outcome=None):
+            self.state = state
+            self.trajectories_per_outcome = trajectories_per_outcome or LazyDict()
+            
+        @property
+        def outcomes(self):
+            return tuple(self.trajectories_per_outcome.keys())
+        
         
     @print.indent.function_block
     def find_reward_discrepancies(trajectory, memory_agent):
@@ -83,20 +97,20 @@ if True:
         reward_predictor_table = {}
         memory_value = None
         was_last_step = True
-        for phase in ["find_discrepancies", "find_all_trajectories_to_discrepency_states"]:
+        for phase in ["find_discrepancies", "find_all_trajectories_to_discrepancy_states"]:
             for training_index, each_timestep in trajectory:
                 if was_last_step: memory_value = None
-                index         = each_timestep.index
-                observation   = simplify_observation(each_timestep.observation)
-                reaction      = simplify_reaction(each_timestep.reaction)
-                reward        = each_timestep.reward
-                is_last_step  = each_timestep.is_last_step
-                hidden_info   = each_timestep.hidden_info
-                episode_index = each_timestep.hidden_info["episode_index"]
+                index             = each_timestep.index
+                observation       = simplify_observation(each_timestep.observation)
+                reaction          = simplify_reaction(each_timestep.reaction)
+                reward            = each_timestep.reward
+                is_last_step      = each_timestep.is_last_step
+                hidden_info       = each_timestep.hidden_info
+                episode_index     = each_timestep.hidden_info["episode_index"]
+                discrepancy_state = each_timestep.hidden_info["discrepancy_state"] = DiscrepancyStateFormat(observation=observation, action=reaction)
                 
-                discrepancy_state = DiscrepancyStateFormat(observation=observation, action=reaction)
                 memory_state      = MemoryState(previous_memory_value=memory_value, observation=observation, action=reaction)
-                is_known_discrepency_state = discrepancy_state.as_tuple in discrepancies
+                is_known_discrepancy_state = discrepancy_state in discrepancies
                 
                 with print.indent.block(f"episode: {episode_index}"):
                     memory_value = memory_agent.get_next_memory_value(memory_state)
@@ -109,11 +123,18 @@ if True:
                     else:
                         predicted_reward = reward_predictor_table[reward_state.as_tuple]
                         was_wrong = predicted_reward != reward
-                        if was_wrong and not is_known_discrepency_state:
+                        if was_wrong and not is_known_discrepancy_state:
                             sub_trajectory = tuple(trajectory[0:index])
-                            discrepancies[discrepancy_state.as_tuple] = Discrepancy({
-                                reward: set([ sub_trajectory ]),
-                            })
+                            discrepancies[discrepancy_state] = Discrepancy(
+                                state=DiscrepancyStateFormat(
+                                    observation=observation,
+                                    action=reaction
+                                ),
+                                trajectories_per_outcome=LazyDict({
+                                    # reward is the outcome, and we've found a single trajectory for that outcome so far
+                                    reward: set([ sub_trajectory ]),
+                                })
+                            )
                         with print.indent.block(f"{training_index}: reward check"):
                             print(f'''reward_state.as_tuple = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
                             print(f'''reward = {reward}''')
@@ -123,17 +144,18 @@ if True:
                 was_last_step = is_last_step
                 
                 # add every trajectory that leads to a discrepancy state
-                if is_known_discrepency_state:
-                    previous_index = previous_index_for[discrepancy_state.as_tuple]
-                    discrepency = discrepancies[discrepancy_state.as_tuple]
-                    if reward not in discrepency:
-                        discrepancy[reward] = set()
+                if is_known_discrepancy_state:
+                    outcome = reward
+                    previous_index = previous_index_for[discrepancy_state]
+                    discrepancy = discrepancies[discrepancy_state]
+                    if outcome not in discrepancy:
+                        discrepancy.trajectories_per_outcome[outcome] = set()
                     
                     sub_trajectory = tuple(trajectory[previous_index:index])
-                    discrepancy[reward].add(sub_trajectory)
-                    previous_index_for[discrepancy_state.as_tuple] = index
+                    discrepancy.trajectories_per_outcome[outcome].add(sub_trajectory)
+                    previous_index_for[discrepancy_state] = index
         
-        return discrepancies
+        return tuple(discrepancies.values())
 
 
 # 
@@ -193,7 +215,7 @@ if True:
             random.shuffle(indicies_of_memory)
             selected_memory_indicies = indicies_of_memory[0:how_many_memory_values_to_set]
             new_memory_mapping = {
-                memory_index : randomly_pick_from([ True, False ])
+                memory_index : randomly_pick_from(possible_memory_values)
                     for memory_index in selected_memory_indicies 
             }
             
@@ -252,10 +274,10 @@ if True:
         def from_json(json_data):
             return MemoryTriggerAgent(**json_data["kwargs"])
 
-    
     class MemoryHypothesisAgent:
+        attempted_hypotheses_for = LazyDict() # keys are tuple(discrepancy_state, reward)
         observed_inputs = set()
-        def __init__(self, id=None, is_stupid=False, triggers=None, number_of_triggers=1):
+        def __init__(self, id=None, is_stupid=False, triggers=None, **kwargs):
             # 
             # set id
             # 
@@ -272,98 +294,87 @@ if True:
             self.is_stupid = is_stupid
             
             # 
-            # table
+            # triggers
             # 
-            self.number_of_triggers = number_of_triggers
-            self.triggers = []
-            self.attempted_triggers = set()
+            self.trigger_map = LazyDict() # key=memory_state, value=set_of_states
         
-        def generate_next_trigger(self, reward_discrepancies):
+        def switch_to_next_hypothesis(self, discrepancies):
             """
             returns input_trigger_conditions={ input_index : required_value }, new_memory_mapping={ memory_index: new output value }
             """
-            first_discrepency = next(iter(reward_discrepancies.items()))
+            # if there were no discrepancies, then no trigger is needed! perfect-as-far-as-we-can-tell agent
+            if len(discrepancies) == 0:
+                return None
             
-            # 
-            # compute unions and intersections
-            # 
-            union_for        = {}
-            intersection_for = {}
-            for each_reward, sub_trajectories in first_discrepency.items():
-                intersection = None
-                union = set()
-                for each_trajectory in sub_trajectories:
-                    states = set(
-                        DiscrepancyStateFormat(
-                            observation=simplify_observation(each_timestep.observation),
-                            action=simplify_reaction(each_timestep.reaction),
-                        ).as_tuple
-                            for training_index, each_timestep in each_trajectory
-                    )
-                    union        = union | states
-                    intersection = intersection & states if not (intersection is None) else states
-                union_for[each_reward]        = union
-                intersection_for[each_reward] = intersection
-                    
-            # 
-            # create possibilities
-            # 
-            possible_trigger_states_for = {}
-            for each_reward, sub_trajectories in first_discrepency.items():
-                union_of_others = set(flatten(other_union for other_reward, other_union in union_for if other_reward != each_reward))
-                possible_trigger_states_for[each_reward] = intersection_for[each_reward] - union_of_others
-            
-            # 
-            # select best
-            # 
-            import math
-            minimum_value = math.inf
-            minimum_possible_states = None
-            for each_reward, possible_states in possible_trigger_states_for.items():
-                if len(possible_states) == 0:
-                    raise Exception(f'''There's an issue with the {each_reward}, as apparently there is no state that uniquely predicts it. Additional info:\n{first_discrepency}''')
+            # since we're only solving the case of a single trigger at the moment, we're only going to consider the first discrepancy
+            if True: # <- this will probably be a for loop later
+                discrepancy = next(iter(discrepancies))
                 
-                if len(possible_states) < minimum_value:
-                    minimum_value = minimum_value
-                    minimum_possible_states = possible_states
-            
-            for each_state in minimum_possible_states:
-                trigger = (reward, each_state)
-                if trigger not in self.attempted_triggers:
-                    self.attempted_triggers.add(trigger)
-                    # FIXME need to return this in a different format
-                    # FIXME need to handle adding the inverse trigger (if its already false, cant set it to false)
-                    return trigger
-            # FIXME handle if all triggers have been tried
-            return
-            
-            # 
-            # what to pay attention to
-            # 
-            how_many_values_to_pay_attention_to = random.randint(1,input_vector_size)
-            indicies_of_inputs = [ each for each in range(input_vector_size) ]
-            random.shuffle(indicies_of_inputs)
-            selected_indicies = indicies_of_inputs[0:how_many_values_to_pay_attention_to]
-            input_trigger_conditions = {
-                input_index : randomly_pick_from(set([ each_input[input_index] for each_input in MemoryTriggerAgent.observed_inputs ])) # TODO: this is pretty inefficient. Should pre-compute this when new inputs are observed and then just look it up
-                    for input_index in selected_indicies 
-            }
-            
-            # 
-            # where/what to output
-            # 
-            how_many_memory_values_to_set = random.randint(1,input_vector_size)
-            indicies_of_memory = [ each for each in range(memory_size) ]
-            random.shuffle(indicies_of_memory)
-            selected_memory_indicies = indicies_of_memory[0:how_many_memory_values_to_set]
-            new_memory_mapping = {
-                memory_index : randomly_pick_from([ True, False ])
-                    for memory_index in selected_memory_indicies 
-            }
-            
+                # 
+                # check discrepancy size
+                # 
+                number_of_outcomes = len(discrepancy.trajectories_per_outcome)
+                if number_of_outcomes > memory_size**possible_memory_values:
+                    raise Exception(f'''Issue: for a particular discrepancy_state:\n    {discrepancy.state}\nThere were many possible outcomes: {list(discrepancy.trajectories_per_outcome.keys())}\nMore outcomes than can possibly fit in a memory of size {memory_size}^{possible_memory_values}''')
+                
+                # 
+                # find unions and intersections for each outcome
+                # 
+                union_for        = {}
+                intersection_for = {}
+                # remove one because it will be the default case (no exclusive trigger needed for it)
+                default, *other_trajectories_per_outcome = tuple(discrepancy.trajectories_per_outcome.items())
+                for each_outcome, sub_trajectories in other_trajectories_per_outcome:
+                    intersection = None
+                    union = set()
+                    for each_trajectory in sub_trajectories:
+                        states = set(
+                            each_timestep.hidden_info["discrepancy_state"]
+                                for training_index, each_timestep in each_trajectory
+                        )
+                        union        =     union    | states
+                        intersection = intersection & states if not (intersection is None) else states
+                    union_for[each_outcome]        = union
+                    intersection_for[each_outcome] = intersection
+                        
+                # 
+                # filter to find possible trigger states
+                # 
+                possible_descrepancy_state_triggers_for_outcome = {}
+                for each_outcome, sub_trajectories in other_trajectories_per_outcome:
+                    union_of_others = set(flatten(other_union for other_reward, other_union in union_for if other_reward != each_outcome))
+                    possible_descrepancy_state_triggers_for_outcome[each_outcome] = intersection_for[each_outcome] - union_of_others
+                
+                # 
+                # create trigger states for each non-default outcome
+                #
+                self.trigger_map.clear() # reset the old triggers which apparently didn't work cause there's still discrepancies
+                memory_value_iterator = iter(permutation_generator(memory_size, possible_values=possible_memory_values))
+                for each_outcome, possible_states in possible_descrepancy_state_triggers_for_outcome.items():
+                    situation_key = (discrepancy_state, each_outcome)
+                    memory_value_for_this_situation = tuple(next(memory_value_iterator))
+                    
+                    # init if needed
+                    if situation_key not in MemoryHypothesisAgent.attempted_hypotheses_for:
+                        MemoryHypothesisAgent.attempted_hypotheses_for[situation_key] = set()
+                    
+                    # remove all the states we've already tried
+                    remaining_possible_states = possible_states - MemoryHypothesisAgent.attempted_hypotheses_for[situation_key]
+                    if len(remaining_possible_states) == 0:
+                        raise Exception(f'''There's an issue with the {each_outcome}, as apparently there is no state that uniquely predicts it. Additional info:\n{first_discrepancy}''')
+                    
+                    # no particular order (heuristics could really help here)
+                    triggering_descrepancy_state = next(iter(remaining_possible_states))
+                    self.trigger_map[memory_value_for_this_situation] = set([ triggering_descrepancy_state ]) # note: simplification that only one state is the trigger
+                    
+                    # mark as attempted, so next time we can skip it
+                    MemoryHypothesisAgent.attempted_hypotheses_for[situation_key].add(triggering_descrepancy_state)
+                
             return input_trigger_conditions, new_memory_mapping
     
         def get_next_memory_value(self, memory_state):
+            # redo this for self.trigger_map
+            
             input_vector = memory_state.as_tuple
             MemoryTriggerAgent.observed_inputs.add(input_vector)
             
@@ -378,7 +389,7 @@ if True:
             for input_trigger_conditions, new_memory_mapping in self.triggers:
                 failed_conditions = False
                 for each_key, each_value in input_trigger_conditions.items():
-                    if input_vector[each_key] != each_value:
+                    if memory_state.as_tuple[each_key] != each_value:
                         failed_conditions = True
                         break
                 if failed_conditions: continue
