@@ -155,7 +155,7 @@ if True:
                     discrepancy.trajectories_per_outcome[outcome].add(sub_trajectory)
                     previous_index_for[discrepancy_state] = index
         
-        return tuple(discrepancies.values())
+        return discrepancies
 
 
 # 
@@ -277,7 +277,7 @@ if True:
     class MemoryHypothesisAgent:
         attempted_hypotheses_for = LazyDict() # keys are tuple(discrepancy_state, reward)
         observed_inputs = set()
-        def __init__(self, id=None, is_stupid=False, triggers=None, **kwargs):
+        def __init__(self, id=None, is_stupid=False, **kwargs):
             # 
             # set id
             # 
@@ -297,14 +297,15 @@ if True:
             # triggers
             # 
             self.trigger_map = LazyDict() # key=memory_state, value=set_of_states
+            self.default_memory_value = next(iter(permutation_generator(memory_size, possible_values=possible_memory_values)))
         
         def switch_to_next_hypothesis(self, discrepancies):
             """
             returns input_trigger_conditions={ input_index : required_value }, new_memory_mapping={ memory_index: new output value }
             """
-            # if there were no discrepancies, then no trigger is needed! perfect-as-far-as-we-can-tell agent
+            # if there were no discrepancies, then no trigger is needed! perfect-as-far-as-we-can-tell agent. (will happen when primary agent hasn't explored enough)
             if len(discrepancies) == 0:
-                return None
+                return
             
             # since we're only solving the case of a single trigger at the moment, we're only going to consider the first discrepancy
             if True: # <- this will probably be a for loop later
@@ -316,6 +317,7 @@ if True:
                 number_of_outcomes = len(discrepancy.trajectories_per_outcome)
                 if number_of_outcomes > memory_size**possible_memory_values:
                     raise Exception(f'''Issue: for a particular discrepancy_state:\n    {discrepancy.state}\nThere were many possible outcomes: {list(discrepancy.trajectories_per_outcome.keys())}\nMore outcomes than can possibly fit in a memory of size {memory_size}^{possible_memory_values}''')
+                memory_value_iterator = iter(permutation_generator(memory_size, possible_values=possible_memory_values))
                 
                 # 
                 # find unions and intersections for each outcome
@@ -323,7 +325,8 @@ if True:
                 union_for        = {}
                 intersection_for = {}
                 # remove one because it will be the default case (no exclusive trigger needed for it)
-                default, *other_trajectories_per_outcome = tuple(discrepancy.trajectories_per_outcome.items())
+                default_outcome, *other_trajectories_per_outcome = tuple(discrepancy.trajectories_per_outcome.items())
+                self.default_memory_value = tuple(next(memory_value_iterator))
                 for each_outcome, sub_trajectories in other_trajectories_per_outcome:
                     intersection = None
                     union = set()
@@ -349,7 +352,6 @@ if True:
                 # create trigger states for each non-default outcome
                 #
                 self.trigger_map.clear() # reset the old triggers which apparently didn't work cause there's still discrepancies
-                memory_value_iterator = iter(permutation_generator(memory_size, possible_values=possible_memory_values))
                 for each_outcome, possible_states in possible_descrepancy_state_triggers_for_outcome.items():
                     situation_key = (discrepancy_state, each_outcome)
                     memory_value_for_this_situation = tuple(next(memory_value_iterator))
@@ -373,59 +375,42 @@ if True:
             return input_trigger_conditions, new_memory_mapping
     
         def get_next_memory_value(self, memory_state):
-            # redo this for self.trigger_map
-            
-            input_vector = memory_state.as_tuple
-            MemoryTriggerAgent.observed_inputs.add(input_vector)
-            
-            # little bit of a startup issue where triggers need to see a state before creating a trigger for it
-            if self.is_stupid or len(MemoryTriggerAgent.observed_inputs) == 1:
-                return [False] * memory_size
-            else:
-                # only make one trigger at a time
-                if len(self.triggers) < self.number_of_triggers:
-                    self.triggers.append(self.generate_random_trigger())
-            
-            for input_trigger_conditions, new_memory_mapping in self.triggers:
-                failed_conditions = False
-                for each_key, each_value in input_trigger_conditions.items():
-                    if memory_state.as_tuple[each_key] != each_value:
-                        failed_conditions = True
-                        break
-                if failed_conditions: continue
-                        
-                # if all the checks pass
-                memory_copy = list(flatten(memory_state.previous_memory_value))
-                for each_key, each_value in new_memory_mapping.items():
-                    memory_copy[each_key] = each_value
-                
-                return tuple(memory_copy) 
-            
-            # one technically hardcoded trigger
+            # set the default case
             if type(memory_state.previous_memory_value) == type(None):
-                return [False] * memory_size
+                return self.default_memory_value
+                
+            # redo this for self.trigger_map
+            # FIXME: triggers need to be based on previous memory values as well
+            discrepancy_state = DiscrepancyStateFormat(observation=memory_state.observation, action=memory_state.action)
+            for each_memory_value, set_of_discrepancy_states in self.trigger_map.items():
+                if discrepancy_state in set_of_discrepancy_states:
+                    return each_memory_value
             
-            # if all triggers fail, preserve memory
-            return tuple(memory_state.previous_memory_value)
+            # no triggers = preserve memory
+            return memory_state.previous_memory_value
             
         def generate_mutated_copy(self, number_of_mutations):
             # just fully randomize it since its hard to mutate
             # TODO: change this in the future
-            return MemoryTriggerAgent()
+            return MemoryHypothesisAgent()
         
         def __json__(self):
-            return {
-                "class": "MemoryTriggerAgent",
-                "kwargs": dict(
-                    id=self.id,
-                    is_stupid=self.is_stupid,
-                    triggers=self.triggers,
-                ),
-            }
+            # TODO
+            pass
+            # return {
+            #     "class": "MemoryHypothesisAgent",
+            #     "kwargs": dict(
+            #         id=self.id,
+            #         is_stupid=self.is_stupid,
+            #         triggers=self.triggers,
+            #     ),
+            # }
         
         @staticmethod
         def from_json(json_data):
-            return MemoryTriggerAgent(**json_data["kwargs"])
+            # TODO
+            pass
+            # return MemoryHypothesisAgent(**json_data["kwargs"])
 
     
     class MemoryMapAgent(MemoryAgent):
@@ -598,7 +583,34 @@ if True:
 # hypothesis machine
 # 
 if True:
-    pass
+    def train_hypothesis_agent(*, iteration_count):
+        memory_agent = MemoryHypothesisAgent()
+        all_discrepancies = LazyDict()
+        for progress, *_ in ProgressBar(iteration_count, title="generation"):
+            trajectory    = generate_samples(number_of_timesteps=number_of_timesteps)
+            discrepancies = find_reward_discrepancies(trajectory, memory_agent)
+            # 
+            # merge them with the old trajectories
+            # 
+            for each_discrepancy_state, each_discrepancy in discrepancies.items():
+                if each_discrepancy_state not in all_discrepancies:
+                    all_discrepancies[each_discrepancy_state] = each_discrepancy
+                else:
+                    for each_outcome, new_sub_trajectories in each_discrepancy.items():
+                        if each_outcome not in all_discrepancies[each_discrepancy_state].trajectories_per_outcome:
+                            all_discrepancies[each_discrepancy_state].trajectories_per_outcome[each_outcome] = new_sub_trajectories
+                        else:
+                            # add any new sub_trajectories
+                            all_discrepancies[each_discrepancy_state].trajectories_per_outcome[each_outcome] |= new_sub_trajectories
+            
+            progress.text = f"number of discrepancies: {len(discrepancies)}, trigger_map: {memory_agent.trigger_map}"
+            
+            # if there's still a problem, try to improve
+            if len(discrepancies) > 0:
+                memory_agent.switch_to_next_hypothesis(all_discrepancies)
+                
+                
+        
 
 # 
 # runtime
@@ -946,38 +958,40 @@ if True:
         
 print.flush.always = not verbose # False=>optimizes throughput, True=>optimizes responsiveness
 
-print("#")
-print("# no_memory")
-print("#")
-with print.indent:
-    best_score = 1
-    while best_score == 1:
-        # regenerate the timesteps until they require memory
-        timesteps = []
-        number_of_timesteps *= 2 # scale up until it works
-        best_score = run_many_evaluations(iterations=1, competition_size=1, genetic_method="random", disable_memory=True)
+
+
+# print("#")
+# print("# no_memory")
+# print("#")
+# with print.indent:
+#     best_score = 1
+#     while best_score == 1:
+#         # regenerate the timesteps until they require memory
+#         timesteps = []
+#         number_of_timesteps *= 2 # scale up until it works
+#         best_score = run_many_evaluations(iterations=1, competition_size=1, genetic_method="random", disable_memory=True)
     
 
+# # print("#")
+# # print("# genetic_mutations_with_perfect")
+# # print("#")
+# # with print.indent:
+# #     run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False, enable_perfect=True)
+
+# # print("#")
+# # print("# genetic_mutations")
+# # print("#")
+# # with print.indent:
+# #     run_many_evaluations(iterations=25, genetic_method="mutation", disable_memory=False)
+
 # print("#")
-# print("# genetic_mutations_with_perfect")
+# print("# pure with perfect")
 # print("#")
 # with print.indent:
-#     run_many_evaluations(iterations=5, genetic_method="mutation", disable_memory=False, enable_perfect=True)
+#     run_many_evaluations(iterations=1, competition_size=2, genetic_method="random", disable_memory=False, enable_perfect=True)
 
 # print("#")
-# print("# genetic_mutations")
+# print("# pure random")
 # print("#")
 # with print.indent:
-#     run_many_evaluations(iterations=25, genetic_method="mutation", disable_memory=False)
-
-print("#")
-print("# pure with perfect")
-print("#")
-with print.indent:
-    run_many_evaluations(iterations=1, competition_size=2, genetic_method="random", disable_memory=False, enable_perfect=True)
-
-print("#")
-print("# pure random")
-print("#")
-with print.indent:
-    run_many_evaluations(iterations=100, genetic_method="random", disable_memory=False)
+#     run_many_evaluations(iterations=100, genetic_method="random", disable_memory=False)
