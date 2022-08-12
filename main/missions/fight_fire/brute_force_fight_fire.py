@@ -132,7 +132,7 @@ if True:
                         predicted_reward = reward_predictor_table[reward_state.as_tuple]
                         was_wrong = predicted_reward != reward
                         if was_wrong and not is_known_discrepancy_state:
-                            sub_trajectory = tuple(trajectory[0:index])
+                            sub_trajectory = tuple(trajectory[0:index+1])
                             print(f'''FOUND@{training_index} discrepancy_state = {discrepancy_state}''')
                             discrepancies[discrepancy_state] = Discrepancy(
                                 state=DiscrepancyStateFormat(
@@ -161,7 +161,7 @@ if True:
                     if outcome not in discrepancy:
                         discrepancy.trajectories_per_outcome[outcome] = set()
                     
-                    sub_trajectory = tuple(trajectory[previous_index:index])
+                    sub_trajectory = tuple(trajectory[previous_index:index+1])
                     discrepancy.trajectories_per_outcome[outcome].add(sub_trajectory)
                     previous_index_for[discrepancy_state] = index
         
@@ -416,7 +416,7 @@ if True:
                     for each_trajectory in sub_trajectories:
                         states = set(
                             each_timestep.hidden_info["discrepancy_state"]
-                                for training_index, each_timestep in each_trajectory
+                                for each_timestep in each_trajectory
                         )
                         union        =     union    | states
                         intersection = intersection & states if not (intersection is None) else states
@@ -428,7 +428,7 @@ if True:
                 # 
                 possible_descrepancy_state_triggers_for_outcome = {}
                 for each_outcome, sub_trajectories in other_trajectories_per_outcome:
-                    union_of_others = set(flatten(other_union for other_reward, other_union in union_for if other_reward != each_outcome))
+                    union_of_others = set(flatten(other_union for other_reward, other_union in union_for.items() if other_reward != each_outcome))
                     possible_descrepancy_state_triggers_for_outcome[each_outcome] = intersection_for[each_outcome] - union_of_others
                 
                 # 
@@ -436,7 +436,7 @@ if True:
                 #
                 self.trigger_map.clear() # reset the old triggers which apparently didn't work cause there's still discrepancies
                 for each_outcome, possible_states in possible_descrepancy_state_triggers_for_outcome.items():
-                    situation_key = (discrepancy_state, each_outcome)
+                    situation_key = (discrepancy.state, each_outcome)
                     memory_value_for_this_situation = tuple(next(memory_value_iterator))
                     
                     # init if needed
@@ -446,7 +446,7 @@ if True:
                     # remove all the states we've already tried
                     remaining_possible_states = possible_states - MemoryHypothesisAgent.attempted_hypotheses_for[situation_key]
                     if len(remaining_possible_states) == 0:
-                        raise Exception(f'''There's an issue with the {each_outcome}, as apparently there is no state that uniquely predicts it. Additional info:\n{first_discrepancy}''')
+                        raise Exception(f'''There's an issue with the {each_outcome}, as apparently there is no state that uniquely predicts it. Additional info:\n{discrepancy}''')
                     
                     # no particular order (heuristics could really help here)
                     triggering_descrepancy_state = next(iter(remaining_possible_states))
