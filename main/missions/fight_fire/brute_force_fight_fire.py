@@ -19,7 +19,7 @@ import torch.nn as nn
 
 from world_builders.fight_fire.world import World
 from agent_builders.dqn_lstm.universal_agent import Agent
-from tools.universe.timestep import Timestep
+from tools.universe.timestep import Timestep, TimestepSeries
 from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
@@ -127,6 +127,9 @@ if True:
                 episode_index     = each_timestep.hidden_info["episode_index"]
                 discrepancy_state = each_timestep.hidden_info["discrepancy_state"] = DiscrepancyStateFormat(observation=observation, action=reaction)
                 
+                # add the training index
+                each_timestep.hidden_info = LazyDict(training_index=training_index).update(each_timestep.hidden_info)
+                
                 memory_state      = MemoryState(previous_memory_value=memory_value, observation=observation, action=reaction)
                 
                 with print.indent.block(f"episode: {episode_index}"):
@@ -164,7 +167,7 @@ if True:
                     
                     print_descrepancy_count()
                     print(f'''REFOUND@{training_index}, hash:{hash(discrepancy_state)}, sub_trajectory=[{previous_index}:{training_index}], reward:{reward} previous_index_for:{previous_index_for} discrepancy_state = {discrepancy_state}''')
-                    sub_trajectory = tuple(trajectory[previous_index:training_index+1])
+                    sub_trajectory = tuple(trajectory[previous_index:training_index])
                     discrepancy.trajectories_per_outcome[outcome].add(sub_trajectory)
                     previous_index_for[discrepancy_state] = training_index
                     print_descrepancy_count()
@@ -379,7 +382,14 @@ if True:
                     # remove all the states we've already tried
                     remaining_possible_states = possible_states - MemoryHypothesisAgent.attempted_hypotheses_for[situation_key]
                     if len(remaining_possible_states) == 0:
-                        raise Exception(f'''There's an issue with the {each_outcome}, as apparently there is no state that uniquely predicts it. Additional info:\n{discrepancy}''')
+                        raise Exception(
+                            f'''
+                            There's an issue with the {each_outcome}, as apparently there is no state that uniquely predicts it.
+                                intersection_for[{each_outcome}] = \n{indent(intersection_for[each_outcome], by=32)}
+                                union_for[{each_outcome}]        = \n{indent(union_for[each_outcome], by=32)}
+                                discrepancy:\n{discrepancy}
+                            '''
+                        )
                     
                     # no particular order (heuristics could really help here)
                     triggering_descrepancy_state = next(iter(remaining_possible_states))

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import json_fix
+from super_map import LazyDict
 
 @dataclass
 class Timestep:
@@ -30,6 +31,16 @@ class Timestep:
     def __json__(self):
         return self.__dict__
     
+    def __repr__(self):
+        return "Timestep"+repr(LazyDict(
+            index=self.index,
+            observation=self.observation,
+            reaction=self.reaction,
+            reward=self.reward,
+            is_last_step=self.is_last_step,
+            hidden_info=self.hidden_info,
+        ))
+    
     @classmethod
     def from_dict(cls, dict_data):
         return Timestep(**dict_data)
@@ -58,9 +69,13 @@ class MockTimestep(Timestep):
     
 
 class TimestepSeries:
-    def __init__(self, ):
+    def __init__(self, timesteps=None):
         self.index = -1
         self.steps = {}
+        if type(timesteps) != type(None):
+            for each in timesteps:
+                self.index = each.index
+                self.steps[self.index] = each
     
     @property
     def prev(self):
@@ -69,16 +84,17 @@ class TimestepSeries:
         else:
             return Timestep() # all attributes are none/false
     
-    def add(self, state=None, reaction=None, reward=None, is_last_step=False):
+    def add(self, state=None, reaction=None, reward=None, is_last_step=False, hidden_info=None):
         # if timestep, pull all the data out of the timestep
         if isinstance(state, Timestep):
             observation  = state.observation
             reaction     = state.reaction
             reward       = state.reward
             is_last_step = state.is_last_step
+            hidden_info  = state.hidden_info
             
         self.index += 1
-        self.steps[self.index] = Timestep(index=self.index, observation=observation, reaction=reaction, reward=reward, is_last_step=is_last_step)
+        self.steps[self.index] = Timestep(index=self.index, observation=observation, reaction=reaction, reward=reward, is_last_step=is_last_step, hidden_info=hidden_info)
     
     @property
     def observations(self):
@@ -135,3 +151,9 @@ class TimestepSeries:
             string += f"    {index}, {observation}, {reaction}, {reward}, {is_last_step}\n"
         string += ")"
         return string
+    
+    def __hash__(self):
+        return hash(tuple(self.steps.values()))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
