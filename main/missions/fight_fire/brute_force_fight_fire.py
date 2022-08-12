@@ -52,6 +52,7 @@ if True:
             self.as_tuple = tuple(flatten([ self.observation, self.action ]))
         
         def __hash__(self): return hash(self.as_tuple)
+        def __repr__(self): return repr(LazyDict(observation=self.observation, action=self.action))
     
     class MemoryState:
         def __init__(self, previous_memory_value, observation, action):
@@ -85,6 +86,8 @@ if True:
         @property
         def outcomes(self):
             return tuple(self.trajectories_per_outcome.keys())
+        
+        def __repr__(self): return repr(LazyDict(state=self.state, trajectories_per_outcome=self.trajectories_per_outcome))
         
         
     @print.indent.function_block
@@ -585,8 +588,13 @@ if True:
         for progress, *_ in ProgressBar(iteration_count, title="generation"):
             with print.indent:
                 trajectory    = generate_samples(number_of_timesteps=number_of_timesteps)
+                if not verbose: print.disable.always = True
                 discrepancies = find_reward_discrepancies(trajectory, memory_agent)
+                if not verbose: print.disable.always = False
                 print(f"number of discrepancies: {len(discrepancies)}")
+                with print.indent:
+                    for each_key, each_discrepancy in discrepancies.items():
+                        print(f'''each_discrepancy = {each_discrepancy}''')
                 
                 # 
                 # merge them with the old trajectories
