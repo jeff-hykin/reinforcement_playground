@@ -54,7 +54,7 @@ if True:
         
         def __hash__(self): return hash(self.as_tuple)
         def __eq__(self, other): return hash(self.as_tuple) == hash(other)
-        def __repr__(self): return repr(LazyDict(observation=self.observation, action=self.action))
+        def __repr__(self): return repr(LazyDict(__hash__=hash(self.as_tuple), observation=self.observation, action=self.action))
     
     class MemoryState:
         def __init__(self, previous_memory_value, observation, action):
@@ -99,16 +99,26 @@ if True:
         if not trajectory:
             trajectory = list(generate_samples(number_of_timesteps=number_of_timesteps))
         
+        @print.indent.function_block
+        def print_descrepancy_count():
+            for each in discrepancies.values():
+                print(hash(each.state))
+                with print.indent:
+                    print({
+                        outcome : len(trajectories)
+                        for outcome, trajectories in each.trajectories_per_outcome.items() 
+                    })
         
         discrepancies = {}
-        previous_index_for = defaultdict(lambda : 0)
         reward_predictor_table = {}
-        memory_value = None
-        was_last_step = True
         for phase in ["find_discrepancies", "find_all_trajectories_to_discrepancy_states"]:
             for training_index, each_timestep in enumerate(trajectory):
-                if was_last_step: memory_value = None
-                index             = each_timestep.index
+                # reset per episode
+                if each_timestep.index == 0:
+                    memory_value = None
+                    previous_index_for = LazyDict()
+                    episode_first_training_index = training_index
+                    
                 observation       = simplify_observation(each_timestep.observation)
                 reaction          = simplify_reaction(each_timestep.reaction)
                 reward            = each_timestep.reward
@@ -118,128 +128,51 @@ if True:
                 discrepancy_state = each_timestep.hidden_info["discrepancy_state"] = DiscrepancyStateFormat(observation=observation, action=reaction)
                 
                 memory_state      = MemoryState(previous_memory_value=memory_value, observation=observation, action=reaction)
-                is_known_discrepancy_state = discrepancy_state in discrepancies
                 
                 with print.indent.block(f"episode: {episode_index}"):
                     memory_value = memory_agent.get_next_memory_value(memory_state)
                     reward_state = RewardPredictionState(observation=observation, action=reaction, next_memory_value=memory_value)
                     if reward_state.as_tuple not in reward_predictor_table:
                         reward_predictor_table[reward_state.as_tuple] = reward
-                        with print.indent.block(f"{training_index}: reward init"):
-                            print(f'''reward_state = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
-                            print(f'''reward = {reward}''')
+                        # with print.indent.block(f"{training_index}: reward init"):
+                        #     print(f'''reward_state = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
+                        #     print(f'''reward = {reward}''')
                     else:
                         predicted_reward = reward_predictor_table[reward_state.as_tuple]
                         was_wrong = predicted_reward != reward
-                        if was_wrong and not is_known_discrepancy_state:
-                            sub_trajectory = tuple(trajectory[0:index+1])
-                            print(f'''FOUND@{training_index} discrepancy_state = {discrepancy_state}''')
+                        if was_wrong and discrepancy_state not in discrepancies:
+                            print(f'''FOUND discrepancy_state = {discrepancy_state}''')
                             discrepancies[discrepancy_state] = Discrepancy(
-                                state=DiscrepancyStateFormat(
-                                    observation=observation,
-                                    action=reaction
-                                ),
-                                trajectories_per_outcome=LazyDict({
-                                    # reward is the outcome, and we've found a single trajectory for that outcome so far
-                                    reward: set([ sub_trajectory ]),
-                                })
+                                state=discrepancy_state,
+                                trajectories_per_outcome=LazyDict(),
                             )
-                        with print.indent.block(f"{training_index}: reward check"):
-                            print(f'''reward_state = {indent(reward_prediction_input_as_human_string(reward_state.as_tuple), by=4)}''')
-                            print(f'''reward = {reward}''')
-                            print(f'''predicted_reward: {predicted_reward}''')
-                            print(f'''was_wrong: {was_wrong}''')
+                        # with print.indent.block(f"{training_index}: reward check"):
+                        #     print(f'''reward_state = {indent(reward_prediction_input_as_human_string(reward_state.as_tuple), by=4)}''')
+                        #     print(f'''reward = {reward}''')
+                        #     print(f'''predicted_reward: {predicted_reward}''')
+                        #     print(f'''was_wrong: {was_wrong}''')
                     
-                was_last_step = is_last_step
                 
                 # add every trajectory that leads to a discrepancy state
-                if is_known_discrepancy_state:
-                    print(f'''REFOUND@{training_index} discrepancy_state = {discrepancy_state}''')
+                if phase == "find_all_trajectories_to_discrepancy_states" and discrepancy_state in discrepancies:
                     outcome = reward
-                    previous_index = previous_index_for[discrepancy_state]
+                    previous_index = previous_index_for.get(discrepancy_state, episode_first_training_index)
                     discrepancy = discrepancies[discrepancy_state]
-                    if outcome not in discrepancy:
+                    if outcome not in discrepancy.trajectories_per_outcome:
                         discrepancy.trajectories_per_outcome[outcome] = set()
                     
-                    sub_trajectory = tuple(trajectory[previous_index:index+1])
+                    
+                    print_descrepancy_count()
+                    print(f'''REFOUND@{training_index}, hash:{hash(discrepancy_state)}, sub_trajectory=[{previous_index}:{training_index}], reward:{reward} previous_index_for:{previous_index_for} discrepancy_state = {discrepancy_state}''')
+                    sub_trajectory = tuple(trajectory[previous_index:training_index+1])
                     discrepancy.trajectories_per_outcome[outcome].add(sub_trajectory)
-                    previous_index_for[discrepancy_state] = index
+                    previous_index_for[discrepancy_state] = training_index
+                    print_descrepancy_count()
         
+        print("END FIND")
+        print_descrepancy_count()
         return discrepancies
     
-    # def find_reward_discrepancies(trajectory, memory_agent):
-    #     if not trajectory:
-    #         trajectory = list(generate_samples(number_of_timesteps=number_of_timesteps))
-        
-        
-    #     discrepancies = {}
-    #     previous_index_for = defaultdict(lambda : 0)
-    #     reward_predictor_table = {}
-    #     memory_value = None
-    #     was_last_step = True
-    #     for phase in ["find_discrepancies", "find_all_trajectories_to_discrepancy_states"]:
-    #         for training_index, each_timestep in enumerate(trajectory):
-    #             if was_last_step: memory_value = None
-    #             index             = each_timestep.index
-    #             observation       = simplify_observation(each_timestep.observation)
-    #             reaction          = simplify_reaction(each_timestep.reaction)
-    #             reward            = each_timestep.reward
-    #             is_last_step      = each_timestep.is_last_step
-    #             hidden_info       = each_timestep.hidden_info
-    #             episode_index     = each_timestep.hidden_info["episode_index"]
-    #             discrepancy_state = each_timestep.hidden_info["discrepancy_state"] = DiscrepancyStateFormat(observation=observation, action=reaction)
-                
-    #             memory_state      = MemoryState(previous_memory_value=memory_value, observation=observation, action=reaction)
-    #             is_known_discrepancy_state = discrepancy_state in discrepancies
-                
-    #             with print.indent.block(f"episode: {episode_index}"):
-    #                 memory_value = memory_agent.get_next_memory_value(memory_state)
-    #                 reward_state = RewardPredictionState(observation=observation, action=reaction, next_memory_value=memory_value)
-    #                 if reward_state not in reward_predictor_table:
-    #                     reward_predictor_table[reward_state] = reward
-    #                     # with print.indent.block(f"{training_index}: reward init"):
-    #                     #     print(f'''reward_state = {reward_prediction_input_as_human_string(reward_state)}''')
-    #                     #     print(f'''reward = {reward}''')
-    #                 else:
-    #                     predicted_reward = reward_predictor_table[reward_state]
-    #                     was_wrong = predicted_reward != reward
-    #                     if was_wrong and not is_known_discrepancy_state:
-    #                         sub_trajectory = tuple(trajectory[0:index])
-    #                         print(f'''FOUND@{training_index} discrepancy_state = {discrepancy_state}''')
-    #                         discrepancies[discrepancy_state] = Discrepancy(
-    #                             state=DiscrepancyStateFormat(
-    #                                 observation=observation,
-    #                                 action=reaction
-    #                             ),
-    #                             trajectories_per_outcome=LazyDict({
-    #                                 # reward is the outcome, and we've found a single trajectory for that outcome so far
-    #                                 reward: set([ sub_trajectory ]),
-    #                                 predicted_reward: set(),
-    #                             })
-    #                         )
-    #                     with print.indent.block(f"{training_index}: reward check"):
-    #                         print(f'''reward_state = {indent(reward_prediction_input_as_human_string(reward_state.as_tuple), by=4)}''')
-    #                         print(f'''reward = {reward}''')
-    #                         print(f'''predicted_reward: {predicted_reward}''')
-    #                         print(f'''was_wrong: {was_wrong}''')
-                    
-    #             was_last_step = is_last_step
-                
-    #             # add every trajectory that leads to a discrepancy state
-    #             if is_known_discrepancy_state:
-    #                 print(f'''REFOUND@{training_index} discrepancy_state = {discrepancy_state}''')
-    #                 outcome = reward
-    #                 previous_index = previous_index_for[discrepancy_state]
-    #                 discrepancy = discrepancies[discrepancy_state]
-    #                 if outcome not in discrepancy:
-    #                     discrepancy.trajectories_per_outcome[outcome] = set()
-                    
-    #                 sub_trajectory = tuple(trajectory[previous_index:index])
-    #                 discrepancy.trajectories_per_outcome[outcome].add(sub_trajectory)
-    #                 previous_index_for[discrepancy_state] = index
-        
-    #     return discrepancies
-
 
 # 
 # memory agent
@@ -683,6 +616,7 @@ if True:
                         all_discrepancies[each_discrepancy_state] = each_discrepancy
                     else:
                         for each_outcome, new_sub_trajectories in each_discrepancy.items():
+                            print(f'''new_sub_trajectories = {new_sub_trajectories}''')
                             if each_outcome not in all_discrepancies[each_discrepancy_state].trajectories_per_outcome:
                                 all_discrepancies[each_discrepancy_state].trajectories_per_outcome[each_outcome] = new_sub_trajectories
                             else:
