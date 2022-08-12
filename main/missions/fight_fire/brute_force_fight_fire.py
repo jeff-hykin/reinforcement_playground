@@ -24,13 +24,13 @@ from tools.universe.runtimes import basic
 from tools.basics import project_folder, sort_keys, randomly_pick_from, align, create_buckets, tui_distribution, permutation_generator
 
 number_of_timesteps    = 200
-world_shape            = (9, 9)
+world_shape            = (3, 3)
 action_length          = 2
 memory_size            = 1
 possible_memory_values = [0,1] # each bit is 1 or 0 
 observation_size       = product(world_shape) + action_length
 input_vector_size      = observation_size + memory_size
-verbose                = False
+verbose                = True
 
 # 
 # definitions
@@ -43,6 +43,7 @@ if True:
             self.as_tuple = tuple(flatten([self.observation]))
     
         def __hash__(self): return hash(self.as_tuple)
+        def __eq__(self, other): return hash(self.as_tuple) == hash(other)
     
     class DiscrepancyStateFormat:
         def __init__(self, observation, action):
@@ -52,6 +53,7 @@ if True:
             self.as_tuple = tuple(flatten([ self.observation, self.action ]))
         
         def __hash__(self): return hash(self.as_tuple)
+        def __eq__(self, other): return hash(self.as_tuple) == hash(other)
         def __repr__(self): return repr(LazyDict(observation=self.observation, action=self.action))
     
     class MemoryState:
@@ -63,6 +65,7 @@ if True:
             self.as_tuple = tuple(flatten([self.previous_memory_value, self.observation, self.action]))
         
         def __hash__(self): return hash(self.as_tuple)
+        def __eq__(self, other): return hash(self.as_tuple) == hash(other)
         
     class RewardPredictionState:
         def __init__(self, observation, action, next_memory_value):
@@ -73,6 +76,7 @@ if True:
             self.as_tuple = tuple(flatten([self.observation, self.action, self.next_memory_value]))
         
         def __hash__(self): return hash(self.as_tuple)
+        def __eq__(self, other): return hash(self.as_tuple) == hash(other)
     
 # 
 # discrepancy function
@@ -129,6 +133,7 @@ if True:
                         was_wrong = predicted_reward != reward
                         if was_wrong and not is_known_discrepancy_state:
                             sub_trajectory = tuple(trajectory[0:index])
+                            print(f'''FOUND@{training_index} discrepancy_state = {discrepancy_state}''')
                             discrepancies[discrepancy_state] = Discrepancy(
                                 state=DiscrepancyStateFormat(
                                     observation=observation,
@@ -149,6 +154,7 @@ if True:
                 
                 # add every trajectory that leads to a discrepancy state
                 if is_known_discrepancy_state:
+                    print(f'''REFOUND@{training_index} discrepancy_state = {discrepancy_state}''')
                     outcome = reward
                     previous_index = previous_index_for[discrepancy_state]
                     discrepancy = discrepancies[discrepancy_state]
@@ -160,6 +166,79 @@ if True:
                     previous_index_for[discrepancy_state] = index
         
         return discrepancies
+    
+    # def find_reward_discrepancies(trajectory, memory_agent):
+    #     if not trajectory:
+    #         trajectory = list(generate_samples(number_of_timesteps=number_of_timesteps))
+        
+        
+    #     discrepancies = {}
+    #     previous_index_for = defaultdict(lambda : 0)
+    #     reward_predictor_table = {}
+    #     memory_value = None
+    #     was_last_step = True
+    #     for phase in ["find_discrepancies", "find_all_trajectories_to_discrepancy_states"]:
+    #         for training_index, each_timestep in enumerate(trajectory):
+    #             if was_last_step: memory_value = None
+    #             index             = each_timestep.index
+    #             observation       = simplify_observation(each_timestep.observation)
+    #             reaction          = simplify_reaction(each_timestep.reaction)
+    #             reward            = each_timestep.reward
+    #             is_last_step      = each_timestep.is_last_step
+    #             hidden_info       = each_timestep.hidden_info
+    #             episode_index     = each_timestep.hidden_info["episode_index"]
+    #             discrepancy_state = each_timestep.hidden_info["discrepancy_state"] = DiscrepancyStateFormat(observation=observation, action=reaction)
+                
+    #             memory_state      = MemoryState(previous_memory_value=memory_value, observation=observation, action=reaction)
+    #             is_known_discrepancy_state = discrepancy_state in discrepancies
+                
+    #             with print.indent.block(f"episode: {episode_index}"):
+    #                 memory_value = memory_agent.get_next_memory_value(memory_state)
+    #                 reward_state = RewardPredictionState(observation=observation, action=reaction, next_memory_value=memory_value)
+    #                 if reward_state not in reward_predictor_table:
+    #                     reward_predictor_table[reward_state] = reward
+    #                     # with print.indent.block(f"{training_index}: reward init"):
+    #                     #     print(f'''reward_state = {reward_prediction_input_as_human_string(reward_state)}''')
+    #                     #     print(f'''reward = {reward}''')
+    #                 else:
+    #                     predicted_reward = reward_predictor_table[reward_state]
+    #                     was_wrong = predicted_reward != reward
+    #                     if was_wrong and not is_known_discrepancy_state:
+    #                         sub_trajectory = tuple(trajectory[0:index])
+    #                         print(f'''FOUND@{training_index} discrepancy_state = {discrepancy_state}''')
+    #                         discrepancies[discrepancy_state] = Discrepancy(
+    #                             state=DiscrepancyStateFormat(
+    #                                 observation=observation,
+    #                                 action=reaction
+    #                             ),
+    #                             trajectories_per_outcome=LazyDict({
+    #                                 # reward is the outcome, and we've found a single trajectory for that outcome so far
+    #                                 reward: set([ sub_trajectory ]),
+    #                                 predicted_reward: set(),
+    #                             })
+    #                         )
+    #                     with print.indent.block(f"{training_index}: reward check"):
+    #                         print(f'''reward_state = {indent(reward_prediction_input_as_human_string(reward_state.as_tuple), by=4)}''')
+    #                         print(f'''reward = {reward}''')
+    #                         print(f'''predicted_reward: {predicted_reward}''')
+    #                         print(f'''was_wrong: {was_wrong}''')
+                    
+    #             was_last_step = is_last_step
+                
+    #             # add every trajectory that leads to a discrepancy state
+    #             if is_known_discrepancy_state:
+    #                 print(f'''REFOUND@{training_index} discrepancy_state = {discrepancy_state}''')
+    #                 outcome = reward
+    #                 previous_index = previous_index_for[discrepancy_state]
+    #                 discrepancy = discrepancies[discrepancy_state]
+    #                 if outcome not in discrepancy:
+    #                     discrepancy.trajectories_per_outcome[outcome] = set()
+                    
+    #                 sub_trajectory = tuple(trajectory[previous_index:index])
+    #                 discrepancy.trajectories_per_outcome[outcome].add(sub_trajectory)
+    #                 previous_index_for[discrepancy_state] = index
+        
+    #     return discrepancies
 
 
 # 
@@ -319,8 +398,8 @@ if True:
                 # check discrepancy size
                 # 
                 number_of_outcomes = len(discrepancy.trajectories_per_outcome)
-                if number_of_outcomes > memory_size**len(possible_memory_values):
-                    raise Exception(f'''Issue: for a particular discrepancy_state:\n    {discrepancy.state}\nThere were many possible outcomes: {list(discrepancy.trajectories_per_outcome.keys())}\nMore outcomes than can possibly fit in a memory of size {memory_size}^{possible_memory_values}''')
+                if number_of_outcomes > len(possible_memory_values)**memory_size:
+                    raise Exception(f'''Issue: for a particular discrepancy_state:\n    {discrepancy.state}\nThere were many possible outcomes: {list(discrepancy.trajectories_per_outcome.keys())}\nMore outcomes than can possibly fit in a memory of size {len(possible_memory_values)}^{memory_size}''')
                 memory_value_iterator = iter(permutation_generator(memory_size, possible_values=possible_memory_values))
                 
                 # 
