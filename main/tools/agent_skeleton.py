@@ -106,7 +106,7 @@ class AgentBasics(Enhancement):
             self.per_episode
             self.episodes
             self.previous_observation
-            self.previous_observation_response
+            self.previous_observation_reaction
             self.action_frequency    (if self.actions)
     """
     
@@ -116,7 +116,7 @@ class AgentBasics(Enhancement):
         # previous_observation
         # 
         self.previous_observation = None
-        self.previous_observation_response = None
+        self.previous_observation_reaction = None
         
         # 
         # action_frequency
@@ -183,7 +183,7 @@ class AgentBasics(Enhancement):
         # set previous_observation
         # 
         self.previous_observation          = self.observation
-        self.previous_observation_response = self.action
+        self.previous_observation_reaction = self.action
         self.observation               = None
         self.action                    = None
     

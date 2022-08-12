@@ -293,7 +293,7 @@ class Agent(Skeleton):
     
     def when_timestep_ends(self, timestep_index):
         self.action       = self.get_greedy_action(self.observation)
-        q_value_previous  = self.value_of(self.episode.timestep.index-1, self.previous_observation, self.previous_observation_response)
+        q_value_previous  = self.value_of(self.episode.timestep.index-1, self.previous_observation, self.previous_observation_reaction)
         q_value_current   = self.value_of(self.episode.timestep.index  , self.observation         , self.action)
         delta             = (self.discount_factor * q_value_current) - q_value_previous
         
@@ -303,7 +303,7 @@ class Agent(Skeleton):
         if self.training:
             # update q value
             more_accurate_prev_q_value = q_value_previous + self.learning_rate * (self.reward + delta)
-            self.bellman_update(self.episode.timestep.index-1, self.prev_observation, self.prev_observation_response, more_accurate_prev_q_value)
+            self.bellman_update(self.episode.timestep.index-1, self.prev_observation, self.prev_observation_reaction, more_accurate_prev_q_value)
         
     def when_episode_ends(self, episode_index):
         self.outcomes.append(self.discounted_reward_sum)

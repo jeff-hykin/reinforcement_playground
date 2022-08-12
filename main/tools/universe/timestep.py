@@ -5,12 +5,12 @@ import json_fix
 class Timestep:
     index        : int   = None
     observation  : None  = None 
-    response     : None  = None 
+    reaction     : None  = None 
     reward       : float = None 
     is_last_step : bool  = False
     hidden_info  : None  = None
     
-    def __init__(self, timestep=None, *, index=None, observation=None, response=None, reward=None, is_last_step=None, hidden_info=None, **kwargs):
+    def __init__(self, timestep=None, *, index=None, observation=None, reaction=None, reward=None, is_last_step=None, hidden_info=None, **kwargs):
         if timestep:
             for each_attr in dir(timestep):
                 # skip magic attributes
@@ -22,7 +22,7 @@ class Timestep:
         # set any non-None values
         self.index        = index        if not (type(index       ) == type(None)) else self.index
         self.observation  = observation  if not (type(observation ) == type(None)) else self.observation
-        self.response     = response     if not (type(response    ) == type(None)) else self.response
+        self.reaction     = reaction     if not (type(reaction    ) == type(None)) else self.reaction
         self.reward       = reward       if not (type(reward      ) == type(None)) else self.reward
         self.is_last_step = is_last_step if not (type(is_last_step) == type(None)) else self.is_last_step
         self.hidden_info  = hidden_info  if not (type(hidden_info ) == type(None)) else self.hidden_info
@@ -33,6 +33,15 @@ class Timestep:
     @classmethod
     def from_dict(cls, dict_data):
         return Timestep(**dict_data)
+    
+    def __hash__(self):
+        return hash((
+            self.index,
+            self.observation,
+            self.reaction,
+            self.reward,
+            self.is_last_step,
+        ))
 
 class MockTimestep(Timestep):
     def __init__(self, timestep, *, index):
@@ -60,24 +69,24 @@ class TimestepSeries:
         else:
             return Timestep() # all attributes are none/false
     
-    def add(self, state=None, response=None, reward=None, is_last_step=False):
+    def add(self, state=None, reaction=None, reward=None, is_last_step=False):
         # if timestep, pull all the data out of the timestep
         if isinstance(state, Timestep):
             observation  = state.observation
-            response     = state.response
+            reaction     = state.reaction
             reward       = state.reward
             is_last_step = state.is_last_step
             
         self.index += 1
-        self.steps[self.index] = Timestep(index=self.index, observation=observation, response=response, reward=reward, is_last_step=is_last_step)
+        self.steps[self.index] = Timestep(index=self.index, observation=observation, reaction=reaction, reward=reward, is_last_step=is_last_step)
     
     @property
     def observations(self):
         return [ each.observation for each in self.steps.values() ]
     
     @property
-    def responses(self):
-        return [ each.response for each in self.steps.values() ]
+    def reactions(self):
+        return [ each.reaction for each in self.steps.values() ]
     
     @property
     def rewards(self):
@@ -89,10 +98,10 @@ class TimestepSeries:
     
     def items(self):
         """
-        for index, state, response, reward, next_state in time_series.items():
+        for index, state, reaction, reward, next_state in time_series.items():
             pass
         """
-        return ((each.index, each.observation, each.response, each.reward, each.is_last_step) for each in self.steps.values())
+        return ((each.index, each.observation, each.reaction, each.reward, each.is_last_step) for each in self.steps.values())
     
     def __len__(self):
         return len(self.steps)
@@ -122,7 +131,7 @@ class TimestepSeries:
     
     def __repr__(self):
         string = "TimestepSeries(\n"
-        for index, observation, response, reward, is_last_step in self.items():
-            string += f"    {index}, {observation}, {response}, {reward}, {is_last_step}\n"
+        for index, observation, reaction, reward, is_last_step in self.items():
+            string += f"    {index}, {observation}, {reaction}, {reward}, {is_last_step}\n"
         string += ")"
         return string

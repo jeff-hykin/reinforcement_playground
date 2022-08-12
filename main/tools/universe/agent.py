@@ -6,9 +6,9 @@ class Skeleton:
     timestep          = None
     next_timestep     = None
     
-    def __init__(self, observation_space, response_space, **config):
+    def __init__(self, observation_space, reaction_space, **config):
         self.observation_space = observation_space
-        self.response_space = response_space
+        self.reaction_space = reaction_space
 
     def when_mission_starts(self):
         pass
@@ -17,7 +17,7 @@ class Skeleton:
     def when_timestep_starts(self):
         """
         read: self.observation
-        write: self.response = something
+        write: self.reaction = something
         """
         pass
     def when_timestep_ends(self):

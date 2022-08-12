@@ -73,7 +73,7 @@ class EpisodeEnhancement(Enhancement):
             self.next_timestep,
             index=self.episode.next_timestep.index+1,
         )
-        # get a response
+        # get a reaction
         original()
     
     def when_timestep_ends(self, original):
@@ -123,15 +123,15 @@ class LoggerEnhancement(Enhancement):
             self.per_episode
             self.per_episode.average
             self.per_episode.average.reward
-            self.response_frequency    (if self.responses)
+            self.reaction_frequency    (if self.reactions)
     """
     
     def when_mission_starts(self, original):
         # 
-        # response_frequency
+        # reaction_frequency
         # 
-        if hasattr(self, "responses") and type(self.responses) != type(None):
-            self.response_frequency = LazyDict({ each:0 for each in self.responses })
+        if hasattr(self, "reactions") and type(self.reactions) != type(None):
+            self.reaction_frequency = LazyDict({ each:0 for each in self.reactions })
         
         # 
         # per_episode
@@ -146,18 +146,18 @@ class LoggerEnhancement(Enhancement):
         
     
     def when_timestep_starts(self, original):
-        # get a response
+        # get a reaction
         original()
         
         # 
-        # update response_frequency
+        # update reaction_frequency
         # 
-        if hasattr(self, "response_frequency"):
-            length_before = len(tuple(self.response_frequency.keys()))
-            self.response_frequency[self.timestep.response] += 1
-            length_after = len(tuple(self.response_frequency.keys()))
+        if hasattr(self, "reaction_frequency"):
+            length_before = len(tuple(self.reaction_frequency.keys()))
+            self.reaction_frequency[self.timestep.reaction] += 1
+            length_after = len(tuple(self.reaction_frequency.keys()))
             if length_before < length_after:
-                sort_keys(self.response_frequency)
+                sort_keys(self.reaction_frequency)
     
     def when_timestep_ends(self, original):
         # 

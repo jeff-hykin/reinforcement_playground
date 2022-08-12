@@ -5,7 +5,7 @@ import pickle
 import random
 import time
 
-from blissful_basics import flatten_once, product, max_index, to_pure, flatten, print, FS
+from blissful_basics import flatten_once, product, max_index, to_pure, flatten, print, FS, indent
 from informative_iterator import ProgressBar
 from super_hash import super_hash
 from super_map import LazyDict
@@ -90,7 +90,8 @@ if True:
     @print.indent.function_block
     def find_reward_discrepancies(trajectory, memory_agent):
         if not trajectory:
-            trajectory = list(enumerate(generate_samples(number_of_timesteps=number_of_timesteps)))
+            trajectory = list(generate_samples(number_of_timesteps=number_of_timesteps))
+        
         
         discrepancies = {}
         previous_index_for = defaultdict(lambda : 0)
@@ -98,7 +99,7 @@ if True:
         memory_value = None
         was_last_step = True
         for phase in ["find_discrepancies", "find_all_trajectories_to_discrepancy_states"]:
-            for training_index, each_timestep in trajectory:
+            for training_index, each_timestep in enumerate(trajectory):
                 if was_last_step: memory_value = None
                 index             = each_timestep.index
                 observation       = simplify_observation(each_timestep.observation)
@@ -118,7 +119,7 @@ if True:
                     if reward_state.as_tuple not in reward_predictor_table:
                         reward_predictor_table[reward_state.as_tuple] = reward
                         with print.indent.block(f"{training_index}: reward init"):
-                            print(f'''reward_state.as_tuple = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
+                            print(f'''reward_state = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
                             print(f'''reward = {reward}''')
                     else:
                         predicted_reward = reward_predictor_table[reward_state.as_tuple]
@@ -136,7 +137,7 @@ if True:
                                 })
                             )
                         with print.indent.block(f"{training_index}: reward check"):
-                            print(f'''reward_state.as_tuple = {reward_prediction_input_as_human_string(reward_state.as_tuple)}''')
+                            print(f'''reward_state = {indent(reward_prediction_input_as_human_string(reward_state.as_tuple), by=4)}''')
                             print(f'''reward = {reward}''')
                             print(f'''predicted_reward: {predicted_reward}''')
                             print(f'''was_wrong: {was_wrong}''')
@@ -309,13 +310,13 @@ if True:
             
             # since we're only solving the case of a single trigger at the moment, we're only going to consider the first discrepancy
             if True: # <- this will probably be a for loop later
-                discrepancy = next(iter(discrepancies))
+                discrepancy = next(iter(discrepancies.values()))
                 
                 # 
                 # check discrepancy size
                 # 
                 number_of_outcomes = len(discrepancy.trajectories_per_outcome)
-                if number_of_outcomes > memory_size**possible_memory_values:
+                if number_of_outcomes > memory_size**len(possible_memory_values):
                     raise Exception(f'''Issue: for a particular discrepancy_state:\n    {discrepancy.state}\nThere were many possible outcomes: {list(discrepancy.trajectories_per_outcome.keys())}\nMore outcomes than can possibly fit in a memory of size {memory_size}^{possible_memory_values}''')
                 memory_value_iterator = iter(permutation_generator(memory_size, possible_values=possible_memory_values))
                 
@@ -372,7 +373,7 @@ if True:
                     # mark as attempted, so next time we can skip it
                     MemoryHypothesisAgent.attempted_hypotheses_for[situation_key].add(triggering_descrepancy_state)
                 
-            return input_trigger_conditions, new_memory_mapping
+            pass
     
         def get_next_memory_value(self, memory_state):
             # set the default case
@@ -552,12 +553,6 @@ if True:
             a_copy.table.update(self.table)
             return a_copy
     
-    class RewardPredictor:
-        def __init__(self, table=None):
-            self.table = table or {}
-        
-        def check(observation_and_reaction, )
-        
 # 
 # evaluation function
 # 
@@ -567,7 +562,7 @@ if True:
     def evaluate_prediction_performance(memory_agent):
         global timesteps
         if not timesteps:
-            timesteps = list(enumerate(generate_samples(number_of_timesteps=number_of_timesteps)))
+            timesteps = list(generate_samples(number_of_timesteps=number_of_timesteps))
         
         is_perfect_agent = isinstance(memory_agent, PerfectMemoryMapAgent)
         print(f"memory_agent: {memory_agent.id}")
@@ -583,31 +578,35 @@ if True:
 # hypothesis machine
 # 
 if True:
+    @print.indent.function_block
     def train_hypothesis_agent(*, iteration_count):
         memory_agent = MemoryHypothesisAgent()
         all_discrepancies = LazyDict()
         for progress, *_ in ProgressBar(iteration_count, title="generation"):
-            trajectory    = generate_samples(number_of_timesteps=number_of_timesteps)
-            discrepancies = find_reward_discrepancies(trajectory, memory_agent)
-            # 
-            # merge them with the old trajectories
-            # 
-            for each_discrepancy_state, each_discrepancy in discrepancies.items():
-                if each_discrepancy_state not in all_discrepancies:
-                    all_discrepancies[each_discrepancy_state] = each_discrepancy
-                else:
-                    for each_outcome, new_sub_trajectories in each_discrepancy.items():
-                        if each_outcome not in all_discrepancies[each_discrepancy_state].trajectories_per_outcome:
-                            all_discrepancies[each_discrepancy_state].trajectories_per_outcome[each_outcome] = new_sub_trajectories
-                        else:
-                            # add any new sub_trajectories
-                            all_discrepancies[each_discrepancy_state].trajectories_per_outcome[each_outcome] |= new_sub_trajectories
-            
-            progress.text = f"number of discrepancies: {len(discrepancies)}, trigger_map: {memory_agent.trigger_map}"
-            
-            # if there's still a problem, try to improve
-            if len(discrepancies) > 0:
-                memory_agent.switch_to_next_hypothesis(all_discrepancies)
+            with print.indent:
+                trajectory    = generate_samples(number_of_timesteps=number_of_timesteps)
+                discrepancies = find_reward_discrepancies(trajectory, memory_agent)
+                print(f"number of discrepancies: {len(discrepancies)}")
+                
+                # 
+                # merge them with the old trajectories
+                # 
+                for each_discrepancy_state, each_discrepancy in discrepancies.items():
+                    if each_discrepancy_state not in all_discrepancies:
+                        all_discrepancies[each_discrepancy_state] = each_discrepancy
+                    else:
+                        for each_outcome, new_sub_trajectories in each_discrepancy.items():
+                            if each_outcome not in all_discrepancies[each_discrepancy_state].trajectories_per_outcome:
+                                all_discrepancies[each_discrepancy_state].trajectories_per_outcome[each_outcome] = new_sub_trajectories
+                            else:
+                                # add any new sub_trajectories
+                                all_discrepancies[each_discrepancy_state].trajectories_per_outcome[each_outcome] |= new_sub_trajectories
+                
+                progress.text = f"number of discrepancies: {len(discrepancies)}, trigger_map: {memory_agent.trigger_map}"
+                
+                # if there's still a problem, try to improve
+                if len(discrepancies) > 0:
+                    memory_agent.switch_to_next_hypothesis(all_discrepancies)
                 
                 
         
@@ -959,6 +958,8 @@ if True:
 print.flush.always = not verbose # False=>optimizes throughput, True=>optimizes responsiveness
 
 
+
+train_hypothesis_agent(iteration_count=1000)
 
 # print("#")
 # print("# no_memory")

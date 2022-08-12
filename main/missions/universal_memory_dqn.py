@@ -35,8 +35,8 @@ def run(number_of_timesteps_for_training=100_000):
     env = world.Player()
     mr_bond = Agent(
         observation_space=env.observation_space,
-        response_space=env.action_space,
-        responses=env.actions.values(),
+        reaction_space=env.action_space,
+        reactions=env.actions.values(),
     )
     
     # 
