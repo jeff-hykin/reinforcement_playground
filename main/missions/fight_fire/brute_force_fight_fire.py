@@ -382,11 +382,12 @@ if True:
                     # remove all the states we've already tried
                     remaining_possible_states = possible_states - MemoryHypothesisAgent.attempted_hypotheses_for[situation_key]
                     if len(remaining_possible_states) == 0:
+                        # FIXME NEXT: found the problem: the first action can make for a unique state=observation+action at the start
                         raise Exception(
                             f'''
                             There's an issue with the {each_outcome}, as apparently there is no state that uniquely predicts it.
-                                intersection_for[{each_outcome}] = \n{indent(intersection_for[each_outcome], by=32)}
-                                union_for[{each_outcome}]        = \n{indent(union_for[each_outcome], by=32)}
+                                intersection_for[{each_outcome}] = \n{indent(repr(intersection_for[each_outcome]), by=32)}
+                                union_for[{each_outcome}]        = \n{indent(repr(union_for[each_outcome]), by=32)}
                                 discrepancy:\n{discrepancy}
                             '''
                         )

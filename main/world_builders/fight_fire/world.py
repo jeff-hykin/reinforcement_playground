@@ -182,6 +182,11 @@ class World:
                 self.previous_action = None
                 self.previous_observation = None
                 self.action = None
+                
+                # for openai gym
+                self.observation_shape = (1,1)
+                self.observation_space = spaces.Box(low=torch.zeros_like(world.state.grid).numpy(), high=torch.ones_like(world.state.grid).numpy(), dtype=np.float16)
+                self.action_space = spaces.Box(low=np.array([0,0]), high=np.array([1,1]) )
             
             @property
             def position(self):
@@ -213,6 +218,18 @@ class World:
                     return False
             
             def perform_action(self, action):
+                action = to_pure(action)
+                if isinstance(action, (list, tuple)):
+                    # convert to boolean
+                    action = tuple(not not each for each in action)
+                    if action == (True, False):
+                        action = "LEFT"
+                    elif action == (False, True):
+                        action = "RIGHT"
+                    elif action == (True, True):
+                        action = "UP"
+                    elif action == (False, False):
+                        action = "DOWN"
                 self.previous_observation = deepcopy(self.observation)
                 self.previous_action      = deepcopy(self.action)
                 self.action = action
@@ -223,7 +240,7 @@ class World:
                 next_state = self.observation
                 reward     = self.compute_reward() * reward_scale
                 done       = self.check_for_done()
-                debug_info = Object(has_water=world.state.has_water[self], position=self.position)
+                debug_info = LazyDict(has_water=world.state.has_water[self], position=self.position)
                 
                 if world.visualize:
                     print(f'''player1 reward = {f"{reward}".rjust(3)}, done = {done}''')
