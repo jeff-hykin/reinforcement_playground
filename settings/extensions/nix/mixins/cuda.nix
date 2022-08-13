@@ -4,7 +4,7 @@
         # sources
         # 
         nixgl = (builtins.import
-            (fetchTarball "https://github.com/guibou/nixGL/archive/17658df1e17a64bc23ee5c93cfa9e8b663a4ac81.tar.gz")
+            (fetchTarball "https://github.com/guibou/nixGL/archive/047a34b2f087e2e3f93d43df8e67ada40bf70e5c.tar.gz")
             {}
         );
         pkgsWithTorch_1_8_1 = (builtins.import
