@@ -153,7 +153,7 @@ class SAC:
 
         return env
 
-    def set_logger(self, logger: Logger) -> None:
+    def set_logger(self, logger: Logger):
         """
         Setter for for logger object.
 
@@ -187,11 +187,11 @@ class SAC:
             assert eval_env.num_envs == 1
         return eval_env
 
-    def _setup_lr_schedule(self) -> None:
+    def _setup_lr_schedule(self):
         """Transform to callable if needed."""
         self.lr_schedule = get_schedule_fn(self.learning_rate)
 
-    def _update_current_progress_remaining(self, num_timesteps: int, total_timesteps: int) -> None:
+    def _update_current_progress_remaining(self, num_timesteps: int, total_timesteps: int):
         """
         Compute current progress remaining (starts from 1 and ends to 0)
 
@@ -200,7 +200,7 @@ class SAC:
         """
         self._current_progress_remaining = 1.0 - float(num_timesteps) / float(total_timesteps)
 
-    def _update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
+    def _update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]):
         """
         Update the optimizers learning rate using the current learning rate schedule
         and the current progress remaining (from 1 to 0).
@@ -296,7 +296,7 @@ class SAC:
         callback.init_callback(self)
         return callback
 
-    def _update_info_buffer(self, infos: List[Dict[str, Any]], dones: Optional[np.ndarray] = None) -> None:
+    def _update_info_buffer(self, infos: List[Dict[str, Any]], dones: Optional[np.ndarray] = None):
         """
         Retrieve reward, episode length, episode success and update the buffer
         if using Monitor wrapper or a GoalEnv.
@@ -331,7 +331,7 @@ class SAC:
         """
         return self._vec_normalize_env
 
-    def set_env(self, env: GymEnv, force_reset: bool = True) -> None:
+    def set_env(self, env: GymEnv, force_reset: bool = True):
         """
         Checks the validity of the environment, and if it is coherent, set it as the current environment.
         Furthermore wrap any non vectorized env into a vectorized
@@ -383,7 +383,7 @@ class SAC:
         """
         return self.policy.predict(observation, state, episode_start, deterministic)
 
-    def set_random_seed(self, seed: Optional[int] = None) -> None:
+    def set_random_seed(self, seed: Optional[int] = None):
         """
         Set the seed of the pseudo-random generators
         (python, numpy, pytorch, gym, action_space)
@@ -404,7 +404,7 @@ class SAC:
         load_path_or_dict: Union[str, Dict[str, Dict]],
         exact_match: bool = True,
         device: Union[th.device, str] = "auto",
-    ) -> None:
+    ):
         """
         Load parameters from a given zip-file or a nested dictionary containing parameters for
         different modules (see ``get_parameters``).
@@ -594,7 +594,7 @@ class SAC:
         path: Union[str, pathlib.Path, io.BufferedIOBase],
         exclude: Optional[Iterable[str]] = None,
         include: Optional[Iterable[str]] = None,
-    ) -> None:
+    ):
         """
         Save all the attributes of the object and the model parameters in a zip-file.
 
@@ -639,7 +639,7 @@ class SAC:
 
         save_to_zip_file(path, data=data, params=params_to_save, pytorch_variables=pytorch_variables)
     
-    def _convert_train_freq(self) -> None:
+    def _convert_train_freq(self):
         """
         Convert `train_freq` parameter (int or tuple)
         to a TrainFreq object.
@@ -661,7 +661,7 @@ class SAC:
 
             self.train_freq = TrainFreq(*train_freq)
 
-    def save_replay_buffer(self, path: Union[str, pathlib.Path, io.BufferedIOBase]) -> None:
+    def save_replay_buffer(self, path: Union[str, pathlib.Path, io.BufferedIOBase]):
         """
         Save the replay buffer as a pickle file.
 
@@ -675,7 +675,7 @@ class SAC:
         self,
         path: Union[str, pathlib.Path, io.BufferedIOBase],
         truncate_last_traj: bool = True,
-    ) -> None:
+    ):
         """
         Load a replay buffer from a pickle file.
 
@@ -884,7 +884,7 @@ class SAC:
             action = buffer_action
         return action, buffer_action
 
-    def _dump_logs(self) -> None:
+    def _dump_logs(self):
         """
         Write log.
         """
@@ -905,7 +905,7 @@ class SAC:
         # Pass the number of timesteps for tensorboard
         self.logger.dump(step=self.num_timesteps)
 
-    def _on_step(self) -> None:
+    def _on_step(self):
         """
         Method called after each step in the environment.
         It is meant to trigger DQN target network update
@@ -921,7 +921,7 @@ class SAC:
         reward: np.ndarray,
         dones: np.ndarray,
         infos: List[Dict[str, Any]],
-    ) -> None:
+    ):
         """
         Store transition in the replay buffer.
         We store the normalized action and the unnormalized observation.
@@ -1238,7 +1238,7 @@ class SAC:
         if _init_setup_model:
             self._setup_model()
 
-    def _setup_model(self) -> None:
+    def _setup_model(self):
         self._setup_lr_schedule()
         self.set_random_seed(self.seed)
 
@@ -1324,12 +1324,12 @@ class SAC:
             # is passed
             self.ent_coef_tensor = th.tensor(float(self.ent_coef)).to(self.device)
 
-    def _create_aliases(self) -> None:
+    def _create_aliases(self):
         self.actor = self.policy.actor
         self.critic = self.policy.critic
         self.critic_target = self.policy.critic_target
 
-    def train(self, gradient_steps: int, batch_size: int = 64) -> None:
+    def train(self, gradient_steps: int, batch_size: int = 64):
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update optimizers learning rate
