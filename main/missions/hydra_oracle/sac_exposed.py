@@ -1,75 +1,31 @@
-import io
-import pathlib
-import time
 from abc import ABC, abstractmethod
 from collections import deque
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, Union
-
-import gym
-import numpy as np
-import torch as th
-
-from stable_baselines3.common import utils
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, ConvertCallback, EvalCallback
-from stable_baselines3.common.env_util import is_wrapped
-from stable_baselines3.common.logger import Logger
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.noise import ActionNoise
-from stable_baselines3.common.policies import BasePolicy
-from stable_baselines3.common.preprocessing import check_for_nested_spaces, is_image_space, is_image_space_channels_first
-from stable_baselines3.common.save_util import load_from_zip_file, recursive_getattr, recursive_setattr, save_to_zip_file
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import (
-    check_for_correct_spaces,
-    get_device,
-    get_schedule_fn,
-    get_system_info,
-    set_random_seed,
-    update_learning_rate,
-)
-from stable_baselines3.common.vec_env import (
-    DummyVecEnv,
-    VecEnv,
-    VecNormalize,
-    VecTransposeImage,
-    is_vecenv_wrapped,
-    unwrap_vec_normalize,
-)
-
-
+from copy import deepcopy
 import io
 import pathlib
 import time
 import warnings
-from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, Union
 
-import gym
 import numpy as np
-import torch as th
-
-from stable_baselines3.common.buffers import DictReplayBuffer, ReplayBuffer
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.noise import ActionNoise, VectorizedActionNoise
-from stable_baselines3.common.policies import BasePolicy
-from stable_baselines3.common.save_util import load_from_pkl, save_to_pkl
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, RolloutReturn, Schedule, TrainFreq, TrainFrequencyUnit
-from stable_baselines3.common.utils import safe_mean, should_collect_more_steps
-from stable_baselines3.common.vec_env import VecEnv
-from stable_baselines3.her.her_replay_buffer import HerReplayBuffer
-
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
-
 import gym
-import numpy as np
 import torch as th
 from torch.nn import functional as F
 
-from stable_baselines3.common.buffers import ReplayBuffer
-from stable_baselines3.common.noise import ActionNoise
+from stable_baselines3.common import utils
+from stable_baselines3.common.buffers import DictReplayBuffer, ReplayBuffer
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, ConvertCallback, EvalCallback
+from stable_baselines3.common.env_util import is_wrapped
+from stable_baselines3.common.logger import Logger
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.noise import ActionNoise, VectorizedActionNoise
 from stable_baselines3.common.policies import BasePolicy
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import polyak_update
+from stable_baselines3.common.preprocessing import check_for_nested_spaces, is_image_space, is_image_space_channels_first
+from stable_baselines3.common.save_util import load_from_pkl, save_to_pkl, load_from_zip_file, recursive_getattr, recursive_setattr, save_to_zip_file
+from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, RolloutReturn, Schedule, TrainFreq, TrainFrequencyUnit
+from stable_baselines3.common.utils import safe_mean, should_collect_more_steps, polyak_update, check_for_correct_spaces, get_device, get_schedule_fn, get_system_info, set_random_seed, update_learning_rate
+from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecNormalize, VecTransposeImage, is_vecenv_wrapped, unwrap_vec_normalize
+from stable_baselines3.her.her_replay_buffer import HerReplayBuffer
 from stable_baselines3.sac.policies import CnnPolicy, MlpPolicy, MultiInputPolicy, SACPolicy
 
 def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymEnv]:
@@ -145,114 +101,12 @@ class SAC:
         :param _init_setup_model: Whether or not to build the network at the creation of the instance
     """
     
-    # Policy aliases (see _get_policy_from_name())
-    policy_aliases: Dict[str, Type[BasePolicy]] = {}
-
-    def Base__init__(
-        self,
-        policy: Type[BasePolicy],
-        env: Union[GymEnv, str, None],
-        learning_rate: Union[float, Schedule],
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        tensorboard_log: Optional[str] = None,
-        verbose: int = 0,
-        device: Union[th.device, str] = "auto",
-        support_multi_env: bool = False,
-        create_eval_env: bool = False,
-        monitor_wrapper: bool = True,
-        seed: Optional[int] = None,
-        use_sde: bool = False,
-        sde_sample_freq: int = -1,
-        supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
-    ):
-        if isinstance(policy, str):
-            self.policy_class = self._get_policy_from_name(policy)
-        else:
-            self.policy_class = policy
-
-        self.device = get_device(device)
-        if verbose > 0:
-            print(f"Using {self.device} device")
-
-        self.env = None  # type: Optional[GymEnv]
-        # get VecNormalize object if needed
-        self._vec_normalize_env = unwrap_vec_normalize(env)
-        self.verbose = verbose
-        self.policy_kwargs = {} if policy_kwargs is None else policy_kwargs
-        self.observation_space = None  # type: Optional[gym.spaces.Space]
-        self.action_space = None  # type: Optional[gym.spaces.Space]
-        self.n_envs = None
-        self.num_timesteps = 0
-        # Used for updating schedules
-        self._total_timesteps = 0
-        # Used for computing fps, it is updated at each call of learn()
-        self._num_timesteps_at_start = 0
-        self.eval_env = None
-        self.seed = seed
-        self.action_noise = None  # type: Optional[ActionNoise]
-        self.start_time = None
-        self.policy = None
-        self.learning_rate = learning_rate
-        self.tensorboard_log = tensorboard_log
-        self.lr_schedule = None  # type: Optional[Schedule]
-        self._last_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-        self._last_episode_starts = None  # type: Optional[np.ndarray]
-        # When using VecNormalize:
-        self._last_original_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-        self._episode_num = 0
-        # Used for gSDE only
-        self.use_sde = use_sde
-        self.sde_sample_freq = sde_sample_freq
-        # Track the training progress remaining (from 1 to 0)
-        # this is used to update the learning rate
-        self._current_progress_remaining = 1
-        # Buffers for logging
-        self.ep_info_buffer = None  # type: Optional[deque]
-        self.ep_success_buffer = None  # type: Optional[deque]
-        # For logging (and TD3 delayed updates)
-        self._n_updates = 0  # type: int
-        # The logger object
-        self._logger = None  # type: Logger
-        # Whether the user passed a custom logger or not
-        self._custom_logger = False
-
-        # Create and wrap the env if needed
-        if env is not None:
-            if isinstance(env, str):
-                if create_eval_env:
-                    self.eval_env = maybe_make_env(env, self.verbose)
-
-            env = maybe_make_env(env, self.verbose)
-            env = self._wrap_env(env, self.verbose, monitor_wrapper)
-
-            self.observation_space = env.observation_space
-            self.action_space = env.action_space
-            self.n_envs = env.num_envs
-            self.env = env
-
-            if supported_action_spaces is not None:
-                assert isinstance(self.action_space, supported_action_spaces), (
-                    f"The algorithm only supports {supported_action_spaces} as action spaces "
-                    f"but {self.action_space} was provided"
-                )
-
-            if not support_multi_env and self.n_envs > 1:
-                raise ValueError(
-                    "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
-                )
-
-            # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
-            if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
-                raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
-
-            if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
-                raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
-
-            if isinstance(self.action_space, gym.spaces.Box):
-                assert np.all(
-                    np.isfinite(np.array([self.action_space.low, self.action_space.high]))
-                ), "Continuous action space must have a finite lower and upper bound"
-
+    policy_aliases: Dict[str, Type[BasePolicy]] = {
+        "MlpPolicy": MlpPolicy,
+        "CnnPolicy": CnnPolicy,
+        "MultiInputPolicy": MultiInputPolicy,
+    }
+    
     @staticmethod
     def _wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
         """ "
@@ -298,10 +152,6 @@ class SAC:
                 env = VecTransposeImage(env)
 
         return env
-
-    @abstractmethod
-    def _setup_model(self) -> None:
-        """Create networks, buffer and optimizers."""
 
     def set_logger(self, logger: Logger) -> None:
         """
@@ -366,7 +216,7 @@ class SAC:
         for optimizer in optimizers:
             update_learning_rate(optimizer, self.lr_schedule(self._current_progress_remaining))
 
-    def OffPolicyAlgorithm_excluded_save_params(self) -> List[str]:
+    def _excluded_save_params(self) -> List[str]:
         """
         Returns the names of the parameters that should be excluded from being
         saved by pickling. E.g. replay buffers are skipped by default
@@ -386,6 +236,9 @@ class SAC:
             "_episode_storage",
             "_logger",
             "_custom_logger",
+            "actor",
+            "critic",
+            "critic_target",
         ]
 
     def _get_policy_from_name(self, policy_name: str) -> Type[BasePolicy]:
@@ -404,24 +257,6 @@ class SAC:
             return self.policy_aliases[policy_name]
         else:
             raise ValueError(f"Policy {policy_name} unknown")
-
-    def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
-        """
-        Get the name of the torch variables that will be saved with
-        PyTorch ``th.save``, ``th.load`` and ``state_dicts`` instead of the default
-        pickling strategy. This is to handle device placement correctly.
-
-        Names can point to specific variables under classes, e.g.
-        "policy.optimizer" would point to ``optimizer`` object of ``self.policy``
-        if this object.
-
-        :return:
-            List of Torch variables whose state dicts to save (e.g. th.nn.Modules),
-            and list of other Torch variables to store with ``th.save``.
-        """
-        state_dicts = ["policy"]
-
-        return state_dicts, []
 
     def _init_callback(
         self,
@@ -460,71 +295,6 @@ class SAC:
 
         callback.init_callback(self)
         return callback
-
-    def Base_setup_learn(
-        self,
-        total_timesteps: int,
-        eval_env: Optional[GymEnv],
-        callback: MaybeCallback = None,
-        eval_freq: int = 10000,
-        n_eval_episodes: int = 5,
-        log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
-        tb_log_name: str = "run",
-    ) -> Tuple[int, BaseCallback]:
-        """
-        Initialize different variables needed for training.
-
-        :param total_timesteps: The total number of samples (env steps) to train on
-        :param eval_env: Environment to use for evaluation.
-        :param callback: Callback(s) called at every step with state of the algorithm.
-        :param eval_freq: How many steps between evaluations
-        :param n_eval_episodes: How many episodes to play per evaluation
-        :param log_path: Path to a folder where the evaluations will be saved
-        :param reset_num_timesteps: Whether to reset or not the ``num_timesteps`` attribute
-        :param tb_log_name: the name of the run for tensorboard log
-        :return:
-        """
-        self.start_time = time.time()
-
-        if self.ep_info_buffer is None or reset_num_timesteps:
-            # Initialize buffers if they don't exist, or reinitialize if resetting counters
-            self.ep_info_buffer = deque(maxlen=100)
-            self.ep_success_buffer = deque(maxlen=100)
-
-        if self.action_noise is not None:
-            self.action_noise.reset()
-
-        if reset_num_timesteps:
-            self.num_timesteps = 0
-            self._episode_num = 0
-        else:
-            # Make sure training timesteps are ahead of the internal counter
-            total_timesteps += self.num_timesteps
-        self._total_timesteps = total_timesteps
-        self._num_timesteps_at_start = self.num_timesteps
-
-        # Avoid resetting the environment when calling ``.learn()`` consecutive times
-        if reset_num_timesteps or self._last_obs is None:
-            self._last_obs = self.env.reset()  # pytype: disable=annotation-type-mismatch
-            self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
-            # Retrieve unnormalized observation for saving into the buffer
-            if self._vec_normalize_env is not None:
-                self._last_original_obs = self._vec_normalize_env.get_original_obs()
-
-        if eval_env is not None and self.seed is not None:
-            eval_env.seed(self.seed)
-
-        eval_env = self._get_eval_env(eval_env)
-
-        # Configure logger's outputs if no logger was passed
-        if not self._custom_logger:
-            self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
-
-        # Create eval callback if needed
-        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
-
-        return total_timesteps, callback
 
     def _update_info_buffer(self, infos: List[Dict[str, Any]], dones: Optional[np.ndarray] = None) -> None:
         """
@@ -590,34 +360,6 @@ class SAC:
 
         self.n_envs = env.num_envs
         self.env = env
-
-    @abstractmethod
-    def learn(
-        self,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 100,
-        tb_log_name: str = "run",
-        eval_env: Optional[GymEnv] = None,
-        eval_freq: int = -1,
-        n_eval_episodes: int = 5,
-        eval_log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
-    ) -> "BaseAlgorithm":
-        """
-        Return a trained model.
-
-        :param total_timesteps: The total number of samples (env steps) to train on
-        :param callback: callback(s) called at every step with state of the algorithm.
-        :param log_interval: The number of timesteps before logging.
-        :param tb_log_name: the name of the run for TensorBoard logging
-        :param eval_env: Environment that will be used to evaluate the agent
-        :param eval_freq: Evaluate the agent every ``eval_freq`` timesteps (this may vary a little)
-        :param n_eval_episodes: Number of episode to evaluate the agent
-        :param eval_log_path: Path to a folder where the evaluations will be saved
-        :param reset_num_timesteps: whether or not to reset the current timestep number (used in logging)
-        :return: the trained model
-        """
 
     def predict(
         self,
@@ -897,78 +639,6 @@ class SAC:
 
         save_to_zip_file(path, data=data, params=params_to_save, pytorch_variables=pytorch_variables)
     
-    def OffPolicyAlgorithm__init__(
-        self,
-        policy: Type[BasePolicy],
-        env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule],
-        buffer_size: int = 1_000_000,  # 1e6
-        learning_starts: int = 100,
-        batch_size: int = 256,
-        tau: float = 0.005,
-        gamma: float = 0.99,
-        train_freq: Union[int, Tuple[int, str]] = (1, "step"),
-        gradient_steps: int = 1,
-        action_noise: Optional[ActionNoise] = None,
-        replay_buffer_class: Optional[ReplayBuffer] = None,
-        replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
-        optimize_memory_usage: bool = False,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        tensorboard_log: Optional[str] = None,
-        verbose: int = 0,
-        device: Union[th.device, str] = "auto",
-        support_multi_env: bool = False,
-        create_eval_env: bool = False,
-        monitor_wrapper: bool = True,
-        seed: Optional[int] = None,
-        use_sde: bool = False,
-        sde_sample_freq: int = -1,
-        use_sde_at_warmup: bool = False,
-        sde_support: bool = True,
-        supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
-    ):
-
-        self.Base__init__(
-            policy=policy,
-            env=env,
-            learning_rate=learning_rate,
-            policy_kwargs=policy_kwargs,
-            tensorboard_log=tensorboard_log,
-            verbose=verbose,
-            device=device,
-            support_multi_env=support_multi_env,
-            create_eval_env=create_eval_env,
-            monitor_wrapper=monitor_wrapper,
-            seed=seed,
-            use_sde=use_sde,
-            sde_sample_freq=sde_sample_freq,
-            supported_action_spaces=supported_action_spaces,
-        )
-        self.buffer_size = buffer_size
-        self.batch_size = batch_size
-        self.learning_starts = learning_starts
-        self.tau = tau
-        self.gamma = gamma
-        self.gradient_steps = gradient_steps
-        self.action_noise = action_noise
-        self.optimize_memory_usage = optimize_memory_usage
-        self.replay_buffer_class = replay_buffer_class
-        if replay_buffer_kwargs is None:
-            replay_buffer_kwargs = {}
-        self.replay_buffer_kwargs = replay_buffer_kwargs
-        self._episode_storage = None
-
-        # Save train freq parameter, will be converted later to TrainFreq object
-        self.train_freq = train_freq
-
-        self.actor = None  # type: Optional[th.nn.Module]
-        self.replay_buffer = None  # type: Optional[ReplayBuffer]
-        # Update policy keyword arguments
-        if sde_support:
-            self.policy_kwargs["use_sde"] = self.use_sde
-        # For gSDE only
-        self.use_sde_at_warmup = use_sde_at_warmup
-
     def _convert_train_freq(self) -> None:
         """
         Convert `train_freq` parameter (int or tuple)
@@ -990,62 +660,6 @@ class SAC:
                 raise ValueError(f"The frequency of `train_freq` must be an integer and not {train_freq[0]}")
 
             self.train_freq = TrainFreq(*train_freq)
-
-    def OffPolicyAlgorithm_setup_model(self) -> None:
-        self._setup_lr_schedule()
-        self.set_random_seed(self.seed)
-
-        # Use DictReplayBuffer if needed
-        if self.replay_buffer_class is None:
-            if isinstance(self.observation_space, gym.spaces.Dict):
-                self.replay_buffer_class = DictReplayBuffer
-            else:
-                self.replay_buffer_class = ReplayBuffer
-
-        elif self.replay_buffer_class == HerReplayBuffer:
-            assert self.env is not None, "You must pass an environment when using `HerReplayBuffer`"
-
-            # If using offline sampling, we need a classic replay buffer too
-            if self.replay_buffer_kwargs.get("online_sampling", True):
-                replay_buffer = None
-            else:
-                replay_buffer = DictReplayBuffer(
-                    self.buffer_size,
-                    self.observation_space,
-                    self.action_space,
-                    device=self.device,
-                    optimize_memory_usage=self.optimize_memory_usage,
-                )
-
-            self.replay_buffer = HerReplayBuffer(
-                self.env,
-                self.buffer_size,
-                device=self.device,
-                replay_buffer=replay_buffer,
-                **self.replay_buffer_kwargs,
-            )
-
-        if self.replay_buffer is None:
-            self.replay_buffer = self.replay_buffer_class(
-                self.buffer_size,
-                self.observation_space,
-                self.action_space,
-                device=self.device,
-                n_envs=self.n_envs,
-                optimize_memory_usage=self.optimize_memory_usage,
-                **self.replay_buffer_kwargs,
-            )
-
-        self.policy = self.policy_class(  # pytype:disable=not-instantiable
-            self.observation_space,
-            self.action_space,
-            self.lr_schedule,
-            **self.policy_kwargs,  # pytype:disable=not-instantiable
-        )
-        self.policy = self.policy.to(self.device)
-
-        # Convert train freq parameter to TrainFreq object
-        self._convert_train_freq()
 
     def save_replay_buffer(self, path: Union[str, pathlib.Path, io.BufferedIOBase]) -> None:
         """
@@ -1129,18 +743,48 @@ class SAC:
             pos = (replay_buffer.pos - 1) % replay_buffer.buffer_size
             replay_buffer.dones[pos] = True
 
-        return self.Base_setup_learn(
-            total_timesteps,
-            eval_env,
-            callback,
-            eval_freq,
-            n_eval_episodes,
-            log_path,
-            reset_num_timesteps,
-            tb_log_name,
-        )
+        self.start_time = time.time()
 
-    def OffPolicyAlgorithmlearn(
+        if self.ep_info_buffer is None or reset_num_timesteps:
+            # Initialize buffers if they don't exist, or reinitialize if resetting counters
+            self.ep_info_buffer = deque(maxlen=100)
+            self.ep_success_buffer = deque(maxlen=100)
+
+        if self.action_noise is not None:
+            self.action_noise.reset()
+
+        if reset_num_timesteps:
+            self.num_timesteps = 0
+            self._episode_num = 0
+        else:
+            # Make sure training timesteps are ahead of the internal counter
+            total_timesteps += self.num_timesteps
+        self._total_timesteps = total_timesteps
+        self._num_timesteps_at_start = self.num_timesteps
+
+        # Avoid resetting the environment when calling ``.learn()`` consecutive times
+        if reset_num_timesteps or self._last_obs is None:
+            self._last_obs = self.env.reset()  # pytype: disable=annotation-type-mismatch
+            self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
+            # Retrieve unnormalized observation for saving into the buffer
+            if self._vec_normalize_env is not None:
+                self._last_original_obs = self._vec_normalize_env.get_original_obs()
+
+        if eval_env is not None and self.seed is not None:
+            eval_env.seed(self.seed)
+
+        eval_env = self._get_eval_env(eval_env)
+
+        # Configure logger's outputs if no logger was passed
+        if not self._custom_logger:
+            self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
+
+        # Create eval callback if needed
+        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
+
+        return total_timesteps, callback
+
+    def learn(
         self,
         total_timesteps: int,
         callback: MaybeCallback = None,
@@ -1191,13 +835,6 @@ class SAC:
         callback.on_training_end()
 
         return self
-
-    def train(self, gradient_steps: int, batch_size: int) -> None:
-        """
-        Sample the replay buffer and do the updates
-        (gradient descent and update target networks)
-        """
-        raise NotImplementedError()
 
     def _sample_action(
         self,
@@ -1443,14 +1080,6 @@ class SAC:
 
         return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training)
 
-
-
-    policy_aliases: Dict[str, Type[BasePolicy]] = {
-        "MlpPolicy": MlpPolicy,
-        "CnnPolicy": CnnPolicy,
-        "MultiInputPolicy": MultiInputPolicy,
-    }
-
     def __init__(
         self,
         policy: Union[str, Type[SACPolicy]],
@@ -1480,35 +1109,123 @@ class SAC:
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
+        monitor_wrapper = True,
+        sde_support = True,
     ):
+        supported_action_spaces = (gym.spaces.Box)
+        support_multi_env = True
+        if isinstance(policy, str):
+            self.policy_class = self._get_policy_from_name(policy)
+        else:
+            self.policy_class = policy
 
-        self.OffPolicyAlgorithm__init__(
-            policy,
-            env,
-            learning_rate,
-            buffer_size,
-            learning_starts,
-            batch_size,
-            tau,
-            gamma,
-            train_freq,
-            gradient_steps,
-            action_noise,
-            replay_buffer_class=replay_buffer_class,
-            replay_buffer_kwargs=replay_buffer_kwargs,
-            policy_kwargs=policy_kwargs,
-            tensorboard_log=tensorboard_log,
-            verbose=verbose,
-            device=device,
-            create_eval_env=create_eval_env,
-            seed=seed,
-            use_sde=use_sde,
-            sde_sample_freq=sde_sample_freq,
-            use_sde_at_warmup=use_sde_at_warmup,
-            optimize_memory_usage=optimize_memory_usage,
-            supported_action_spaces=(gym.spaces.Box),
-            support_multi_env=True,
-        )
+        self.device = get_device(device)
+        if verbose > 0:
+            print(f"Using {self.device} device")
+
+        self.env = None  # type: Optional[GymEnv]
+        # get VecNormalize object if needed
+        self._vec_normalize_env = unwrap_vec_normalize(env)
+        self.verbose = verbose
+        self.policy_kwargs = {} if policy_kwargs is None else policy_kwargs
+        self.observation_space = None  # type: Optional[gym.spaces.Space]
+        self.action_space = None  # type: Optional[gym.spaces.Space]
+        self.n_envs = None
+        self.num_timesteps = 0
+        # Used for updating schedules
+        self._total_timesteps = 0
+        # Used for computing fps, it is updated at each call of learn()
+        self._num_timesteps_at_start = 0
+        self.eval_env = None
+        self.seed = seed
+        self.action_noise = None  # type: Optional[ActionNoise]
+        self.start_time = None
+        self.policy = None
+        self.learning_rate = learning_rate
+        self.tensorboard_log = tensorboard_log
+        self.lr_schedule = None  # type: Optional[Schedule]
+        self._last_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+        self._last_episode_starts = None  # type: Optional[np.ndarray]
+        # When using VecNormalize:
+        self._last_original_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+        self._episode_num = 0
+        # Used for gSDE only
+        self.use_sde = use_sde
+        self.sde_sample_freq = sde_sample_freq
+        # Track the training progress remaining (from 1 to 0)
+        # this is used to update the learning rate
+        self._current_progress_remaining = 1
+        # Buffers for logging
+        self.ep_info_buffer = None  # type: Optional[deque]
+        self.ep_success_buffer = None  # type: Optional[deque]
+        # For logging (and TD3 delayed updates)
+        self._n_updates = 0  # type: int
+        # The logger object
+        self._logger = None  # type: Logger
+        # Whether the user passed a custom logger or not
+        self._custom_logger = False
+
+        # Create and wrap the env if needed
+        if env is not None:
+            if isinstance(env, str):
+                if create_eval_env:
+                    self.eval_env = maybe_make_env(env, self.verbose)
+
+            env = maybe_make_env(env, self.verbose)
+            env = self._wrap_env(env, self.verbose, monitor_wrapper)
+
+            self.observation_space = env.observation_space
+            self.action_space = env.action_space
+            self.n_envs = env.num_envs
+            self.env = env
+
+            if supported_action_spaces is not None:
+                assert isinstance(self.action_space, supported_action_spaces), (
+                    f"The algorithm only supports {supported_action_spaces} as action spaces "
+                    f"but {self.action_space} was provided"
+                )
+
+            if not support_multi_env and self.n_envs > 1:
+                raise ValueError(
+                    "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
+                )
+
+            # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
+            if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
+                raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
+
+            if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
+                raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
+
+            if isinstance(self.action_space, gym.spaces.Box):
+                assert np.all(
+                    np.isfinite(np.array([self.action_space.low, self.action_space.high]))
+                ), "Continuous action space must have a finite lower and upper bound"
+        
+        self.buffer_size = buffer_size
+        self.batch_size = batch_size
+        self.learning_starts = learning_starts
+        self.tau = tau
+        self.gamma = gamma
+        self.gradient_steps = gradient_steps
+        self.action_noise = action_noise
+        self.optimize_memory_usage = optimize_memory_usage
+        self.replay_buffer_class = replay_buffer_class
+        if replay_buffer_kwargs is None:
+            replay_buffer_kwargs = {}
+        self.replay_buffer_kwargs = replay_buffer_kwargs
+        self._episode_storage = None
+
+        # Save train freq parameter, will be converted later to TrainFreq object
+        self.train_freq = train_freq
+
+        self.actor = None  # type: Optional[th.nn.Module]
+        self.replay_buffer = None  # type: Optional[ReplayBuffer]
+        # Update policy keyword arguments
+        if sde_support:
+            self.policy_kwargs["use_sde"] = self.use_sde
+        # For gSDE only
+        self.use_sde_at_warmup = use_sde_at_warmup
 
         self.target_entropy = target_entropy
         self.log_ent_coef = None  # type: Optional[th.Tensor]
@@ -1522,7 +1239,61 @@ class SAC:
             self._setup_model()
 
     def _setup_model(self) -> None:
-        self.OffPolicyAlgorithm_setup_model()
+        self._setup_lr_schedule()
+        self.set_random_seed(self.seed)
+
+        # Use DictReplayBuffer if needed
+        if self.replay_buffer_class is None:
+            if isinstance(self.observation_space, gym.spaces.Dict):
+                self.replay_buffer_class = DictReplayBuffer
+            else:
+                self.replay_buffer_class = ReplayBuffer
+
+        elif self.replay_buffer_class == HerReplayBuffer:
+            assert self.env is not None, "You must pass an environment when using `HerReplayBuffer`"
+
+            # If using offline sampling, we need a classic replay buffer too
+            if self.replay_buffer_kwargs.get("online_sampling", True):
+                replay_buffer = None
+            else:
+                replay_buffer = DictReplayBuffer(
+                    self.buffer_size,
+                    self.observation_space,
+                    self.action_space,
+                    device=self.device,
+                    optimize_memory_usage=self.optimize_memory_usage,
+                )
+
+            self.replay_buffer = HerReplayBuffer(
+                self.env,
+                self.buffer_size,
+                device=self.device,
+                replay_buffer=replay_buffer,
+                **self.replay_buffer_kwargs,
+            )
+
+        if self.replay_buffer is None:
+            self.replay_buffer = self.replay_buffer_class(
+                self.buffer_size,
+                self.observation_space,
+                self.action_space,
+                device=self.device,
+                n_envs=self.n_envs,
+                optimize_memory_usage=self.optimize_memory_usage,
+                **self.replay_buffer_kwargs,
+            )
+
+        self.policy = self.policy_class(  # pytype:disable=not-instantiable
+            self.observation_space,
+            self.action_space,
+            self.lr_schedule,
+            **self.policy_kwargs,  # pytype:disable=not-instantiable
+        )
+        self.policy = self.policy.to(self.device)
+
+        # Convert train freq parameter to TrainFreq object
+        self._convert_train_freq()
+        
         self._create_aliases()
         # Target entropy is used when learning the entropy coefficient
         if self.target_entropy == "auto":
@@ -1653,34 +1424,6 @@ class SAC:
         self.logger.record("train/critic_loss", np.mean(critic_losses))
         if len(ent_coef_losses) > 0:
             self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
-
-    def learn(
-        self,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 4,
-        eval_env: Optional[GymEnv] = None,
-        eval_freq: int = -1,
-        n_eval_episodes: int = 5,
-        tb_log_name: str = "SAC",
-        eval_log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
-    ):
-
-        return self.OffPolicyAlgorithmlearn(
-            total_timesteps=total_timesteps,
-            callback=callback,
-            log_interval=log_interval,
-            eval_env=eval_env,
-            eval_freq=eval_freq,
-            n_eval_episodes=n_eval_episodes,
-            tb_log_name=tb_log_name,
-            eval_log_path=eval_log_path,
-            reset_num_timesteps=reset_num_timesteps,
-        )
-
-    def _excluded_save_params(self) -> List[str]:
-        return self.OffPolicyAlgorithm_excluded_save_params() + ["actor", "critic", "critic_target"]
 
     def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
         state_dicts = ["policy", "actor.optimizer", "critic.optimizer"]
