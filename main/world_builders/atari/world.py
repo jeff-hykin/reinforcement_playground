@@ -62,13 +62,21 @@ class Discrete(spaces.Discrete):
         self._shape = value
 
 class World:
-    def __init__(world, *, game="pong", mode=None, difficulty=None, obs_type="image", frameskip=(2, 5), repeat_action_probability=0.0, full_action_space=False, visualize=False, debug=False, random_seed=None):
-        world._random_seed = time() if random_seed == None else random_seed
+    def __init__(world, *, game="pong", mode=None, difficulty=None, obs_type="image", frameskip=4, repeat_action_probability=0.0, full_action_space=False, visualize=False, debug=False, random_seed=None):
+        world.game                      = game
+        world.mode                      = mode
+        world.difficulty                = difficulty
+        world.obs_type                  = obs_type
+        world.frameskip                 = frameskip
+        world.repeat_action_probability = repeat_action_probability
+        world.full_action_space         = full_action_space
+        
+        world._random_seed = int(time()*100) if random_seed == None else random_seed
         world.visualize = visualize
         world.debug = debug
         world.reset()
         
-        class Player1(gym.Env, utils.EzPickle):
+        class Player(gym.Env, utils.EzPickle):
             """
                 The Atari Environment
                     (inherits from the openai gym environment: https://gym.openai.com/docs/)
@@ -78,7 +86,7 @@ class World:
                     mode=None,                     # use Environment.available_modes_for(game) to see this list
                     difficulty=None,
                     obs_type="image",              # or "ram"
-                    frameskip=(2, 5),              # random number between 2 and 5 
+                    frameskip=(2, 5),              # random number between 2 and 5
                     repeat_action_probability=0.0, # 0 means deterministic
                     full_action_space=False,
                 )
@@ -104,13 +112,13 @@ class World:
                 
             def __init__(
                 self,
-                game="pong",
-                mode=None,
-                difficulty=None,
-                obs_type="image",
-                frameskip=(2, 5),
-                repeat_action_probability=0.0,
-                full_action_space=False,
+                game=world.game,
+                mode=world.mode,
+                difficulty=world.difficulty,
+                obs_type=world.obs_type,
+                frameskip=world.frameskip,
+                repeat_action_probability=world.repeat_action_probability,
+                full_action_space=world.full_action_space,
             ):
                 """
                 Arguments:
@@ -204,6 +212,8 @@ class World:
 
                 if isinstance(self.frameskip, int):
                     num_steps = self.frameskip
+                elif self.frameskip[0] == self.frameskip[1]:
+                    num_steps = self.frameskip[0]
                 else:
                     num_steps = self.np_random.randint(self.frameskip[0], self.frameskip[1])
                 for _ in range(num_steps):
@@ -307,101 +317,6 @@ class World:
                 self.ale.restoreSystemState(state_ref)
                 self.ale.deleteState(state_ref)
         
-        class Player(Env):
-            actions = LazyDict(dict(
-                LEFT  = "LEFT",
-                UP    = "UP",
-                DOWN  = "DOWN",
-                RIGHT = "RIGHT",
-            ))
-            action_space      = Discrete(len(actions))
-            observation_space = Discrete(world.number_of_grid_states)
-            observation_space.shape = tuple(to_tensor(world.state.grid).shape)
-            
-            def __init__(self):
-                world.state.has_water[self] = False
-                world.state.position_of[self] = world.start_position
-                self.previous_action = None
-                self.previous_observation = None
-                self.action = None
-                
-                # for openai gym
-                self.observation_shape = (1,1)
-                self.observation_space = spaces.Box(low=torch.zeros_like(world.state.grid).numpy(), high=torch.ones_like(world.state.grid).numpy(), dtype=np.float16)
-                self.action_space = spaces.Box(low=np.array([0,0]), high=np.array([1,1]) )
-            
-            @property
-            def position(self):
-                return world.state.position_of[self]
-            
-            @property
-            def observation(self):
-                return world.state.grid
-                
-            def compute_reward(self):
-                fires_before = self.previous_observation.fire.sum()
-                fires_now = self.observation.fire.sum()
-                
-                if fires_before > fires_now:
-                    return 50
-                else:
-                    # penalize hitting a wall
-                    if to_pure(self.previous_observation) == to_pure(self.observation):
-                        return -20
-                    else:
-                        return -1
-            
-            def check_for_done(self):
-                fires_now = self.observation.fire.sum()
-                
-                if fires_now == 0:
-                    return True
-                else:
-                    return False
-            
-            def perform_action(self, action):
-                action = to_pure(action)
-                if isinstance(action, (list, tuple)):
-                    # convert to boolean
-                    action = tuple(not not each for each in action)
-                    if action == (True, False):
-                        action = "LEFT"
-                    elif action == (False, True):
-                        action = "RIGHT"
-                    elif action == (True, True):
-                        action = "UP"
-                    elif action == (False, False):
-                        action = "DOWN"
-                self.previous_observation = deepcopy(self.observation)
-                self.previous_action      = deepcopy(self.action)
-                self.action = action
-                world.request_change(self, action)
-            
-            def step(self, action):
-                self.perform_action(action)
-                next_state = self.observation
-                reward     = self.compute_reward()
-                done       = self.check_for_done()
-                debug_info = LazyDict(has_water=world.state.has_water[self], position=self.position)
-                
-                if world.visualize:
-                    print(f'''player1 reward = {f"{reward}".rjust(3)}, done = {done}''')
-                
-                return next_state, reward, done, debug_info
-
-            def reset(self,):
-                # ask the world to reset
-                world.request_change(self, World.reset)
-                self.__init__()
-                return self.observation
-            
-            def close(self):
-                pass
-            
-            def __repr__(self):
-                return world.__repr__()
-
-        
         world.Player = Player
     
     def __repr__(world):
@@ -420,63 +335,5 @@ class World:
         pass
     
     def request_change(world, player, change):
-        if change == World.reset:
-            world.reset()
-            return True
-        # 
-        # compute changes
-        # 
-        
-        old_position = Position(player.position)
-        new_position = Position(old_position)
-                
-        if change == player.actions.LEFT:
-            new_position.x -= 1
-        elif change == player.actions.RIGHT:
-            new_position.x += 1
-        elif change == player.actions.DOWN:
-            new_position.y -= 1
-        elif change == player.actions.UP:
-            new_position.y += 1
-        else:
-            warn(f"invalid change ({change}) was selected, ignoring")
-        
-        # stay in bounds
-        if new_position.x > world.max_x_index: new_position.x = world.max_x_index
-        if new_position.x < world.min_x_index: new_position.x = world.min_x_index
-        if new_position.y > world.max_y_index: new_position.y = world.max_y_index
-        if new_position.y < world.min_y_index: new_position.y = world.min_y_index
-        
-        # check if player has water
-        has_water = world.state.has_water[player] or world.state.grid.water[new_position.x, new_position.y]
-        
-        # use water automatically
-        fire_status = world.state.grid.fire[new_position.x, new_position.y] and not has_water
-            
-        
-        # 
-        # mutate state
-        # 
-        if world.debug: print(world)
-        
-        # position
-        world.state.position_of[player] = new_position
-        # grid
-        world.state.grid.position[tuple(old_position)] = False
-        world.state.grid.position[tuple(new_position)] = True
-        # has water
-        world.state.has_water[player] = has_water
-        # put out fire
-        world.state.grid.fire[new_position.x, new_position.y] = fire_status
-        
-        if world.debug: print(world)
-        if world.debug: print(f'''new_position = {new_position}''')
-        if world.debug: print(f'''has_water = {has_water}''')
-        if world.debug: print(f'''fire_status = {fire_status}''')
-        if world.debug: sleep(0.5)
-        
-        if world.visualize:
-            print(world)
-            sleep(0.7)
         # request granted
         return True
