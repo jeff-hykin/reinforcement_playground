@@ -249,15 +249,11 @@ css = ["tinycss2 (>=1.1.0)"]
 
 [[package]]
 name = "blissful-basics"
-version = "0.1.0"
+version = "0.2.1"
 description = "Tools I need in every python project"
 category = "main"
 optional = false
 python-versions = ">=3.6"
-
-[package.dependencies]
-file-system-py = ">=0.0.7"
-json-fix = ">=0.3.0"
 
 [[package]]
 name = "cachetools"
@@ -2159,7 +2155,7 @@ docs = ["rst.linker (>=1.9)", "jaraco.packaging (>=9)", "sphinx"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.10"
-content-hash = "a3b6871fb1e254090ff4569d38d321d14077e4b49d384d940a7e0571c54ee5bf"
+content-hash = "5583d7d925a5176fb4cd18290f17c8a1ee8adc08ce35bd61a03895ff0ea955a6"
 
 [metadata.files]
 absl-py = []
