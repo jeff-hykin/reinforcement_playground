@@ -1,30 +1,55 @@
-import random
-import time
+# import random
+# import time
 
-import numpy as np
-import gym
-from gym import spaces
-from stable_baselines3 import SAC
+# import numpy as np
+# import gym
+# from gym import spaces
+# from stable_baselines3 import SAC
+# from stable_baselines3 import A2C
+
+# from missions.hydra_oracle.sac_exposed import SAC
+# from missions.hydra_oracle.a2c_exposed import SAC
+
+# from world_builders.fight_fire.world import World
+# from world_builders.atari.world import World
+
+# world = World(
+#     # grid_width=3,
+#     # grid_height=3,
+#     # visualize=False,
+#     # fire_locations=[(-1,-1)],
+#     # water_locations=[(0,0)],
+# )
+# env = world.Player()
+
+# # env = gym.make("Pendulum-v1")
+# # env = Env()
+# model = A2C('CnnPolicy', env, verbose=1)
+# model.learn(total_timesteps=250)
+
+
+
+from stable_baselines3.common.env_util import make_atari_env
+from stable_baselines3.common.vec_env import VecFrameStack
 from stable_baselines3 import A2C
 
-from missions.hydra_oracle.sac_exposed import SAC
+from missions.hydra_oracle.a2c_exposed import A2C
 
-from world_builders.fight_fire.world import World
-from world_builders.atari.world import World
+# There already exists an environment generator
+# that will make and wrap atari environments correctly.
+# Here we are also multi-worker training (n_envs=4 => 4 environments)
+env = make_atari_env('PongNoFrameskip-v4', n_envs=4, seed=0)
+# Frame-stacking with 4 frames
+env = VecFrameStack(env, n_stack=4)
 
-world = World(
-    # grid_width=3,
-    # grid_height=3,
-    # visualize=False,
-    # fire_locations=[(-1,-1)],
-    # water_locations=[(0,0)],
-)
-env = world.Player()
-
-# env = gym.make("Pendulum-v1")
-# env = Env()
 model = A2C('CnnPolicy', env, verbose=1)
-model.learn(total_timesteps=250)
+model.learn(total_timesteps=25_000)
+
+obs = env.reset()
+while True:
+    action, _states = model.predict(obs)
+    obs, rewards, dones, info = env.step(action)
+    env.render()
 
 # class Network(nn.Module):
 #     @init.to_device()

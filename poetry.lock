@@ -249,7 +249,7 @@ css = ["tinycss2 (>=1.1.0)"]
 
 [[package]]
 name = "blissful-basics"
-version = "0.2.1"
+version = "0.2.5"
 description = "Tools I need in every python project"
 category = "main"
 optional = false
@@ -2155,7 +2155,7 @@ docs = ["rst.linker (>=1.9)", "jaraco.packaging (>=9)", "sphinx"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.10"
-content-hash = "5583d7d925a5176fb4cd18290f17c8a1ee8adc08ce35bd61a03895ff0ea955a6"
+content-hash = "025a842bacef7f4bd2ffe96742677fef5ff3da81de6cf95d3393b06744986a50"
 
 [metadata.files]
 absl-py = []

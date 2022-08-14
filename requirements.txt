@@ -2,11 +2,5 @@ gym-donkeycar @ git+https://github.com/tawnkramer/gym-donkeycar.git@cc723d19491b
 optuna==2.9.1
 jupyterthemes==0.20.0
 ./modules/gym-unity
-
-./modules/ml-agents
-
-./modules/ml-agents-envs
-
 ./modules/carla-gym-wrapper
-
-./repos/ale
+./modules/stable-baselines
