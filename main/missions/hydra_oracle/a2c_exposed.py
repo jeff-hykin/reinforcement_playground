@@ -38,6 +38,32 @@ from stable_baselines3.common.vec_env import (
     unwrap_vec_normalize,
 )
 
+import time
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
+
+import gym
+import numpy as np
+import torch as th
+
+from stable_baselines3.common.base_class import BaseAlgorithm
+from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.policies import ActorCriticPolicy
+from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
+from stable_baselines3.common.utils import obs_as_tensor, safe_mean
+from stable_baselines3.common.vec_env import VecEnv
+
+from typing import Any, Dict, Optional, Type, Union
+
+import torch as th
+from gym import spaces
+from torch.nn import functional as F
+
+from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
+from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
+from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
+from stable_baselines3.common.utils import explained_variance
+
 
 def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymEnv]:
     """If env is a string, make the environment; otherwise, return env.
@@ -834,22 +860,6 @@ class BaseAlgorithm(ABC):
 
         save_to_zip_file(path, data=data, params=params_to_save, pytorch_variables=pytorch_variables)
 
-import time
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
-
-import gym
-import numpy as np
-import torch as th
-
-from stable_baselines3.common.base_class import BaseAlgorithm
-from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.policies import ActorCriticPolicy
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import obs_as_tensor, safe_mean
-from stable_baselines3.common.vec_env import VecEnv
-
-
 class OnPolicyAlgorithm(BaseAlgorithm):
     """
     The base for On-Policy algorithms (ex: A2C/PPO).
@@ -1110,18 +1120,6 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         state_dicts = ["policy", "policy.optimizer"]
 
         return state_dicts, []
-
-
-from typing import Any, Dict, Optional, Type, Union
-
-import torch as th
-from gym import spaces
-from torch.nn import functional as F
-
-from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
-from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import explained_variance
 
 
 class A2C(OnPolicyAlgorithm):
