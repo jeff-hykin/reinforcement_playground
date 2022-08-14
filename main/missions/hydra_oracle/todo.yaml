@@ -1,0 +1,4 @@
+TODO:
+    - simplify policies.py
+    - find the update weights step somewhere in policies.py or a2c_exposed.py
+    - see if the network can be swapped out with an LSTM, or if an LSTM can be added on top of the latent space created by the MLP
