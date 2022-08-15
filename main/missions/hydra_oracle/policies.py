@@ -149,6 +149,46 @@ class MlpExtractor(nn.Module):
     def forward_critic(self, features: th.Tensor) -> th.Tensor:
         return self.value_net(self.shared_net(features))
 
+class CombinedExtractor(nn.Module):
+    """
+    Combined feature extractor for Dict observation spaces.
+    Builds a feature extractor for each key of the space. Input from each space
+    is fed through a separate submodule (CNN or MLP, depending on input shape),
+    the output features are concatenated and fed through additional MLP network ("combined").
+
+    :param observation_space:
+    :param cnn_output_dim: Number of features to output from each CNN submodule(s). Defaults to
+        256 to avoid exploding network sizes.
+    """
+
+    def __init__(self, observation_space: gym.spaces.Dict, cnn_output_dim: int = 256):
+        super().__init__()
+        self._observation_space = observation_space
+        extractors = {}
+
+        total_concat_size = 0
+        for key, subspace in observation_space.spaces.items():
+            if is_image_space(subspace):
+                extractors[key] = NatureCNN(subspace, features_dim=cnn_output_dim)
+                total_concat_size += cnn_output_dim
+            else:
+                # The observation key is a vector, flatten it if needed
+                extractors[key] = nn.Flatten()
+                total_concat_size += get_flattened_obs_dim(subspace)
+
+        self.extractors = nn.ModuleDict(extractors)
+
+        # Update the features dim manually
+        self._features_dim = total_concat_size
+        assert self.features_dim > 0
+
+    def forward(self, observations: TensorDict) -> th.Tensor:
+        encoded_tensor_list = []
+
+        for key, extractor in self.extractors.items():
+            encoded_tensor_list.append(extractor(observations[key]))
+        return th.cat(encoded_tensor_list, dim=1)
+
 
 class BaseModel(nn.Module, ABC):
     """
@@ -788,36 +828,36 @@ class ActorCriticPolicy(BasePolicy):
 
 class ActorCriticCnnPolicy(ActorCriticPolicy):
     """
-    CNN policy class for actor-critic algorithms (has both policy and value prediction).
-    Used by A2C, PPO and the likes.
+        CNN policy class for actor-critic algorithms (has both policy and value prediction).
+        Used by A2C, PPO and the likes.
 
-    :param observation_space: Observation space
-    :param action_space: Action space
-    :param lr_schedule: Learning rate schedule (could be constant)
-    :param net_arch: The specification of the policy and value networks.
-    :param activation_fn: Activation function
-    :param ortho_init: Whether to use or not orthogonal initialization
-    :param use_sde: Whether to use State Dependent Exploration or not
-    :param log_std_init: Initial value for the log standard deviation
-    :param full_std: Whether to use (n_features x n_actions) parameters
-        for the std instead of only (n_features,) when using gSDE
-    :param sde_net_arch: Network architecture for extracting features
-        when using gSDE. If None, the latent features from the policy will be used.
-        Pass an empty list to use the states as features.
-    :param use_expln: Use ``expln()`` function instead of ``exp()`` to ensure
-        a positive standard deviation (cf paper). It allows to keep variance
-        above zero and prevent it from growing too fast. In practice, ``exp()`` is usually enough.
-    :param squash_output: Whether to squash the output using a tanh function,
-        this allows to ensure boundaries when using gSDE.
-    :param features_extractor_class: Features extractor to use.
-    :param features_extractor_kwargs: Keyword arguments
-        to pass to the features extractor.
-    :param normalize_images: Whether to normalize images or not,
-         dividing by 255.0 (True by default)
-    :param optimizer_class: The optimizer to use,
-        ``th.optim.Adam`` by default
-    :param optimizer_kwargs: Additional keyword arguments,
-        excluding the learning rate, to pass to the optimizer
+        :param observation_space: Observation space
+        :param action_space: Action space
+        :param lr_schedule: Learning rate schedule (could be constant)
+        :param net_arch: The specification of the policy and value networks.
+        :param activation_fn: Activation function
+        :param ortho_init: Whether to use or not orthogonal initialization
+        :param use_sde: Whether to use State Dependent Exploration or not
+        :param log_std_init: Initial value for the log standard deviation
+        :param full_std: Whether to use (n_features x n_actions) parameters
+            for the std instead of only (n_features,) when using gSDE
+        :param sde_net_arch: Network architecture for extracting features
+            when using gSDE. If None, the latent features from the policy will be used.
+            Pass an empty list to use the states as features.
+        :param use_expln: Use ``expln()`` function instead of ``exp()`` to ensure
+            a positive standard deviation (cf paper). It allows to keep variance
+            above zero and prevent it from growing too fast. In practice, ``exp()`` is usually enough.
+        :param squash_output: Whether to squash the output using a tanh function,
+            this allows to ensure boundaries when using gSDE.
+        :param features_extractor_class: Features extractor to use.
+        :param features_extractor_kwargs: Keyword arguments
+            to pass to the features extractor.
+        :param normalize_images: Whether to normalize images or not,
+            dividing by 255.0 (True by default)
+        :param optimizer_class: The optimizer to use,
+            ``th.optim.Adam`` by default
+        :param optimizer_kwargs: Additional keyword arguments,
+            excluding the learning rate, to pass to the optimizer
     """
 
     def __init__(

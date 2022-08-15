@@ -2,3 +2,12 @@ TODO:
     - simplify policies.py
     - find the update weights step somewhere in policies.py or a2c_exposed.py
     - see if the network can be swapped out with an LSTM, or if an LSTM can be added on top of the latent space created by the MLP
+
+Plan:
+    - failed: finding memory across large timesteps, ex; the konami code
+    - found: attention matrix is what is needed, but I don't fully understand it
+    - found: LSTM applied AFTER an encoding process would likely work well, but are not especially novel
+    - innovation options:
+        - getting the primary agent to optimally explore
+        - better state compression with multi-head options
+        - using transformers for memory AFTER an encoding process

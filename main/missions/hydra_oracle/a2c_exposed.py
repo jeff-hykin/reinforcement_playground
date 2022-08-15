@@ -41,7 +41,6 @@ def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymE
     return env
 
 class OnPolicyAlgorithm:
-    # Policy aliases (see _get_policy_from_name())
     policy_aliases: Dict[str, Type[BasePolicy]] = {}
 
     @staticmethod
@@ -174,23 +173,6 @@ class OnPolicyAlgorithm:
             "_logger",
             "_custom_logger",
         ]
-
-    def _get_policy_from_name(self, policy_name: str) -> Type[BasePolicy]:
-        """
-        Get a policy class from its name representation.
-
-        The goal here is to standardize policy naming, e.g.
-        all algorithms can call upon "MlpPolicy" or "CnnPolicy",
-        and they receive respective policies that work for them.
-
-        :param policy_name: Alias of the policy
-        :return: A policy class (type)
-        """
-
-        if policy_name in self.policy_aliases:
-            return self.policy_aliases[policy_name]
-        else:
-            raise ValueError(f"Policy {policy_name} unknown")
 
     def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
         """
@@ -679,59 +661,68 @@ class OnPolicyAlgorithm:
         _init_setup_model: bool = True,
         supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
     ):
-        support_multi_env = True
-        if isinstance(policy, str):
-            self.policy_class = self._get_policy_from_name(policy)
-        else:
-            self.policy_class = policy
-
-        self.device = get_device(device)
+        # 
+        # assign attributes
+        # 
+        if True:
+            self.policy_class = self.policy_aliases.get(policy, policy)
+            self.device = get_device(device)
+            self.env = None  # type: Optional[GymEnv]
+            # get VecNormalize object if needed
+            self._vec_normalize_env = unwrap_vec_normalize(env)
+            self.verbose = verbose
+            self.policy_kwargs = {} if policy_kwargs is None else policy_kwargs
+            self.observation_space = None  # type: Optional[gym.spaces.Space]
+            self.action_space = None  # type: Optional[gym.spaces.Space]
+            self.n_envs = None
+            self.num_timesteps = 0
+            # Used for updating schedules
+            self._total_timesteps = 0
+            # Used for computing fps, it is updated at each call of learn()
+            self._num_timesteps_at_start = 0
+            self.eval_env = None
+            self.seed = seed
+            self.action_noise = None  # type: Optional[ActionNoise]
+            self.start_time = None
+            self.policy = None
+            self.learning_rate = learning_rate
+            self.tensorboard_log = tensorboard_log
+            self.lr_schedule = None  # type: Optional[Schedule]
+            self._last_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+            self._last_episode_starts = None  # type: Optional[np.ndarray]
+            # When using VecNormalize:
+            self._last_original_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
+            self._episode_num = 0
+            # Used for gSDE only
+            self.use_sde = use_sde
+            self.sde_sample_freq = sde_sample_freq
+            # Track the training progress remaining (from 1 to 0)
+            # this is used to update the learning rate
+            self._current_progress_remaining = 1
+            # Buffers for logging
+            self.ep_info_buffer = None  # type: Optional[deque]
+            self.ep_success_buffer = None  # type: Optional[deque]
+            # For logging (and TD3 delayed updates)
+            self._n_updates = 0  # type: int
+            # The logger object
+            self._logger = None  # type: Logger
+            # Whether the user passed a custom logger or not
+            self._custom_logger = False
+            
+            self.n_steps = n_steps
+            self.gamma = gamma
+            self.gae_lambda = gae_lambda
+            self.ent_coef = ent_coef
+            self.vf_coef = vf_coef
+            self.max_grad_norm = max_grad_norm
+            self.rollout_buffer = None
+        
         if verbose > 0:
             print(f"Using {self.device} device")
-
-        self.env = None  # type: Optional[GymEnv]
-        # get VecNormalize object if needed
-        self._vec_normalize_env = unwrap_vec_normalize(env)
-        self.verbose = verbose
-        self.policy_kwargs = {} if policy_kwargs is None else policy_kwargs
-        self.observation_space = None  # type: Optional[gym.spaces.Space]
-        self.action_space = None  # type: Optional[gym.spaces.Space]
-        self.n_envs = None
-        self.num_timesteps = 0
-        # Used for updating schedules
-        self._total_timesteps = 0
-        # Used for computing fps, it is updated at each call of learn()
-        self._num_timesteps_at_start = 0
-        self.eval_env = None
-        self.seed = seed
-        self.action_noise = None  # type: Optional[ActionNoise]
-        self.start_time = None
-        self.policy = None
-        self.learning_rate = learning_rate
-        self.tensorboard_log = tensorboard_log
-        self.lr_schedule = None  # type: Optional[Schedule]
-        self._last_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-        self._last_episode_starts = None  # type: Optional[np.ndarray]
-        # When using VecNormalize:
-        self._last_original_obs = None  # type: Optional[Union[np.ndarray, Dict[str, np.ndarray]]]
-        self._episode_num = 0
-        # Used for gSDE only
-        self.use_sde = use_sde
-        self.sde_sample_freq = sde_sample_freq
-        # Track the training progress remaining (from 1 to 0)
-        # this is used to update the learning rate
-        self._current_progress_remaining = 1
-        # Buffers for logging
-        self.ep_info_buffer = None  # type: Optional[deque]
-        self.ep_success_buffer = None  # type: Optional[deque]
-        # For logging (and TD3 delayed updates)
-        self._n_updates = 0  # type: int
-        # The logger object
-        self._logger = None  # type: Logger
-        # Whether the user passed a custom logger or not
-        self._custom_logger = False
-
+        
+        # 
         # Create and wrap the env if needed
+        # 
         if env is not None:
             if isinstance(env, str):
                 if create_eval_env:
@@ -744,38 +735,32 @@ class OnPolicyAlgorithm:
             self.action_space = env.action_space
             self.n_envs = env.num_envs
             self.env = env
+            
+            # 
+            # saftey checks
+            # 
+            if True:
+                if supported_action_spaces is not None:
+                    assert isinstance(self.action_space, supported_action_spaces), (
+                        f"The algorithm only supports {supported_action_spaces} as action spaces "
+                        f"but {self.action_space} was provided"
+                    )
 
-            if supported_action_spaces is not None:
-                assert isinstance(self.action_space, supported_action_spaces), (
-                    f"The algorithm only supports {supported_action_spaces} as action spaces "
-                    f"but {self.action_space} was provided"
-                )
+                # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
+                if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
+                    raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
 
-            if not support_multi_env and self.n_envs > 1:
-                raise ValueError(
-                    "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
-                )
+                if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
+                    raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
 
-            # Catch common mistake: using MlpPolicy/CnnPolicy instead of MultiInputPolicy
-            if policy in ["MlpPolicy", "CnnPolicy"] and isinstance(self.observation_space, gym.spaces.Dict):
-                raise ValueError(f"You must use `MultiInputPolicy` when working with dict observation space, not {policy}")
-
-            if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
-                raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
-
-            if isinstance(self.action_space, gym.spaces.Box):
-                assert np.all(
-                    np.isfinite(np.array([self.action_space.low, self.action_space.high]))
-                ), "Continuous action space must have a finite lower and upper bound"
-
-        self.n_steps = n_steps
-        self.gamma = gamma
-        self.gae_lambda = gae_lambda
-        self.ent_coef = ent_coef
-        self.vf_coef = vf_coef
-        self.max_grad_norm = max_grad_norm
-        self.rollout_buffer = None
-
+                if isinstance(self.action_space, gym.spaces.Box):
+                    assert np.all(
+                        np.isfinite(np.array([self.action_space.low, self.action_space.high]))
+                    ), "Continuous action space must have a finite lower and upper bound"
+        
+        # 
+        # init model
+        # 
         if _init_setup_model:
             self._setup_model()
 
@@ -958,50 +943,50 @@ class OnPolicyAlgorithm:
 
 class A2C(OnPolicyAlgorithm):
     """
-    Advantage Actor Critic (A2C)
+        Advantage Actor Critic (A2C)
 
-    Paper: https://arxiv.org/abs/1602.01783
-    Code: This implementation borrows code from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail and
-    and Stable Baselines (https://github.com/hill-a/stable-baselines)
+        Paper: https://arxiv.org/abs/1602.01783
+        Code: This implementation borrows code from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail and
+        and Stable Baselines (https://github.com/hill-a/stable-baselines)
 
-    Introduction to A2C: https://hackernoon.com/intuitive-rl-intro-to-advantage-actor-critic-a2c-4ff545978752
+        Introduction to A2C: https://hackernoon.com/intuitive-rl-intro-to-advantage-actor-critic-a2c-4ff545978752
 
-    :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
-    :param env: The environment to learn from (if registered in Gym, can be str)
-    :param learning_rate: The learning rate, it can be a function
-        of the current progress remaining (from 1 to 0)
-    :param n_steps: The number of steps to run for each environment per update
-        (i.e. batch size is n_steps * n_env where n_env is number of environment copies running in parallel)
-    :param gamma: Discount factor
-    :param gae_lambda: Factor for trade-off of bias vs variance for Generalized Advantage Estimator
-        Equivalent to classic advantage when set to 1.
-    :param ent_coef: Entropy coefficient for the loss calculation
-    :param vf_coef: Value function coefficient for the loss calculation
-    :param max_grad_norm: The maximum value for the gradient clipping
-    :param rms_prop_eps: RMSProp epsilon. It stabilizes square root computation in denominator
-        of RMSProp update
-    :param use_rms_prop: Whether to use RMSprop (default) or Adam as optimizer
-    :param use_sde: Whether to use generalized State Dependent Exploration (gSDE)
-        instead of action noise exploration (default: False)
-    :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
-        Default: -1 (only sample at the beginning of the rollout)
-    :param normalize_advantage: Whether to normalize or not the advantage
-    :param tensorboard_log: the log location for tensorboard (if None, no logging)
-    :param create_eval_env: Whether to create a second environment that will be
-        used for evaluating the agent periodically. (Only available when passing string for the environment)
-    :param policy_kwargs: additional arguments to be passed to the policy on creation
-    :param verbose: the verbosity level: 0 no output, 1 info, 2 debug
-    :param seed: Seed for the pseudo random generators
-    :param device: Device (cpu, cuda, ...) on which the code should be run.
-        Setting it to auto, the code will be run on the GPU if possible.
-    :param _init_setup_model: Whether or not to build the network at the creation of the instance
+        :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
+        :param env: The environment to learn from (if registered in Gym, can be str)
+        :param learning_rate: The learning rate, it can be a function
+            of the current progress remaining (from 1 to 0)
+        :param n_steps: The number of steps to run for each environment per update
+            (i.e. batch size is n_steps * n_env where n_env is number of environment copies running in parallel)
+        :param gamma: Discount factor
+        :param gae_lambda: Factor for trade-off of bias vs variance for Generalized Advantage Estimator
+            Equivalent to classic advantage when set to 1.
+        :param ent_coef: Entropy coefficient for the loss calculation
+        :param vf_coef: Value function coefficient for the loss calculation
+        :param max_grad_norm: The maximum value for the gradient clipping
+        :param rms_prop_eps: RMSProp epsilon. It stabilizes square root computation in denominator
+            of RMSProp update
+        :param use_rms_prop: Whether to use RMSprop (default) or Adam as optimizer
+        :param use_sde: Whether to use generalized State Dependent Exploration (gSDE)
+            instead of action noise exploration (default: False)
+        :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
+            Default: -1 (only sample at the beginning of the rollout)
+        :param normalize_advantage: Whether to normalize or not the advantage
+        :param tensorboard_log: the log location for tensorboard (if None, no logging)
+        :param create_eval_env: Whether to create a second environment that will be
+            used for evaluating the agent periodically. (Only available when passing string for the environment)
+        :param policy_kwargs: additional arguments to be passed to the policy on creation
+        :param verbose: the verbosity level: 0 no output, 1 info, 2 debug
+        :param seed: Seed for the pseudo random generators
+        :param device: Device (cpu, cuda, ...) on which the code should be run.
+            Setting it to auto, the code will be run on the GPU if possible.
+        :param _init_setup_model: Whether or not to build the network at the creation of the instance
     """
 
-    policy_aliases: Dict[str, Type[BasePolicy]] = {
-        "MlpPolicy": ActorCriticPolicy,
-        "CnnPolicy": ActorCriticCnnPolicy,
-        "MultiInputPolicy": MultiInputActorCriticPolicy,
-    }
+    policy_aliases: Dict[str, Type[BasePolicy]] = dict(
+        MlpPolicy=ActorCriticPolicy,
+        CnnPolicy=ActorCriticCnnPolicy,
+        MultiInputPolicy=MultiInputActorCriticPolicy,
+    )
 
     def __init__(
         self,
