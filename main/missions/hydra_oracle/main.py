@@ -50,7 +50,8 @@ obs = env.reset()
 while True:
     action, _states = model.predict(obs)
     obs, rewards, dones, info = env.step(action)
-    env.render()
+    print(f'''rewards = {rewards}''')
+    # env.render()
 
 # class Network(nn.Module):
 #     @init.to_device()

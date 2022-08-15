@@ -28,11 +28,12 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecNormalize, 
 
 
 def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymEnv]:
-    """If env is a string, make the environment; otherwise, return env.
+    """
+        If env is a string, make the environment; otherwise, return env.
 
-    :param env: The environment to learn from.
-    :param verbose: logging verbosity
-    :return A Gym (vector) environment.
+        :param env: The environment to learn from.
+        :param verbose: logging verbosity
+        :return A Gym (vector) environment.
     """
     if isinstance(env, str):
         if verbose >= 1:
@@ -45,16 +46,17 @@ class OnPolicyAlgorithm:
 
     @staticmethod
     def _wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
-        """ "
-        Wrap environment with the appropriate wrappers if needed.
-        For instance, to have a vectorized environment
-        or to re-order the image channels.
-
-        :param env:
-        :param verbose:
-        :param monitor_wrapper: Whether to wrap the env in a ``Monitor`` when possible.
-        :return: The wrapped environment.
         """
+            Wrap environment with the appropriate wrappers if needed.
+            For instance, to have a vectorized environment
+            or to re-order the image channels.
+
+            :param env:
+            :param verbose:
+            :param monitor_wrapper: Whether to wrap the env in a ``Monitor`` when possible.
+            :return: The wrapped environment.
+        """
+        if env is None: return None
         if not isinstance(env, VecEnv):
             if not is_wrapped(env, Monitor) and monitor_wrapper:
                 if verbose >= 1:
@@ -88,260 +90,23 @@ class OnPolicyAlgorithm:
                 env = VecTransposeImage(env)
 
         return env
-
-    def set_logger(self, logger: Logger) -> None:
-        """
-        Setter for for logger object.
-
-        .. warning::
-
-          When passing a custom logger object,
-          this will overwrite ``tensorboard_log`` and ``verbose`` settings
-          passed to the constructor.
-        """
-        self._logger = logger
-        # User defined logger
-        self._custom_logger = True
-
+    
+    # 
+    # env
+    # 
     @property
-    def logger(self) -> Logger:
-        """Getter for the logger object."""
-        return self._logger
-
-    def _get_eval_env(self, eval_env: Optional[GymEnv]) -> Optional[GymEnv]:
+    def env(self): return self._env
+    def get_env(self): return self._env
+    @env.setter
+    def env(self, env):
         """
-        Return the environment that will be used for evaluation.
+            Checks the validity of the environment, and if it is coherent, set it as the current environment.
+            Furthermore wrap any non vectorized env into a vectorized
+            checked parameters:
+            - observation_space
+            - action_space
 
-        :param eval_env:)
-        :return:
-        """
-        if eval_env is None:
-            eval_env = self.eval_env
-
-        if eval_env is not None:
-            eval_env = self._wrap_env(eval_env, self.verbose)
-            assert eval_env.num_envs == 1
-        return eval_env
-
-    def _setup_lr_schedule(self) -> None:
-        """Transform to callable if needed."""
-        self.lr_schedule = get_schedule_fn(self.learning_rate)
-
-    def _update_current_progress_remaining(self, num_timesteps: int, total_timesteps: int) -> None:
-        """
-        Compute current progress remaining (starts from 1 and ends to 0)
-
-        :param num_timesteps: current number of timesteps
-        :param total_timesteps:
-        """
-        self._current_progress_remaining = 1.0 - float(num_timesteps) / float(total_timesteps)
-
-    def _update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
-        """
-        Update the optimizers learning rate using the current learning rate schedule
-        and the current progress remaining (from 1 to 0).
-
-        :param optimizers:
-            An optimizer or a list of optimizers.
-        """
-        # Log the current learning rate
-        self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
-
-        if not isinstance(optimizers, list):
-            optimizers = [optimizers]
-        for optimizer in optimizers:
-            update_learning_rate(optimizer, self.lr_schedule(self._current_progress_remaining))
-
-    def _excluded_save_params(self) -> List[str]:
-        """
-        Returns the names of the parameters that should be excluded from being
-        saved by pickling. E.g. replay buffers are skipped by default
-        as they take up a lot of space. PyTorch variables should be excluded
-        with this so they can be stored with ``th.save``.
-
-        :return: List of parameters that should be excluded from being saved with pickle.
-        """
-        return [
-            "policy",
-            "device",
-            "env",
-            "eval_env",
-            "replay_buffer",
-            "rollout_buffer",
-            "_vec_normalize_env",
-            "_episode_storage",
-            "_logger",
-            "_custom_logger",
-        ]
-
-    def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
-        """
-        Get the name of the torch variables that will be saved with
-        PyTorch ``th.save``, ``th.load`` and ``state_dicts`` instead of the default
-        pickling strategy. This is to handle device placement correctly.
-
-        Names can point to specific variables under classes, e.g.
-        "policy.optimizer" would point to ``optimizer`` object of ``self.policy``
-        if this object.
-
-        :return:
-            List of Torch variables whose state dicts to save (e.g. th.nn.Modules),
-            and list of other Torch variables to store with ``th.save``.
-        """
-        state_dicts = ["policy"]
-
-        return state_dicts, []
-
-    def _init_callback(
-        self,
-        callback: MaybeCallback,
-        eval_env: Optional[VecEnv] = None,
-        eval_freq: int = 10000,
-        n_eval_episodes: int = 5,
-        log_path: Optional[str] = None,
-    ) -> BaseCallback:
-        """
-        :param callback: Callback(s) called at every step with state of the algorithm.
-        :param eval_freq: How many steps between evaluations; if None, do not evaluate.
-        :param n_eval_episodes: How many episodes to play per evaluation
-        :param n_eval_episodes: Number of episodes to rollout during evaluation.
-        :param log_path: Path to a folder where the evaluations will be saved
-        :return: A hybrid callback calling `callback` and performing evaluation.
-        """
-        # Convert a list of callbacks into a callback
-        if isinstance(callback, list):
-            callback = CallbackList(callback)
-
-        # Convert functional callback to object
-        if not isinstance(callback, BaseCallback):
-            callback = ConvertCallback(callback)
-
-        # Create eval callback in charge of the evaluation
-        if eval_env is not None:
-            eval_callback = EvalCallback(
-                eval_env,
-                best_model_save_path=log_path,
-                log_path=log_path,
-                eval_freq=eval_freq,
-                n_eval_episodes=n_eval_episodes,
-            )
-            callback = CallbackList([callback, eval_callback])
-
-        callback.init_callback(self)
-        return callback
-
-    def _setup_learn(
-        self,
-        total_timesteps: int,
-        eval_env: Optional[GymEnv],
-        callback: MaybeCallback = None,
-        eval_freq: int = 10000,
-        n_eval_episodes: int = 5,
-        log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
-        tb_log_name: str = "run",
-    ) -> Tuple[int, BaseCallback]:
-        """
-        Initialize different variables needed for training.
-
-        :param total_timesteps: The total number of samples (env steps) to train on
-        :param eval_env: Environment to use for evaluation.
-        :param callback: Callback(s) called at every step with state of the algorithm.
-        :param eval_freq: How many steps between evaluations
-        :param n_eval_episodes: How many episodes to play per evaluation
-        :param log_path: Path to a folder where the evaluations will be saved
-        :param reset_num_timesteps: Whether to reset or not the ``num_timesteps`` attribute
-        :param tb_log_name: the name of the run for tensorboard log
-        :return:
-        """
-        self.start_time = time.time()
-
-        if self.ep_info_buffer is None or reset_num_timesteps:
-            # Initialize buffers if they don't exist, or reinitialize if resetting counters
-            self.ep_info_buffer = deque(maxlen=100)
-            self.ep_success_buffer = deque(maxlen=100)
-
-        if self.action_noise is not None:
-            self.action_noise.reset()
-
-        if reset_num_timesteps:
-            self.num_timesteps = 0
-            self._episode_num = 0
-        else:
-            # Make sure training timesteps are ahead of the internal counter
-            total_timesteps += self.num_timesteps
-        self._total_timesteps = total_timesteps
-        self._num_timesteps_at_start = self.num_timesteps
-
-        # Avoid resetting the environment when calling ``.learn()`` consecutive times
-        if reset_num_timesteps or self._last_obs is None:
-            self._last_obs = self.env.reset()  # pytype: disable=annotation-type-mismatch
-            self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
-            # Retrieve unnormalized observation for saving into the buffer
-            if self._vec_normalize_env is not None:
-                self._last_original_obs = self._vec_normalize_env.get_original_obs()
-
-        if eval_env is not None and self.seed is not None:
-            eval_env.seed(self.seed)
-
-        eval_env = self._get_eval_env(eval_env)
-
-        # Configure logger's outputs if no logger was passed
-        if not self._custom_logger:
-            self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
-
-        # Create eval callback if needed
-        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
-
-        return total_timesteps, callback
-
-    def _update_info_buffer(self, infos: List[Dict[str, Any]], dones: Optional[np.ndarray] = None) -> None:
-        """
-        Retrieve reward, episode length, episode success and update the buffer
-        if using Monitor wrapper or a GoalEnv.
-
-        :param infos: List of additional information about the transition.
-        :param dones: Termination signals
-        """
-        if dones is None:
-            dones = np.array([False] * len(infos))
-        for idx, info in enumerate(infos):
-            maybe_ep_info = info.get("episode")
-            maybe_is_success = info.get("is_success")
-            if maybe_ep_info is not None:
-                self.ep_info_buffer.extend([maybe_ep_info])
-            if maybe_is_success is not None and dones[idx]:
-                self.ep_success_buffer.append(maybe_is_success)
-
-    def get_env(self) -> Optional[VecEnv]:
-        """
-        Returns the current environment (can be None if not defined).
-
-        :return: The current environment
-        """
-        return self.env
-
-    def get_vec_normalize_env(self) -> Optional[VecNormalize]:
-        """
-        Return the ``VecNormalize`` wrapper of the training env
-        if it exists.
-
-        :return: The ``VecNormalize`` env.
-        """
-        return self._vec_normalize_env
-
-    def set_env(self, env: GymEnv, force_reset: bool = True) -> None:
-        """
-        Checks the validity of the environment, and if it is coherent, set it as the current environment.
-        Furthermore wrap any non vectorized env into a vectorized
-        checked parameters:
-        - observation_space
-        - action_space
-
-        :param env: The environment for learning a policy
-        :param force_reset: Force call to ``reset()`` before training
-            to avoid unexpected behavior.
-            See issue https://github.com/DLR-RM/stable-baselines3/issues/597
+            :param env: The environment for learning a policy
         """
         # if it is not a VecEnv, make it a VecEnv
         # and do other transformations (dict obs, image transpose) if needed
@@ -354,50 +119,30 @@ class OnPolicyAlgorithm:
 
         # Discard `_last_obs`, this will force the env to reset before training
         # See issue https://github.com/DLR-RM/stable-baselines3/issues/597
-        if force_reset:
-            self._last_obs = None
+        self._last_obs = None
 
         self.n_envs = env.num_envs
-        self.env = env
-
-    def predict(
-        self,
-        observation: np.ndarray,
-        state: Optional[Tuple[np.ndarray, ...]] = None,
-        episode_start: Optional[np.ndarray] = None,
-        deterministic: bool = False,
-    ) -> Tuple[np.ndarray, Optional[Tuple[np.ndarray, ...]]]:
+        self._env = env
+    
+    # 
+    # logger
+    # 
+    @property
+    def logger(self): return self._logger
+    @logger.setter
+    def logger(self, value):
         """
-        Get the policy action from an observation (and optional hidden state).
-        Includes sugar-coating to handle different observations (e.g. normalizing images).
-
-        :param observation: the input observation
-        :param state: The last hidden states (can be None, used in recurrent policies)
-        :param episode_start: The last masks (can be None, used in recurrent policies)
-            this correspond to beginning of episodes,
-            where the hidden states of the RNN must be reset.
-        :param deterministic: Whether or not to return deterministic actions.
-        :return: the model's action and the next hidden state
-            (used in recurrent policies)
+            .. warning::
+            When passing a custom logger object,
+            this will overwrite ``tensorboard_log`` and ``verbose`` settings
+            passed to the constructor.
         """
-        return self.policy.predict(observation, state, episode_start, deterministic)
-
-    def set_random_seed(self, seed: Optional[int] = None) -> None:
-        """
-        Set the seed of the pseudo-random generators
-        (python, numpy, pytorch, gym, action_space)
-
-        :param seed:
-        """
-        if seed is None:
-            return
-        set_random_seed(seed, using_cuda=self.device.type == th.device("cuda").type)
-        self.action_space.seed(seed)
-        if self.env is not None:
-            self.env.seed(seed)
-        if self.eval_env is not None:
-            self.eval_env.seed(seed)
-
+        self._custom_logger = True
+        self._logger = value
+    
+    # 
+    # parameters
+    # 
     def set_parameters(
         self,
         load_path_or_dict: Union[str, Dict[str, Dict]],
@@ -405,16 +150,16 @@ class OnPolicyAlgorithm:
         device: Union[th.device, str] = "auto",
     ) -> None:
         """
-        Load parameters from a given zip-file or a nested dictionary containing parameters for
-        different modules (see ``get_parameters``).
+            Load parameters from a given zip-file or a nested dictionary containing parameters for
+            different modules (see ``get_parameters``).
 
-        :param load_path_or_iter: Location of the saved data (path or file-like, see ``save``), or a nested
-            dictionary containing nn.Module parameters used by the policy. The dictionary maps
-            object names to a state-dictionary returned by ``torch.nn.Module.state_dict()``.
-        :param exact_match: If True, the given parameters should include parameters for each
-            module and each of their parameters, otherwise raises an Exception. If set to False, this
-            can be used to update only specific parameters.
-        :param device: Device on which the code should run.
+            :param load_path_or_iter: Location of the saved data (path or file-like, see ``save``), or a nested
+                dictionary containing nn.Module parameters used by the policy. The dictionary maps
+                object names to a state-dictionary returned by ``torch.nn.Module.state_dict()``.
+            :param exact_match: If True, the given parameters should include parameters for each
+                module and each of their parameters, otherwise raises an Exception. If set to False, this
+                can be used to update only specific parameters.
+            :param device: Device on which the code should run.
         """
         params = None
         if isinstance(load_path_or_dict, dict):
@@ -466,6 +211,87 @@ class OnPolicyAlgorithm:
                 f"expected {objects_needing_update}, got {updated_objects}"
             )
 
+    def get_parameters(self) -> Dict[str, Dict]:
+        """
+        Return the parameters of the agent. This includes parameters from different networks, e.g.
+        critics (value functions) and policies (pi functions).
+
+        :return: Mapping of from names of the objects to PyTorch state-dicts.
+        """
+        state_dicts_names, _ = self._get_torch_save_params()
+        params = {}
+        for name in state_dicts_names:
+            attr = recursive_getattr(self, name)
+            # Retrieve state dict
+            params[name] = attr.state_dict()
+        return params
+    
+    # 
+    # save and load
+    # 
+    def _get_torch_save_params(self): return ["policy", "policy.optimizer"], []
+    def _excluded_save_params(self): return [
+            "policy",
+            "device",
+            "env",
+            "eval_env",
+            "replay_buffer",
+            "rollout_buffer",
+            "_vec_normalize_env",
+            "_episode_storage",
+            "_logger",
+            "_custom_logger",
+        ]
+    def save(
+        self,
+        path: Union[str, pathlib.Path, io.BufferedIOBase],
+        exclude: Optional[Iterable[str]] = None,
+        include: Optional[Iterable[str]] = None,
+    ) -> None:
+        """
+            Save all the attributes of the object and the model parameters in a zip-file.
+
+            :param path: path to the file where the rl agent should be saved
+            :param exclude: name of parameters that should be excluded in addition to the default ones
+            :param include: name of parameters that might be excluded but should be included anyway
+        """
+        # Copy parameter list so we don't mutate the original dict
+        data = self.__dict__.copy()
+
+        # Exclude is union of specified parameters (if any) and standard exclusions
+        if exclude is None:
+            exclude = []
+        exclude = set(exclude).union(self._excluded_save_params())
+
+        # Do not exclude params if they are specifically included
+        if include is not None:
+            exclude = exclude.difference(include)
+
+        state_dicts_names, torch_variable_names = self._get_torch_save_params()
+        all_pytorch_variables = state_dicts_names + torch_variable_names
+        for torch_var in all_pytorch_variables:
+            # We need to get only the name of the top most module as we'll remove that
+            var_name = torch_var.split(".")[0]
+            # Any params that are in the save vars must not be saved by data
+            exclude.add(var_name)
+
+        # Remove parameter entries of parameters which are to be excluded
+        for param_name in exclude:
+            data.pop(param_name, None)
+
+        # Build dict of torch variables
+        pytorch_variables = None
+        if torch_variable_names is not None:
+            pytorch_variables = {}
+            for name in torch_variable_names:
+                attr = recursive_getattr(self, name)
+                pytorch_variables[name] = attr
+
+        # Build dict of state_dicts
+        params_to_save = self.get_parameters()
+
+        save_to_zip_file(path, data=data, params=params_to_save, pytorch_variables=pytorch_variables)
+    
     @classmethod
     def load(
         cls,
@@ -478,28 +304,28 @@ class OnPolicyAlgorithm:
         **kwargs,
     ) -> "BaseAlgorithm":
         """
-        Load the model from a zip-file.
-        Warning: ``load`` re-creates the model from scratch, it does not update it in-place!
-        For an in-place load use ``set_parameters`` instead.
+            Load the model from a zip-file.
+            Warning: ``load`` re-creates the model from scratch, it does not update it in-place!
+            For an in-place load use ``set_parameters`` instead.
 
-        :param path: path to the file (or a file-like) where to
-            load the agent from
-        :param env: the new environment to run the loaded model on
-            (can be None if you only need prediction from a trained model) has priority over any saved environment
-        :param device: Device on which the code should run.
-        :param custom_objects: Dictionary of objects to replace
-            upon loading. If a variable is present in this dictionary as a
-            key, it will not be deserialized and the corresponding item
-            will be used instead. Similar to custom_objects in
-            ``keras.models.load_model``. Useful when you have an object in
-            file that can not be deserialized.
-        :param print_system_info: Whether to print system info from the saved model
-            and the current system info (useful to debug loading issues)
-        :param force_reset: Force call to ``reset()`` before training
-            to avoid unexpected behavior.
-            See https://github.com/DLR-RM/stable-baselines3/issues/597
-        :param kwargs: extra arguments to change the model when loading
-        :return: new model instance with loaded parameters
+            :param path: path to the file (or a file-like) where to
+                load the agent from
+            :param env: the new environment to run the loaded model on
+                (can be None if you only need prediction from a trained model) has priority over any saved environment
+            :param device: Device on which the code should run.
+            :param custom_objects: Dictionary of objects to replace
+                upon loading. If a variable is present in this dictionary as a
+                key, it will not be deserialized and the corresponding item
+                will be used instead. Similar to custom_objects in
+                ``keras.models.load_model``. Useful when you have an object in
+                file that can not be deserialized.
+            :param print_system_info: Whether to print system info from the saved model
+                and the current system info (useful to debug loading issues)
+            :param force_reset: Force call to ``reset()`` before training
+                to avoid unexpected behavior.
+                See https://github.com/DLR-RM/stable-baselines3/issues/597
+            :param kwargs: extra arguments to change the model when loading
+            :return: new model instance with loaded parameters
         """
         if print_system_info:
             print("== CURRENT SYSTEM INFO ==")
@@ -572,72 +398,10 @@ class OnPolicyAlgorithm:
         if model.use_sde:
             model.policy.reset_noise()  # pytype: disable=attribute-error
         return model
-
-    def get_parameters(self) -> Dict[str, Dict]:
-        """
-        Return the parameters of the agent. This includes parameters from different networks, e.g.
-        critics (value functions) and policies (pi functions).
-
-        :return: Mapping of from names of the objects to PyTorch state-dicts.
-        """
-        state_dicts_names, _ = self._get_torch_save_params()
-        params = {}
-        for name in state_dicts_names:
-            attr = recursive_getattr(self, name)
-            # Retrieve state dict
-            params[name] = attr.state_dict()
-        return params
-
-    def save(
-        self,
-        path: Union[str, pathlib.Path, io.BufferedIOBase],
-        exclude: Optional[Iterable[str]] = None,
-        include: Optional[Iterable[str]] = None,
-    ) -> None:
-        """
-        Save all the attributes of the object and the model parameters in a zip-file.
-
-        :param path: path to the file where the rl agent should be saved
-        :param exclude: name of parameters that should be excluded in addition to the default ones
-        :param include: name of parameters that might be excluded but should be included anyway
-        """
-        # Copy parameter list so we don't mutate the original dict
-        data = self.__dict__.copy()
-
-        # Exclude is union of specified parameters (if any) and standard exclusions
-        if exclude is None:
-            exclude = []
-        exclude = set(exclude).union(self._excluded_save_params())
-
-        # Do not exclude params if they are specifically included
-        if include is not None:
-            exclude = exclude.difference(include)
-
-        state_dicts_names, torch_variable_names = self._get_torch_save_params()
-        all_pytorch_variables = state_dicts_names + torch_variable_names
-        for torch_var in all_pytorch_variables:
-            # We need to get only the name of the top most module as we'll remove that
-            var_name = torch_var.split(".")[0]
-            # Any params that are in the save vars must not be saved by data
-            exclude.add(var_name)
-
-        # Remove parameter entries of parameters which are to be excluded
-        for param_name in exclude:
-            data.pop(param_name, None)
-
-        # Build dict of torch variables
-        pytorch_variables = None
-        if torch_variable_names is not None:
-            pytorch_variables = {}
-            for name in torch_variable_names:
-                attr = recursive_getattr(self, name)
-                pytorch_variables[name] = attr
-
-        # Build dict of state_dicts
-        params_to_save = self.get_parameters()
-
-        save_to_zip_file(path, data=data, params=params_to_save, pytorch_variables=pytorch_variables)
-
+    
+    # 
+    # events
+    # 
     def __init__(
         self,
         policy: Union[str, Type[ActorCriticPolicy]],
@@ -667,7 +431,7 @@ class OnPolicyAlgorithm:
         if True:
             self.policy_class = self.policy_aliases.get(policy, policy)
             self.device = get_device(device)
-            self.env = None  # type: Optional[GymEnv]
+            self._env = None  # type: Optional[GymEnv]
             # get VecNormalize object if needed
             self._vec_normalize_env = unwrap_vec_normalize(env)
             self.verbose = verbose
@@ -734,7 +498,7 @@ class OnPolicyAlgorithm:
             self.observation_space = env.observation_space
             self.action_space = env.action_space
             self.n_envs = env.num_envs
-            self.env = env
+            self._env = env
             
             # 
             # saftey checks
@@ -763,9 +527,10 @@ class OnPolicyAlgorithm:
         # 
         if _init_setup_model:
             self._setup_model()
-
+    
     def _setup_model(self) -> None:
-        self._setup_lr_schedule()
+        # Transform to callable if needed
+        self.lr_schedule = get_schedule_fn(self.learning_rate)
         self.set_random_seed(self.seed)
 
         buffer_cls = DictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RolloutBuffer
@@ -788,6 +553,205 @@ class OnPolicyAlgorithm:
         )
         self.policy = self.policy.to(self.device)
 
+    def _setup_learn(
+        self,
+        total_timesteps: int,
+        eval_env: Optional[GymEnv],
+        callback: MaybeCallback = None,
+        eval_freq: int = 10000,
+        n_eval_episodes: int = 5,
+        log_path: Optional[str] = None,
+        reset_num_timesteps: bool = True,
+        tb_log_name: str = "run",
+    ) -> Tuple[int, BaseCallback]:
+        """
+            Initialize different variables needed for training.
+
+            :param total_timesteps: The total number of samples (env steps) to train on
+            :param eval_env: Environment to use for evaluation.
+            :param callback: Callback(s) called at every step with state of the algorithm.
+            :param eval_freq: How many steps between evaluations
+            :param n_eval_episodes: How many episodes to play per evaluation
+            :param log_path: Path to a folder where the evaluations will be saved
+            :param reset_num_timesteps: Whether to reset or not the ``num_timesteps`` attribute
+            :param tb_log_name: the name of the run for tensorboard log
+            :return:
+        """
+        self.start_time = time.time()
+
+        if self.ep_info_buffer is None or reset_num_timesteps:
+            # Initialize buffers if they don't exist, or reinitialize if resetting counters
+            self.ep_info_buffer = deque(maxlen=100)
+            self.ep_success_buffer = deque(maxlen=100)
+
+        if self.action_noise is not None:
+            self.action_noise.reset()
+
+        if reset_num_timesteps:
+            self.num_timesteps = 0
+            self._episode_num = 0
+        else:
+            # Make sure training timesteps are ahead of the internal counter
+            total_timesteps += self.num_timesteps
+        self._total_timesteps = total_timesteps
+        self._num_timesteps_at_start = self.num_timesteps
+
+        # Avoid resetting the environment when calling ``.learn()`` consecutive times
+        if reset_num_timesteps or self._last_obs is None:
+            self._last_obs = self._env.reset()  # pytype: disable=annotation-type-mismatch
+            self._last_episode_starts = np.ones((self._env.num_envs,), dtype=bool)
+            # Retrieve unnormalized observation for saving into the buffer
+            if self._vec_normalize_env is not None:
+                self._last_original_obs = self._vec_normalize_env.get_original_obs()
+
+        if eval_env is not None and self.seed is not None:
+            eval_env.seed(self.seed)
+
+        eval_env = self._wrap_env(eval_env or self.eval_env, self.verbose)
+
+        # Configure logger's outputs if no logger was passed
+        if not self._custom_logger:
+            self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
+
+        # Create eval callback if needed
+        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
+
+        return total_timesteps, callback
+    
+    def _init_callback(
+        self,
+        callback: MaybeCallback,
+        eval_env: Optional[VecEnv] = None,
+        eval_freq: int = 10000,
+        n_eval_episodes: int = 5,
+        log_path: Optional[str] = None,
+    ) -> BaseCallback:
+        """
+            :param callback: Callback(s) called at every step with state of the algorithm.
+            :param eval_freq: How many steps between evaluations; if None, do not evaluate.
+            :param n_eval_episodes: How many episodes to play per evaluation
+            :param n_eval_episodes: Number of episodes to rollout during evaluation.
+            :param log_path: Path to a folder where the evaluations will be saved
+            :return: A hybrid callback calling `callback` and performing evaluation.
+        """
+        # Convert a list of callbacks into a callback
+        if isinstance(callback, list):
+            callback = CallbackList(callback)
+
+        # Convert functional callback to object
+        if not isinstance(callback, BaseCallback):
+            callback = ConvertCallback(callback)
+
+        # Create eval callback in charge of the evaluation
+        if eval_env is not None:
+            eval_callback = EvalCallback(
+                eval_env,
+                best_model_save_path=log_path,
+                log_path=log_path,
+                eval_freq=eval_freq,
+                n_eval_episodes=n_eval_episodes,
+            )
+            callback = CallbackList([callback, eval_callback])
+
+        callback.init_callback(self)
+        return callback
+        
+    # 
+    # tools
+    # 
+    def predict(
+        self,
+        observation: np.ndarray,
+        state: Optional[Tuple[np.ndarray, ...]] = None,
+        episode_start: Optional[np.ndarray] = None,
+        deterministic: bool = False,
+    ) -> Tuple[np.ndarray, Optional[Tuple[np.ndarray, ...]]]:
+        """
+            Get the policy action from an observation (and optional hidden state).
+            Includes sugar-coating to handle different observations (e.g. normalizing images).
+
+            :param observation: the input observation
+            :param state: The last hidden states (can be None, used in recurrent policies)
+            :param episode_start: The last masks (can be None, used in recurrent policies)
+                this correspond to beginning of episodes,
+                where the hidden states of the RNN must be reset.
+            :param deterministic: Whether or not to return deterministic actions.
+            :return: the model's action and the next hidden state
+                (used in recurrent policies)
+        """
+        return self.policy.predict(observation, state, episode_start, deterministic)
+    
+    def learn(
+        self,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 1,
+        eval_env: Optional[GymEnv] = None,
+        eval_freq: int = -1,
+        n_eval_episodes: int = 5,
+        tb_log_name: str = "OnPolicyAlgorithm",
+        eval_log_path: Optional[str] = None,
+        reset_num_timesteps: bool = True,
+    ) -> "OnPolicyAlgorithm":
+        iteration = 0
+
+        total_timesteps, callback = self._setup_learn(
+            total_timesteps,
+            eval_env,
+            callback,
+            eval_freq,
+            n_eval_episodes,
+            eval_log_path,
+            reset_num_timesteps,
+            tb_log_name,
+        )
+
+        callback.on_training_start(locals(), globals())
+
+        while self.num_timesteps < total_timesteps:
+
+            continue_training = self.collect_rollouts(self._env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
+
+            if continue_training is False:
+                break
+
+            iteration += 1
+            self._current_progress_remaining = 1.0 - float(self.num_timesteps) / float(total_timesteps)
+
+            # Display training infos
+            if log_interval is not None and iteration % log_interval == 0:
+                fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time.time() - self.start_time))
+                self.logger.record("time/iterations", iteration, exclude="tensorboard")
+                if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+                    self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+                    self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+                self.logger.record("time/fps", fps)
+                self.logger.record("time/time_elapsed", int(time.time() - self.start_time), exclude="tensorboard")
+                self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+                self.logger.dump(step=self.num_timesteps)
+
+            self.train()
+
+        callback.on_training_end()
+
+        return self
+    
+    def set_random_seed(self, seed: Optional[int] = None) -> None:
+        """
+            Set the seed of the pseudo-random generators
+            (python, numpy, pytorch, gym, action_space)
+
+            :param seed:
+        """
+        if seed is None:
+            return
+        set_random_seed(seed, using_cuda=self.device.type == th.device("cuda").type)
+        self.action_space.seed(seed)
+        if self._env is not None:
+            self._env.seed(seed)
+        if self.eval_env is not None:
+            self.eval_env.seed(seed)
+
     def collect_rollouts(
         self,
         env: VecEnv,
@@ -796,17 +760,17 @@ class OnPolicyAlgorithm:
         n_rollout_steps: int,
     ) -> bool:
         """
-        Collect experiences using the current policy and fill a ``RolloutBuffer``.
-        The term rollout here refers to the model-free notion and should not
-        be used with the concept of rollout used in model-based RL or planning.
+            Collect experiences using the current policy and fill a ``RolloutBuffer``.
+            The term rollout here refers to the model-free notion and should not
+            be used with the concept of rollout used in model-based RL or planning.
 
-        :param env: The training environment
-        :param callback: Callback that will be called at each step
-            (and at the beginning and end of the rollout)
-        :param rollout_buffer: Buffer to fill with rollouts
-        :param n_steps: Number of experiences to collect per environment
-        :return: True if function returned with at least `n_rollout_steps`
-            collected, False if callback terminated rollout prematurely.
+            :param env: The training environment
+            :param callback: Callback that will be called at each step
+                (and at the beginning and end of the rollout)
+            :param rollout_buffer: Buffer to fill with rollouts
+            :param n_steps: Number of experiences to collect per environment
+            :return: True if function returned with at least `n_rollout_steps`
+                collected, False if callback terminated rollout prematurely.
         """
         assert self._last_obs is not None, "No previous observation was provided"
         # Switch to eval mode (this affects batch norm / dropout)
@@ -845,10 +809,21 @@ class OnPolicyAlgorithm:
             callback.update_locals(locals())
             if callback.on_step() is False:
                 return False
-
-            self._update_info_buffer(infos)
+            
             n_steps += 1
-
+            # 
+            # update info buffer
+            # 
+            if True:
+                dones_for_info_buffer = np.array([False] * len(infos)) # not sure why this is used instead of the actual dones
+                for timestep_index, info in enumerate(infos):
+                    maybe_ep_info = info.get("episode")
+                    maybe_is_success = info.get("is_success")
+                    if maybe_ep_info is not None:
+                        self.ep_info_buffer.extend([maybe_ep_info])
+                    if maybe_is_success is not None and dones_for_info_buffer[timestep_index]:
+                        self.ep_success_buffer.append(maybe_is_success)
+            
             if isinstance(self.action_space, gym.spaces.Discrete):
                 # Reshape in case of discrete action
                 actions = actions.reshape(-1, 1)
@@ -879,67 +854,6 @@ class OnPolicyAlgorithm:
         callback.on_rollout_end()
 
         return True
-
-    def train(self) -> None:
-        """
-        Consume current rollout data and update policy parameters.
-        Implemented by individual algorithms.
-        """
-        raise NotImplementedError
-
-    def learn(
-        self,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 1,
-        eval_env: Optional[GymEnv] = None,
-        eval_freq: int = -1,
-        n_eval_episodes: int = 5,
-        tb_log_name: str = "OnPolicyAlgorithm",
-        eval_log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
-    ) -> "OnPolicyAlgorithm":
-        iteration = 0
-
-        total_timesteps, callback = self._setup_learn(
-            total_timesteps, eval_env, callback, eval_freq, n_eval_episodes, eval_log_path, reset_num_timesteps, tb_log_name
-        )
-
-        callback.on_training_start(locals(), globals())
-
-        while self.num_timesteps < total_timesteps:
-
-            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
-
-            if continue_training is False:
-                break
-
-            iteration += 1
-            self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
-
-            # Display training infos
-            if log_interval is not None and iteration % log_interval == 0:
-                fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time.time() - self.start_time))
-                self.logger.record("time/iterations", iteration, exclude="tensorboard")
-                if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
-                    self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
-                    self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
-                self.logger.record("time/fps", fps)
-                self.logger.record("time/time_elapsed", int(time.time() - self.start_time), exclude="tensorboard")
-                self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
-                self.logger.dump(step=self.num_timesteps)
-
-            self.train()
-
-        callback.on_training_end()
-
-        return self
-
-    def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
-        state_dicts = ["policy", "policy.optimizer"]
-
-        return state_dicts, []
-
 
 class A2C(OnPolicyAlgorithm):
     """
@@ -1014,8 +928,8 @@ class A2C(OnPolicyAlgorithm):
     ):
 
         super().__init__(
-            policy,
-            env,
+            policy=policy,
+            env=env,
             learning_rate=learning_rate,
             n_steps=n_steps,
             gamma=gamma,
@@ -1058,9 +972,15 @@ class A2C(OnPolicyAlgorithm):
         """
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
-
+        
+        # 
         # Update optimizer learning rate
-        self._update_learning_rate(self.policy.optimizer)
+        # 
+        if True:
+            self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
+            optimizers = [ self.policy.optimizer ] if not isinstance(self.policy.optimizer, (list, tuple))    else self.policy.optimizer
+            for optimizer in optimizers:
+                update_learning_rate(optimizer, self.lr_schedule(self._current_progress_remaining))
 
         # This will only loop once (get all data in one go)
         for rollout_data in self.rollout_buffer.get(batch_size=None):
