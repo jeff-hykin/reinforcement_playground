@@ -11,3 +11,8 @@ Plan:
         - getting the primary agent to optimally explore
         - better state compression with multi-head options
         - using transformers for memory AFTER an encoding process
+
+Flow of A2C:
+    - init's
+    - learn:
+        - _setup_learn:

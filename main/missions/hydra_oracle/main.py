@@ -27,8 +27,6 @@
 # model = A2C('CnnPolicy', env, verbose=1)
 # model.learn(total_timesteps=250)
 
-
-
 from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
 from stable_baselines3 import A2C
@@ -40,8 +38,7 @@ from missions.hydra_oracle.policies import ActorCriticCnnPolicy
 # that will make and wrap atari environments correctly.
 # Here we are also multi-worker training (n_envs=4 => 4 environments)
 env = make_atari_env('PongNoFrameskip-v4', n_envs=4, seed=0)
-# Frame-stacking with 4 frames
-env = VecFrameStack(env, n_stack=4)
+env = VecFrameStack(env, n_stack=4) # Frame-stacking with 4 frames
 
 model = A2C(ActorCriticCnnPolicy, env, verbose=1)
 model.learn(total_timesteps=25_000)
@@ -51,7 +48,8 @@ while True:
     action, _states = model.predict(obs)
     obs, rewards, dones, info = env.step(action)
     print(f'''rewards = {rewards}''')
-    # env.render()
+    if dones[0]:
+        break
 
 # class Network(nn.Module):
 #     @init.to_device()

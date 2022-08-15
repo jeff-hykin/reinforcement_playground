@@ -604,12 +604,18 @@ class OnPolicyAlgorithm:
                 :return:
             """
             self.start_time = time.time()
-
+            
+            # 
+            # init buffers (if needed)
+            # 
             if self.ep_info_buffer is None or reset_num_timesteps:
                 # Initialize buffers if they don't exist, or reinitialize if resetting counters
                 self.ep_info_buffer = deque(maxlen=100)
                 self.ep_success_buffer = deque(maxlen=100)
-
+            
+            # 
+            # init timestep count (if needed)
+            # 
             if reset_num_timesteps:
                 self.num_timesteps = 0
                 self._episode_num = 0
@@ -618,25 +624,32 @@ class OnPolicyAlgorithm:
                 total_timesteps += self.num_timesteps
             self._total_timesteps = total_timesteps
             self._num_timesteps_at_start = self.num_timesteps
-
-            # Avoid resetting the environment when calling ``.learn()`` consecutive times
-            if reset_num_timesteps or self._last_obs is None:
+            
+            # 
+            # reset env (if needed)
+            # 
+            if reset_num_timesteps or self._last_obs is None: # Avoid resetting the environment when calling ``.learn()`` consecutive times
                 self._last_obs = self._env.reset()  # pytype: disable=annotation-type-mismatch
                 self._last_episode_starts = np.ones((self._env.num_envs,), dtype=bool)
                 # Retrieve unnormalized observation for saving into the buffer
                 if self._vec_normalize_env is not None:
                     self._last_original_obs = self._vec_normalize_env.get_original_obs()
-
+            
+            # 
+            # set eval_env
+            # 
+            eval_env = self._wrap_env(eval_env or self.eval_env, self.verbose) # NOTE: this used to be AFTER the .seed() for some reason --Jeff
             if eval_env is not None and self._seed is not None:
                 eval_env.seed(self._seed)
+            
+            # 
+            # logger
+            # 
+            if not self._custom_logger: self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps) # Configure logger's outputs if no logger was passed
 
-            eval_env = self._wrap_env(eval_env or self.eval_env, self.verbose)
-
-            # Configure logger's outputs if no logger was passed
-            if not self._custom_logger:
-                self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
-
-            # Create eval callback if needed
+            # 
+            # callback
+            # 
             callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
 
             return total_timesteps, callback
@@ -719,14 +732,14 @@ class OnPolicyAlgorithm:
             iteration = 0
 
             total_timesteps, callback = self._setup_learn(
-                total_timesteps,
-                eval_env,
-                callback,
-                eval_freq,
-                n_eval_episodes,
-                eval_log_path,
-                reset_num_timesteps,
-                tb_log_name,
+                total_timesteps=total_timesteps,
+                eval_env=eval_env,
+                callback=callback,
+                eval_freq=eval_freq,
+                n_eval_episodes=n_eval_episodes,
+                log_path=eval_log_path,
+                reset_num_timesteps=reset_num_timesteps,
+                tb_log_name=tb_log_name,
             )
 
             callback.on_training_start(locals(), globals())
@@ -991,50 +1004,72 @@ class A2C(OnPolicyAlgorithm):
 
         # This will only loop once (get all data in one go)
         for rollout_data in self.rollout_buffer.get(batch_size=None):
-
-            actions = rollout_data.actions
-            if isinstance(self.action_space, spaces.Discrete):
+            # 
+            # get actions
+            # 
+            if True:
+                actions = rollout_data.actions
                 # Convert discrete action from float to long
-                actions = actions.long().flatten()
-
-            values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
-            values = values.flatten()
-
-            # Normalize advantage (not present in the original implementation)
+                if isinstance(self.action_space, spaces.Discrete): actions = actions.long().flatten()
+            
+            # 
+            # get advantage
+            # 
             advantages = rollout_data.advantages
             if self.normalize_advantage:
+                # Normalize advantage (not present in the original implementation)
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            
+            # 
+            # ??? evaluate actions
+            # 
+            values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
+            values = values.flatten()
+            
+            # 
+            # individual losses
+            # 
+            if True:
+                # Policy gradient loss
+                policy_loss = -(advantages * log_prob).mean()
+                
+                # Value gradient loss
+                value_loss = F.mse_loss(rollout_data.returns, values) # using the TD(gae_lambda) target
+                
+                # Entropy loss (favor exploration)
+                entropy_loss = -th.mean(-log_prob)   if entropy is None    else     -th.mean(entropy) # Approximate entropy when no analytical form
+            
+            # 
+            # combined loss
+            # 
+            loss = (
+                policy_loss
+                + self.ent_coef * entropy_loss
+                + self.vf_coef * value_loss
+            )
+            
+            # 
+            # update weights
+            # 
+            if True:
+                # Optimization step
+                self.policy.optimizer.zero_grad()
+                loss.backward()
 
-            # Policy gradient loss
-            policy_loss = -(advantages * log_prob).mean()
-
-            # Value loss using the TD(gae_lambda) target
-            value_loss = F.mse_loss(rollout_data.returns, values)
-
-            # Entropy loss favor exploration
-            if entropy is None:
-                # Approximate entropy when no analytical form
-                entropy_loss = -th.mean(-log_prob)
-            else:
-                entropy_loss = -th.mean(entropy)
-
-            loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
-
-            # Optimization step
-            self.policy.optimizer.zero_grad()
-            loss.backward()
-
-            # Clip grad norm
-            th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-            self.policy.optimizer.step()
-
-        explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
-
+                # Clip grad norm
+                th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                self.policy.optimizer.step()
+        
         self._n_updates += 1
-        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-        self.logger.record("train/explained_variance", explained_var)
-        self.logger.record("train/entropy_loss", entropy_loss.item())
-        self.logger.record("train/policy_loss", policy_loss.item())
-        self.logger.record("train/value_loss", value_loss.item())
-        if hasattr(self.policy, "log_std"):
-            self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
+        
+        # 
+        # logging
+        # 
+        if True:
+            self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+            self.logger.record("train/explained_variance", explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten()))
+            self.logger.record("train/entropy_loss", entropy_loss.item())
+            self.logger.record("train/policy_loss", policy_loss.item())
+            self.logger.record("train/value_loss", value_loss.item())
+            if hasattr(self.policy, "log_std"):
+                self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
