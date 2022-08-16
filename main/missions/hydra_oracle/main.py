@@ -1,26 +1,20 @@
-# import random
-# import time
+from world_builders.atari.world import World
+from blissful_basics import is_iterable
 
-# import numpy as np
-# import gym
-# from gym import spaces
-# from stable_baselines3 import SAC
-# from stable_baselines3 import A2C
-
-# from missions.hydra_oracle.sac_exposed import SAC
-# from missions.hydra_oracle.a2c_exposed import SAC
-
-# from world_builders.fight_fire.world import World
-# from world_builders.atari.world import World
-
-# world = World(
-#     # grid_width=3,
-#     # grid_height=3,
-#     # visualize=False,
-#     # fire_locations=[(-1,-1)],
-#     # water_locations=[(0,0)],
-# )
-# env = world.Player()
+world = World(
+    game="pong",
+    mode=None,
+    difficulty=None,
+    obs_type="image",
+    frameskip=4,
+    visualize=False,
+    debug=False,
+    random_seed=None,
+)
+env = world.Player(
+    repeat_action_probability=0.0,
+    full_action_space=False,
+)
 
 # # env = gym.make("Pendulum-v1")
 # # env = Env()
@@ -37,8 +31,8 @@ from missions.hydra_oracle.policies import ActorCriticCnnPolicy
 # There already exists an environment generator
 # that will make and wrap atari environments correctly.
 # Here we are also multi-worker training (n_envs=4 => 4 environments)
-env = make_atari_env('PongNoFrameskip-v4', n_envs=4, seed=0)
-env = VecFrameStack(env, n_stack=4) # Frame-stacking with 4 frames
+# env = make_atari_env('PongNoFrameskip-v4', n_envs=4, seed=0)
+# env = VecFrameStack(env, n_stack=4) # Frame-stacking with 4 frames
 
 model = A2C(ActorCriticCnnPolicy, env, verbose=1)
 model.learn(total_timesteps=25_000)
@@ -48,8 +42,12 @@ while True:
     action, _states = model.predict(obs)
     obs, rewards, dones, info = env.step(action)
     print(f'''rewards = {rewards}''')
-    if dones[0]:
-        break
+    if is_iterable(dones):
+        if dones[0]:
+            break
+    else:
+        if dones:
+            break
 
 # class Network(nn.Module):
 #     @init.to_device()

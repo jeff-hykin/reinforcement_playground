@@ -16,3 +16,12 @@ Flow of A2C:
     - init's
     - learn:
         - _setup_learn:
+        - for each rollout batch
+            - collect a rollout
+                - policy.set_training_mode(False)
+                - policy.reset_noise(env.num_envs)
+                - policy(obs_tensor) # observation to action (?)
+                - policy.obs_to_tensor(infos[idx]["terminal_observation"])[0]
+                - policy.predict_values(terminal_obs)[0]
+                - policy.predict_values(obs_as_tensor(new_obs, self.device))
+            - run train on a rollout

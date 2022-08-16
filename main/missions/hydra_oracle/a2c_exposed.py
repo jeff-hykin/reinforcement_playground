@@ -26,6 +26,11 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedul
 from stable_baselines3.common.utils import obs_as_tensor, safe_mean, explained_variance, check_for_correct_spaces, get_device, get_schedule_fn, get_system_info, set_random_seed, update_learning_rate
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecNormalize, VecTransposeImage, is_vecenv_wrapped, unwrap_vec_normalize
 
+from copy import copy
+def clip_to_avoid_error(action, action_space):
+    if isinstance(action_space, gym.spaces.Box):
+        return np.clip(action, action_space.low, action_space.high)
+    return copy(action)
 
 def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymEnv]:
     """
@@ -729,8 +734,10 @@ class OnPolicyAlgorithm:
             eval_log_path: Optional[str] = None,
             reset_num_timesteps: bool = True,
         ) -> "OnPolicyAlgorithm":
+            # 
+            # init
+            # 
             iteration = 0
-
             total_timesteps, callback = self._setup_learn(
                 total_timesteps=total_timesteps,
                 eval_env=eval_env,
@@ -741,33 +748,50 @@ class OnPolicyAlgorithm:
                 reset_num_timesteps=reset_num_timesteps,
                 tb_log_name=tb_log_name,
             )
-
+            
+            # 
+            # start callback
+            # 
             callback.on_training_start(locals(), globals())
-
+            
+            # 
+            # for each rollout
+            # 
             while self.num_timesteps < total_timesteps:
-
-                continue_training = self.collect_rollouts(self._env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
-
-                if continue_training is False:
+                # 
+                # collect rollouts
+                # 
+                full_rollout_was_possible = self.collect_rollouts(self._env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
+                if not full_rollout_was_possible:
                     break
-
+                
+                # 
+                # update progress
+                # 
                 iteration += 1
                 self._current_progress_remaining = 1.0 - float(self.num_timesteps) / float(total_timesteps)
-
-                # Display training infos
+                
+                # 
+                # logging
+                # 
                 if log_interval is not None and iteration % log_interval == 0:
-                    fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time.time() - self.start_time))
                     self.logger.record("time/iterations", iteration, exclude="tensorboard")
                     if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
                         self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
                         self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
-                    self.logger.record("time/fps", fps)
+                    self.logger.record("time/fps", int((self.num_timesteps - self._num_timesteps_at_start) / (time.time() - self.start_time)))
                     self.logger.record("time/time_elapsed", int(time.time() - self.start_time), exclude="tensorboard")
                     self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
                     self.logger.dump(step=self.num_timesteps)
-
+                
+                # 
+                # run training step
+                # 
                 self.train()
-
+            
+            # 
+            # end callback
+            # 
             callback.on_training_end()
 
             return self
@@ -788,89 +812,121 @@ class OnPolicyAlgorithm:
                 :param callback: Callback that will be called at each step
                     (and at the beginning and end of the rollout)
                 :param rollout_buffer: Buffer to fill with rollouts
-                :param n_steps: Number of experiences to collect per environment
+                :param n_rollout_steps: Number of experiences to collect per environment
                 :return: True if function returned with at least `n_rollout_steps`
                     collected, False if callback terminated rollout prematurely.
             """
-            assert self._last_obs is not None, "No previous observation was provided"
-            # Switch to eval mode (this affects batch norm / dropout)
-            self.policy.set_training_mode(False)
-
-            n_steps = 0
-            rollout_buffer.reset()
-            # Sample new weights for the state dependent exploration
-            if self.use_sde:
-                self.policy.reset_noise(env.num_envs)
-
+            # 
+            # init misc
+            # 
+            if True:
+                assert self._last_obs is not None, "No previous observation was provided"
+                # Switch to eval mode (this affects batch norm / dropout)
+                self.policy.set_training_mode(False)
+                n_steps = 0
+                rollout_buffer.reset()
+                if self.use_sde: self.policy.reset_noise(env.num_envs) # Sample new weights for the state dependent exploration
+            
+            # 
+            # start callback
+            # 
             callback.on_rollout_start()
-
-            while n_steps < n_rollout_steps:
-                if self.use_sde and self.sde_sample_freq > 0 and n_steps % self.sde_sample_freq == 0:
-                    # Sample a new noise matrix
-                    self.policy.reset_noise(env.num_envs)
-
-                with th.no_grad():
-                    # Convert to pytorch tensor or to TensorDict
-                    obs_tensor = obs_as_tensor(self._last_obs, self.device)
-                    actions, values, log_probs = self.policy(obs_tensor)
-                actions = actions.cpu().numpy()
-
-                # Rescale and perform action
-                clipped_actions = actions
-                # Clip the actions to avoid out of bound error
-                if isinstance(self.action_space, gym.spaces.Box):
-                    clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
-
-                new_obs, rewards, dones, infos = env.step(clipped_actions)
-
-                self.num_timesteps += env.num_envs
-
-                # Give access to local variables
-                callback.update_locals(locals())
-                if callback.on_step() is False:
-                    return False
-                
-                n_steps += 1
+            
+            # 
+            # for each timestep
+            # 
+            for n_steps in range(n_rollout_steps):
                 # 
-                # update info buffer
+                # Sample a new noise matrix (if needed)
+                # 
+                if self.use_sde and self.sde_sample_freq > 0 and n_steps % self.sde_sample_freq == 0:
+                    self.policy.reset_noise(env.num_envs)
+                
+                # 
+                # get action to take
                 # 
                 if True:
-                    dones_for_info_buffer = np.array([False] * len(infos)) # not sure why this is used instead of the actual dones
-                    for timestep_index, info in enumerate(infos):
-                        maybe_ep_info = info.get("episode")
-                        maybe_is_success = info.get("is_success")
-                        if maybe_ep_info is not None:
-                            self.ep_info_buffer.extend([maybe_ep_info])
-                        if maybe_is_success is not None and dones_for_info_buffer[timestep_index]:
-                            self.ep_success_buffer.append(maybe_is_success)
-                
-                if isinstance(self.action_space, gym.spaces.Discrete):
+                    with th.no_grad():
+                        # Convert to pytorch tensor or to TensorDict
+                        obs_tensor = obs_as_tensor(self._last_obs, self.device)
+                        actions, values, log_probs = self.policy(obs_tensor)
+                    actions_as_numpy = actions.cpu().numpy()
+
                     # Reshape in case of discrete action
-                    actions = actions.reshape(-1, 1)
+                    action_to_save = actions_as_numpy
+                    if isinstance(self.action_space, gym.spaces.Discrete):
+                        action_to_save = action_to_save.reshape(-1, 1)
+                # 
+                # 
+                # env.step()
+                # 
+                # 
+                if True:
+                    new_obs, rewards, dones, infos = env.step(clip_to_avoid_error(actions_as_numpy, self.action_space))
+                    self.num_timesteps += env.num_envs
 
-                # Handle timeout by bootstraping with value function
-                # see GitHub issue #633
-                for idx, done in enumerate(dones):
-                    if (
-                        done
-                        and infos[idx].get("terminal_observation") is not None
-                        and infos[idx].get("TimeLimit.truncated", False)
-                    ):
-                        terminal_obs = self.policy.obs_to_tensor(infos[idx]["terminal_observation"])[0]
-                        with th.no_grad():
-                            terminal_value = self.policy.predict_values(terminal_obs)[0]
-                        rewards[idx] += self.gamma * terminal_value
+                    # 
+                    # callbacks
+                    # 
+                    callback.update_locals(locals())
+                    if callback.on_step() is False:
+                        return False
+                    
+                    # 
+                    # update rewards based on terminal value
+                    # 
+                    for environment_index, done in enumerate(dones):
+                        # Handle timeout by bootstraping with value function
+                        # see GitHub issue #633
+                        info         = infos[environment_index]
+                        terminal_observation = info.get("terminal_observation")
+                        if (
+                            done
+                            and terminal_observation is not None
+                            and info.get("TimeLimit.truncated", False)
+                        ):
+                            terminal_obs_tensor, _vectorized_env = self.policy.obs_to_tensor(terminal_observation)
+                            with th.no_grad():
+                                terminal_value = self.policy.predict_values(terminal_obs_tensor)[0] # TODO: I'm not sure why this gets [0], predict_values() doesnt seem to return a tuple --Jeff
+                            rewards[environment_index] += self.gamma * terminal_value
+                    
+                    # 
+                    # update info buffer (not very important)
+                    # 
+                    if True:
+                        dones_for_info_buffer = np.array([False] * len(infos)) # not sure why this is used instead of the actual dones
+                        for environment_index, info in enumerate(infos):
+                            maybe_ep_info = info.get("episode")
+                            maybe_is_success = info.get("is_success")
+                            if maybe_ep_info is not None:
+                                self.ep_info_buffer.extend([maybe_ep_info])
+                            if maybe_is_success is not None and dones_for_info_buffer[environment_index]:
+                                self.ep_success_buffer.append(maybe_is_success)
 
-                rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
+                rollout_buffer.add(
+                    obs=self._last_obs,
+                    action=action_to_save,
+                    reward=rewards,
+                    episode_start=self._last_episode_starts,
+                    value=values,
+                    log_prob=log_probs,
+                )
                 self._last_obs = new_obs
                 self._last_episode_starts = dones
-
-            with th.no_grad():
+            
+            # 
+            # compute_returns_and_advantage
+            # 
+            if True:
                 # Compute value for the last timestep
-                values = self.policy.predict_values(obs_as_tensor(new_obs, self.device))
-
-            rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
-
+                last_obs = new_obs
+                with th.no_grad():
+                    last_values = self.policy.predict_values(obs_as_tensor(last_obs, self.device))
+                rollout_buffer.compute_returns_and_advantage(last_values=last_values, dones=dones)
+            
+            # 
+            # end callback
+            # 
             callback.on_rollout_end()
 
             return True
