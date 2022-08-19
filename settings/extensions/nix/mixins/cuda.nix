@@ -128,7 +128,7 @@
                         export CUDA_PATH="${cudaStuff.cudatoolkit}"
                         export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${cudaStuff.nvidia_x11}/lib"
                         export EXTRA_LDFLAGS="$EXTRA_CCFLAGS:-L/lib -L${cudaStuff.nvidia_x11}/lib"
-                        export LD_LIBRARY_PATH="$(${nixgl.auto.nixGLNvidia}/bin/nixGLNvidia-470.86 printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
+                        export LD_LIBRARY_PATH="$("$(echo "${nixgl.auto.nixGLNvidia}/bin/nixGLNvidia-"*)" printenv LD_LIBRARY_PATH):$LD_LIBRARY_PATH"
                         export EXTRA_CCFLAGS="$EXTRA_CCFLAGS:-I/usr/include"
                         export LD_LIBRARY_PATH="${main.makeLibraryPath [ main.packages.glib ] }:$LD_LIBRARY_PATH"
                         export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/run/opengl-driver/lib"
