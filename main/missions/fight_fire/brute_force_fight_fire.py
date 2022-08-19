@@ -32,7 +32,6 @@ observation_size       = product(world_shape) + action_length
 input_vector_size      = observation_size + memory_size
 verbose                = True
 
-
 # 
 # 
 # Memory Env Definition
@@ -42,10 +41,11 @@ from torch import tensor
 def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     
     memory_value = tensor(memory_shape)
+    memory_space = gym.spaces.MultiBinary(memory_shape)
     
     class RealEnvWithMemory:
         action_space = real_env.action_space
-        observation_space =  memory_shape + real_env.observation_space # FIXME: this line is pseudocode
+        observation_space = gym.spaces.Tuple((memory_space, real_env.observation_space))
         def reset(self, *args):
             global memory_value
             memory_value = [ None ]
@@ -60,19 +60,19 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     
     real_env_with_memory = RealEnvWithMemory()
     reward_predictor = RewardPredictor(
-        input_space=real_env.observation_space + real_env.action_space + memory_shape, # FIXME: this line is pseudocode
+        input_space=gym.spaces.Tuple((real_env.observation_space, real_env.action_space, memory_space)),
     )
     
     class MemoryEnv:
-        action_space = [ [0], [1] ] # FIXME: this line is pseudocode
-        observation_space =  memory_shape + real_env.observation_space + real_env.action_space  # FIXME: this line is pseudocode
+        action_space = gym.space.MultiBinary(memory_shape)
+        observation_space = gym.spaces.Tuple((memory_space, real_env.observation_space, real_env.action_space, ))
         
         def reset(self, *args):
             (memory_value, observation) = real_env_with_memory.reset(*args)
             
             self.primary_agent = PrimaryAgent(
-                observation_space=memory_shape + real_env.observation_space, # FIXME: this line is pseudocode
-                action_space=real_env.action_space,
+                observation_space=RealEnvWithMemory.observation_space,
+                action_space=RealEnvWithMemory.action_space,
             )
             
             primary_action = self.primary_agent.choose_action(

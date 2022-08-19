@@ -54,6 +54,7 @@ jupyterthemes = "0.20.0"
 trivial-torch-tools = "^0.5.1"
 blissful-basics = "0.2.5"
 AutoROM = {extras = ["accept-rom-license"], version = "^0.4.2"}
+Box2D = "^2.3.10"
 
 [tool.poetry.dev-dependencies]
 
