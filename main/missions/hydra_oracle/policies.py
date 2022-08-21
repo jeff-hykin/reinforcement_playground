@@ -534,36 +534,36 @@ class BasePolicy(BaseModel):
 
 class ActorCriticPolicy(BasePolicy):
     """
-    Policy class for actor-critic algorithms (has both policy and value prediction).
-    Used by A2C, PPO and the likes.
+        Policy class for actor-critic algorithms (has both policy and value prediction).
+        Used by A2C, PPO and the likes.
 
-    :param observation_space: Observation space
-    :param action_space: Action space
-    :param lr_schedule: Learning rate schedule (could be constant)
-    :param net_arch: The specification of the policy and value networks.
-    :param activation_fn: Activation function
-    :param ortho_init: Whether to use or not orthogonal initialization
-    :param use_sde: Whether to use State Dependent Exploration or not
-    :param log_std_init: Initial value for the log standard deviation
-    :param full_std: Whether to use (n_features x n_actions) parameters
-        for the std instead of only (n_features,) when using gSDE
-    :param sde_net_arch: Network architecture for extracting features
-        when using gSDE. If None, the latent features from the policy will be used.
-        Pass an empty list to use the states as features.
-    :param use_expln: Use ``expln()`` function instead of ``exp()`` to ensure
-        a positive standard deviation (cf paper). It allows to keep variance
-        above zero and prevent it from growing too fast. In practice, ``exp()`` is usually enough.
-    :param squash_output: Whether to squash the output using a tanh function,
-        this allows to ensure boundaries when using gSDE.
-    :param features_extractor_class: Features extractor to use.
-    :param features_extractor_kwargs: Keyword arguments
-        to pass to the features extractor.
-    :param normalize_images: Whether to normalize images or not,
-         dividing by 255.0 (True by default)
-    :param optimizer_class: The optimizer to use,
-        ``th.optim.Adam`` by default
-    :param optimizer_kwargs: Additional keyword arguments,
-        excluding the learning rate, to pass to the optimizer
+        :param observation_space: Observation space
+        :param action_space: Action space
+        :param lr_schedule: Learning rate schedule (could be constant)
+        :param net_arch: The specification of the policy and value networks.
+        :param activation_fn: Activation function
+        :param ortho_init: Whether to use or not orthogonal initialization
+        :param use_sde: Whether to use State Dependent Exploration or not
+        :param log_std_init: Initial value for the log standard deviation
+        :param full_std: Whether to use (n_features x n_actions) parameters
+            for the std instead of only (n_features,) when using gSDE
+        :param sde_net_arch: Network architecture for extracting features
+            when using gSDE. If None, the latent features from the policy will be used.
+            Pass an empty list to use the states as features.
+        :param use_expln: Use ``expln()`` function instead of ``exp()`` to ensure
+            a positive standard deviation (cf paper). It allows to keep variance
+            above zero and prevent it from growing too fast. In practice, ``exp()`` is usually enough.
+        :param squash_output: Whether to squash the output using a tanh function,
+            this allows to ensure boundaries when using gSDE.
+        :param features_extractor_class: Features extractor to use.
+        :param features_extractor_kwargs: Keyword arguments
+            to pass to the features extractor.
+        :param normalize_images: Whether to normalize images or not,
+            dividing by 255.0 (True by default)
+        :param optimizer_class: The optimizer to use,
+            ``th.optim.Adam`` by default
+        :param optimizer_kwargs: Additional keyword arguments,
+            excluding the learning rate, to pass to the optimizer
     """
 
     def __init__(

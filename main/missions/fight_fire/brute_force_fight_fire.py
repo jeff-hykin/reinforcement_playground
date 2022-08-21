@@ -33,6 +33,78 @@ input_vector_size      = observation_size + memory_size
 verbose                = True
 
 # 
+# 
+# Memory Env Definition
+# 
+# 
+from torch import tensor
+def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
+    
+    memory_value = tensor(memory_shape)
+    memory_space = gym.spaces.MultiBinary(memory_shape)
+    
+    class RealEnvWithMemory:
+        action_space = real_env.action_space
+        observation_space = gym.spaces.Tuple((memory_space, real_env.observation_space))
+        def reset(self, *args):
+            global memory_value
+            memory_value = [ None ]
+            observation = real_env.reset(*args)
+            state = (memory_value, observation)
+            return state
+        
+        def step(self, action):
+            next_observation, reward, done, info = real_env.step(action)
+            next_state = (memory_value, next_observation)
+            return next_state, reward, done, info
+    
+    real_env_with_memory = RealEnvWithMemory()
+    reward_predictor = RewardPredictor(
+        input_space=gym.spaces.Tuple((real_env.observation_space, real_env.action_space, memory_space)),
+    )
+    
+    class MemoryEnv:
+        action_space = gym.space.MultiBinary(memory_shape)
+        observation_space = gym.spaces.Tuple((memory_space, real_env.observation_space, real_env.action_space, ))
+        
+        def reset(self, *args):
+            (memory_value, observation) = real_env_with_memory.reset(*args)
+            
+            self.primary_agent = PrimaryAgent(
+                observation_space=RealEnvWithMemory.observation_space,
+                action_space=RealEnvWithMemory.action_space,
+            )
+            
+            primary_action = self.primary_agent.choose_action(
+                (memory_value, observation)
+            )
+            self.prev_observation = observation
+            self.primary_agent_action = primary_action
+            
+            memory_state = (memory_value, observation, primary_action)
+            return memory_state
+        
+        def step(self, updated_memory_value):
+            global memory_value
+            memory_value = updated_memory_value
+            
+            predicted_reward = reward_predictor(
+                (self.prev_observation, self.primary_agent_action, updated_memory_value)
+            )
+            (_, observation), reward, done, info = real_env_with_memory.step(self.primary_agent_action)
+            memory_reward = -( (predicted_reward - reward)**2 )
+            
+            self.prev_observation = observation
+            self.primary_agent_action = self.primary_agent.choose_action(
+                (memory_value, observation),
+            )
+            
+            memory_state = (memory_value + self.prev_observation + self.primary_agent_action)
+            return memory_state, memory_reward, done, info
+    
+    return MemoryEnv()
+
+# 
 # definitions
 # 
 if True:

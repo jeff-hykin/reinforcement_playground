@@ -256,6 +256,14 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "box2d"
+version = "2.3.10"
+description = "Python Box2D"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "cachetools"
 version = "5.2.0"
 description = "Extensible memoizing collections and decorators"
@@ -2155,7 +2163,7 @@ docs = ["rst.linker (>=1.9)", "jaraco.packaging (>=9)", "sphinx"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.10"
-content-hash = "025a842bacef7f4bd2ffe96742677fef5ff3da81de6cf95d3393b06744986a50"
+content-hash = "6336199dce255dd9c072f60b59835e30d1ae632fc3bc0af59f8f5d7f284efe9a"
 
 [metadata.files]
 absl-py = []
@@ -2309,6 +2317,7 @@ beautifulsoup4 = []
 bidict = []
 bleach = []
 blissful-basics = []
+box2d = []
 cachetools = []
 certifi = []
 cffi = [
