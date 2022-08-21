@@ -1,8 +1,9 @@
 import math
 
+import torch
+import torch.nn as nn
 from trivial_torch_tools import Sequential, init, convert_each_arg
 from trivial_torch_tools.generics import product
-import torch.nn as nn
 from super_map import LazyDict
 
 mse_loss = nn.MSELoss()
@@ -10,6 +11,7 @@ class GeneralApproximator(nn.Module):
     @init.to_device()
     @init.forward_sequential_method
     def __init__(self, input_shape, output_shape, outputs_are_between_0_and_1=False, hyperparams=None):
+        super(GeneralApproximator, self).__init__()
         self.input_shape                 = input_shape
         self.output_shape                = output_shape
         self.outputs_are_between_0_and_1 = outputs_are_between_0_and_1
@@ -48,20 +50,21 @@ class GeneralApproximator(nn.Module):
         self.layers = layers
         self.optimizer = (self.hyperparams.optimizer_class or torch.optim.SGD)(
             self.parameters(),
-            LazyDict(
+            **LazyDict(
                 lr=0.01,
             ).update(self.hyperparams.optimizer_kwargs or {}),
         )
     
     @convert_each_arg.to_tensor() # Use to_tensor(which_args=[0]) to only convert first arg
     @convert_each_arg.to_device() # Use to_device(which_args=[0]) to only convert first arg
-    def fit(self, inputs, correct_outputs):
-        self.optimizer.zero_grad()
-        inputs.requires_grad = True
-        current_output = self.forward(inputs)
-        loss = self.hyperparams.loss_function(current_output, correct_outputs)
-        loss.backward()
-        self.optimizer.step()
+    def fit(self, inputs, correct_outputs, epochs=1):
+        for _ in range(epochs):
+            self.optimizer.zero_grad()
+            inputs.requires_grad = True
+            current_output = self.forward(inputs)
+            loss = self.hyperparams.loss_function(current_output, correct_outputs)
+            loss.backward()
+            self.optimizer.step()
         return loss
     
     @convert_each_arg.to_tensor() # Use to_tensor(which_args=[0]) to only convert first arg
@@ -69,3 +72,47 @@ class GeneralApproximator(nn.Module):
     def predict(self, inputs):
         with torch.no_grad():
             return self.forward(inputs)
+
+
+def generate_test_data_1(number_of_values=1000):
+    inputs = []
+    outputs = []
+    import random
+    for each in range(number_of_values):
+        if each % 2:
+            inputs.append(
+                torch.tensor([
+                    300 + random.random()*3,
+                    300 + random.random()*3,
+                    300 + random.random()*3,
+                    300 + random.random()*3,
+                ]),
+            )
+            outputs.append(
+                torch.tensor([
+                    1.0 + random.random(),
+                ])
+            )
+        else:
+            inputs.append(
+                torch.tensor([
+                    100 + random.random()*3,
+                    100 + random.random()*3,
+                    100 + random.random()*3,
+                    100 + random.random()*3,
+                ]),
+            )
+            outputs.append(
+                torch.tensor([
+                    -1.0 - random.random(),
+                ])
+            )
+    return inputs, outputs
+
+
+
+inputs, correct_outputs = generate_test_data_1(10000000)
+
+approximator = GeneralApproximator(input_shape=[4], output_shape=[1], hyperparams=LazyDict(layer_sizes=[10,3]))
+approximator.fit(inputs=inputs, correct_outputs=correct_outputs)
+approximator.predict(inputs=[[300,300,300,300]])
