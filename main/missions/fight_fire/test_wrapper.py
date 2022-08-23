@@ -1,7 +1,7 @@
-from main.missions.fight_fire.brute_force_fight_fire import wrap
+from main.missions.fight_fire.brute_force_fight_fire import wrap, LazyDict
 from main.prefabs.general_approximator import GeneralApproximator
 from missions.hydra_oracle.a2c_exposed import A2C
-from missions.hydra_oracle.policies import ActorCriticCnnPolicy
+from missions.hydra_oracle.policies import ActorCriticCnnPolicy, MultiInputActorCriticPolicy
 from blissful_basics import flatten
 
 # There already exists an environment generator
@@ -34,8 +34,8 @@ wrapped_env = wrap(
     PrimaryAgent=PrimaryAgent,
 )
 
-model = A2C(ActorCriticCnnPolicy, wrapped_env, verbose=1)
+model = A2C(MultiInputActorCriticPolicy, wrapped_env, verbose=1)
 
-model = A2C(ActorCriticCnnPolicy, env, verbose=1)
-model.learn(total_timesteps=25_000)
+# model = A2C(ActorCriticCnnPolicy, env, verbose=1)
+# model.learn(total_timesteps=25_000)
 

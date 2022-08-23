@@ -32,6 +32,9 @@ observation_size       = product(world_shape) + action_length
 input_vector_size      = observation_size + memory_size
 verbose                = True
 
+def tuple_to_dict_hack_fix(data):
+    return { f"{index}" : each for index, each in enumerate(data) }
+
 # 
 # 
 # Memory Env Definition
@@ -41,34 +44,36 @@ from torch import tensor
 def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     
     memory_value = tensor(memory_shape)
-    memory_space = gym.spaces.MultiBinary(memory_shape)
+    memory_space = gym.spaces.MultiBinary(product(memory_shape))
     
     class RealEnvWithMemory:
         action_space = real_env.action_space
-        observation_space = gym.spaces.Tuple((memory_space, real_env.observation_space))
+        metadata = real_env.metadata
+        observation_space = gym.spaces.Dict({ "0": memory_space, "1": real_env.observation_space })
         def reset(self, *args):
             global memory_value
             memory_value = [ None ]
             observation = real_env.reset(*args)
-            state = (memory_value, observation)
+            state = tuple_to_dict_hack_fix((memory_value, observation))
             return state
         
         def step(self, action):
             next_observation, reward, done, info = real_env.step(action)
-            next_state = (memory_value, next_observation)
+            next_state = tuple_to_dict_hack_fix((memory_value, next_observation))
             return next_state, reward, done, info
     
     real_env_with_memory = RealEnvWithMemory()
     reward_predictor = RewardPredictor(
-        input_space=gym.spaces.Tuple((real_env.observation_space, real_env.action_space, memory_space)),
+        input_space=gym.spaces.Dict({"0":real_env.observation_space, "1":real_env.action_space, "2":memory_space}),
     )
     
     class MemoryEnv:
-        action_space = gym.spaces.MultiBinary(memory_shape)
-        observation_space = gym.spaces.Tuple((memory_space, real_env.observation_space, real_env.action_space, ))
+        metadata = real_env.metadata
+        action_space = gym.spaces.MultiBinary(product(memory_shape))
+        observation_space = gym.spaces.Dict({"0":memory_space, "1":real_env.observation_space, "2":real_env.action_space, })
         
         def reset(self, *args):
-            (memory_value, observation) = real_env_with_memory.reset(*args)
+            (memory_value, observation) = real_env_with_memory.reset(*args).values()
             
             self.primary_agent = PrimaryAgent(
                 observation_space=RealEnvWithMemory.observation_space,
@@ -81,7 +86,7 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
             self.prev_observation = observation
             self.primary_agent_action = primary_action
             
-            memory_state = (memory_value, observation, primary_action)
+            memory_state = tuple_to_dict_hack_fix((memory_value, observation, primary_action))
             return memory_state
         
         def step(self, updated_memory_value):
@@ -91,23 +96,24 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
             predicted_reward = reward_predictor.predict(
                 (self.prev_observation, self.primary_agent_action, updated_memory_value)
             )
-            (_, observation), reward, done, info = real_env_with_memory.step(self.primary_agent_action)
+            state, reward, done, info = real_env_with_memory.step(self.primary_agent_action)
+            (_, observation) = state.values()
             memory_reward = -( (predicted_reward - reward)**2 )
             reward_predictor.update(
                 inputs=[
-                    (self.prev_observation, self.primary_agent_action, updated_memory_value) \
+                    (self.prev_observation, self.primary_agent_action, updated_memory_value)
                 ],
                 correct_outputs=[
-                    
+                    reward
                 ]
             )
             
             self.prev_observation = observation
             self.primary_agent_action = self.primary_agent.choose_action(
-                (memory_value, observation),
+                tuple_to_dict_hack_fix((memory_value, observation))
             )
             
-            memory_state = (memory_value + self.prev_observation + self.primary_agent_action)
+            memory_state = tuple_to_dict_hack_fix((memory_value, self.prev_observation, self.primary_agent_action))
             return memory_state, memory_reward, done, info
     
     return MemoryEnv()

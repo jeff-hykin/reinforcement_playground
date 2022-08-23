@@ -188,6 +188,10 @@ class CombinedExtractor(nn.Module):
         for key, extractor in self.extractors.items():
             encoded_tensor_list.append(extractor(observations[key]))
         return th.cat(encoded_tensor_list, dim=1)
+    
+    @property
+    def features_dim(self) -> int:
+        return self._features_dim
 
 
 class BaseModel(nn.Module, ABC):
