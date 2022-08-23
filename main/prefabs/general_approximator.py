@@ -72,8 +72,9 @@ class GeneralApproximator(nn.Module): # NOTE: this thing is broken! it should wo
         with torch.no_grad():
             return self.forward(inputs)
 
-from sklearn.neighbors import NearestNeighbors
 import numpy
+numpy.float = float # workaround for DeprecationWarning: `np.float` is a deprecated alias for the builtin `float`. To silence this warning, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.
+from sklearn.neighbors import NearestNeighbors
 class GeneralApproximator:
     def __init__(self, input_shape, output_shape, hyperparams=None):
         self.input_shape = input_shape

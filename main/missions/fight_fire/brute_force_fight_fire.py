@@ -64,7 +64,7 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     )
     
     class MemoryEnv:
-        action_space = gym.space.MultiBinary(memory_shape)
+        action_space = gym.spaces.MultiBinary(memory_shape)
         observation_space = gym.spaces.Tuple((memory_space, real_env.observation_space, real_env.action_space, ))
         
         def reset(self, *args):
