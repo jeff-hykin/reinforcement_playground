@@ -88,11 +88,19 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
             global memory_value
             memory_value = updated_memory_value
             
-            predicted_reward = reward_predictor(
+            predicted_reward = reward_predictor.predict(
                 (self.prev_observation, self.primary_agent_action, updated_memory_value)
             )
             (_, observation), reward, done, info = real_env_with_memory.step(self.primary_agent_action)
             memory_reward = -( (predicted_reward - reward)**2 )
+            reward_predictor.update(
+                inputs=[
+                    (self.prev_observation, self.primary_agent_action, updated_memory_value) \
+                ],
+                correct_outputs=[
+                    
+                ]
+            )
             
             self.prev_observation = observation
             self.primary_agent_action = self.primary_agent.choose_action(
@@ -1063,7 +1071,7 @@ print.flush.always = not verbose # False=>optimizes throughput, True=>optimizes 
 
 
 
-train_hypothesis_agent(iteration_count=1000)
+# train_hypothesis_agent(iteration_count=1000)
 
 # print("#")
 # print("# no_memory")
