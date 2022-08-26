@@ -52,7 +52,7 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
         observation_space = gym.spaces.Dict({ "0": memory_space, "1": real_env.observation_space })
         def reset(self, *args):
             global memory_value
-            memory_value = [ None ]
+            memory_value = 0
             observation = real_env.reset(*args)
             state = tuple_to_dict_hack_fix((memory_value, observation))
             return state
@@ -93,9 +93,10 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
             global memory_value
             memory_value = updated_memory_value
             
-            predicted_reward = reward_predictor.predict(
+            inputs = [
                 (self.prev_observation, self.primary_agent_action, updated_memory_value)
-            )
+            ]
+            predicted_reward = reward_predictor.predict(inputs)
             state, reward, done, info = real_env_with_memory.step(self.primary_agent_action)
             (_, observation) = state.values()
             memory_reward = -( (predicted_reward - reward)**2 )

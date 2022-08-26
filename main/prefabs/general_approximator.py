@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 from trivial_torch_tools import Sequential, init, convert_each_arg, to_tensor
-from trivial_torch_tools.generics import product, to_pure
+from trivial_torch_tools.generics import product, to_pure, flatten
 from super_map import LazyDict
 
 mse_loss = nn.MSELoss()
@@ -79,32 +79,37 @@ class GeneralApproximator:
     def __init__(self, input_shape, output_shape, hyperparams=None):
         self.input_shape = input_shape
         self.output_shape = output_shape
-        self.inputs = []
-        self.outputs = []
+        self.inputs = None
+        self.outputs = None
         self.hyperparams = LazyDict(
             n_neighbors=3,
             algorithm='ball_tree',
         ).update(hyperparams or {})
-        self.model = NearestNeighbors(**self.hyperparams)
     
     def preprocess(self, inputs):
         # flatten each input, 1 row = 1 input
-        return torch.flatten(to_tensor(inputs), 1).numpy()
+        return to_tensor([flatten(each) for each in inputs]).numpy()
         
     def fit(self, inputs, correct_outputs):
-        self.inputs += inputs
-        self.outputs += correct_outputs
-        self.model.fit(self.preprocess(inputs))
+        self.inputs  = self.preprocess(inputs         ) if type(self.inputs ) == type(None) else numpy.concatenate((self.inputs , self.preprocess(inputs          )), axis=0)
+        self.outputs = self.preprocess(correct_outputs) if type(self.outputs) == type(None) else numpy.concatenate((self.outputs, self.preprocess(correct_outputs )), axis=0)
     
     def predict(self, inputs):
         # if no data has been gathered, just return random outputs
         # TODO: this should maybe show a warning
-        if len(self.inputs) == 0:
-            return torch.rand((len(inputs), self.output_shape))
+        if type(self.inputs) == type(None) or len(self.inputs) <= self.hyperparams.n_neighbors:
+            return torch.rand((len(inputs), *self.output_shape))
+        
+        self.model = NearestNeighbors(**self.hyperparams).fit(self.inputs)
         distances_for_inputs, indices_for_inputs = self.model.kneighbors( self.preprocess(inputs) )
         outputs = []
         for each_input, each_distances, each_indices in zip(inputs, distances_for_inputs, indices_for_inputs):
             distances = to_pure(each_distances)
+            # if there is an exact overlap, dont average the neighbors
+            for neighbor_index, each_distance in enumerate(distances):
+                if each_distance == 0:
+                    outputs.append(self.outputs[neighbor_index])
+                    continue
             values    = tuple( to_pure(self.outputs[each_index]) for each_index in each_indices )
             values_as_array = to_tensor(values).numpy()
             average_value = numpy.mean(values_as_array, axis=0)
@@ -122,7 +127,6 @@ def test_the_approximator():
         for each in range(number_of_values):
             if each % 2:
                 the_input = torch.ones(input_shape) + random.random()
-                print(f'''the_input.shape = {the_input.shape}''')
                 inputs.append(
                     the_input,
                 )
