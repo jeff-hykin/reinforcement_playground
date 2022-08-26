@@ -185,8 +185,8 @@ class World:
                 
                 # for openai gym
                 self.observation_shape = (1,1)
-                self.observation_space = spaces.Box(low=torch.zeros_like(world.state.grid).numpy(), high=torch.ones_like(world.state.grid).numpy(), dtype=np.float16)
-                self.action_space = spaces.Box(low=np.array([0,0]), high=np.array([1,1]) )
+                self.observation_space = spaces.Box(low=np.float32(torch.zeros_like(world.state.grid).numpy()), high=np.float32(torch.ones_like(world.state.grid).numpy()), dtype=np.float32)
+                self.action_space = spaces.Box(low=np.float32(np.array([0,0])), high=np.float32(np.array([1,1])) )
             
             @property
             def position(self):
