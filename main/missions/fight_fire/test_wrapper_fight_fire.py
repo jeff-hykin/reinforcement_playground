@@ -19,7 +19,7 @@ verbose                = True
 world = World(
     grid_width=world_shape[0],
     grid_height=world_shape[1],
-    visualize=True,
+    visualize=False,
     # debug=True,
     fire_locations=[(-1,-1)],
     water_locations=[(0,0)],
@@ -33,7 +33,7 @@ real_env = world.Player()
 def random_action_maker(action_space):
     def random_action(*args, **kwargs):
         action = action_space.sample()
-        print(f'''action = {action}''')
+        # print(f'''action = {action}''')
         return action
     return random_action
 def random_agent_factory(observation_space, action_space):
@@ -65,6 +65,7 @@ from tools.universe.timestep import Timestep
 
 def create_runtime(agent, env, max_timestep_index=math.inf, max_episode_index=math.inf):
     agent_data = LazyDict()
+    timestep_index = -1
     for episode_index in itertools.count(0): # starting at 0
         agent_data.previous_timestep = Timestep(index=-2,)
         agent_data.timestep = Timestep(index=-1)
@@ -74,6 +75,9 @@ def create_runtime(agent, env, max_timestep_index=math.inf, max_episode_index=ma
             is_last_step=False,
         )
         while not agent_data.timestep.is_last_step:
+            timestep_index += 1
+            if max_timestep_index < timestep_index:
+                break
             
             agent_data.previous_timestep = agent_data.timestep
             agent_data.timestep          = agent_data.next_timestep
@@ -87,6 +91,72 @@ def create_runtime(agent, env, max_timestep_index=math.inf, max_episode_index=ma
             agent_data.timestep.is_last_step     = deepcopy(is_last_step)
             
             yield episode_index, agent_data.timestep
+        
+        if max_timestep_index < timestep_index:
+            break
+            
+
+# 
+# 
+# visual tool
+# 
+# 
+def multi_plot(data, vertical_label=None, horizonal_label=None, title=None, color_key={}):
+    import silver_spectacle as ss
+    datasets = []
+    labels = {}
+    for each_key, each_line in data.items():
+        values = []
+        for x, y in enumerate(each_line):
+            labels[x] = None
+            values.append(y)
+        
+        datasets.append(dict(
+            label=each_key,
+            data=values,
+            fill=False,
+            tension=0.4,
+            cubicInterpolationMode='monotone',
+            backgroundColor=color_key.get(each_key, 'rgb(0, 292, 192, 0.5)'),
+            borderColor=color_key.get(each_key, 'rgb(0, 292, 192, 0.5)'),
+            color=color_key.get(each_key, 'rgb(0, 292, 192, 0.5)'),
+        ))
+        
+    
+    labels = list(labels.keys())
+    return ss.DisplayCard("chartjs", {
+        "type": 'line',
+        "data": {
+            "labels": labels,
+            "datasets": datasets,
+        },
+        "options": {
+            "plugins": {
+                "title": {
+                    "display": (not (not title)),
+                    "text": title,
+                }
+            },
+            "pointRadius": 3, # the size of the dots
+            "scales": {
+                "x": {
+                    "title": {
+                        "display": horizonal_label,
+                        "text": horizonal_label,
+                    },
+                },
+                "y": {
+                    "title": {
+                        "display": vertical_label,
+                        "text": vertical_label,
+                    },
+                    # "min": 50,
+                    # "max": 100,
+                },
+            }
+        }
+    })
+
 
 # 
 # 
@@ -123,18 +193,30 @@ if True:
                 choose_action=random_action_maker(env.action_space),
             ),
             env=env,
+            max_timestep_index=1_000,
         )
         number_of_timesteps = 0
         should_log = countdown(size=200)
+        reward_per_timestep_over_time = []
         with print.indent:
             for episode_index, timestep in runtime:
                 reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
+                    reward_per_timestep_over_time.append(reward_total/number_of_timesteps)
+                    print(f'''number_of_timesteps = {number_of_timesteps}''')
                     print(f'''reward_total = {reward_total}''')
                     print(f'''number_of_episodes = {episode_index + 1}''')
                     print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
                     print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
+    
+    multi_plot(
+        vertical_label="Mem Reward per timestep",
+        horizonal_label="200 timesteps",
+        data=dict(
+            random_memory_actions=reward_per_timestep_over_time,
+        ),
+    )
                 
     # model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
     # model.learn(total_timesteps=memory_agent_training_timesteps)
