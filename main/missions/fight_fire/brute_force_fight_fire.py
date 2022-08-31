@@ -120,6 +120,53 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     
     return MemoryEnv()
 
+def get_transformed_env(real_env, memory_shape, memory_agent_factory):
+    memory_value = tensor(memory_shape)
+    memory_space = gym.spaces.MultiBinary(product(memory_shape))
+    memory_agent = memory_agent_factory(
+        action_space = memory_space,
+        observation_space = gym.spaces.Dict({"0":memory_space, "1":real_env.observation_space, "2":real_env.action_space, }),
+    )
+    
+    class TransformedEnv:
+        action_space = real_env.action_space
+        metadata = real_env.metadata
+        observation_space = gym.spaces.Dict({ "0": memory_space, "1": real_env.observation_space })
+        def __init__(self, ):
+            self.prev_state = None
+            self.prev_observation = None
+        
+        def reset(self, *args):
+            global memory_value
+            memory_value = 0
+            self.prev_observation = real_env.reset(*args)
+            self.prev_state = tuple_to_dict_hack_fix((memory_value, self.prev_observation))
+            return self.prev_state
+        
+        def step(self, action):
+            global memory_value, memory_agent
+            # 
+            # compute memory_value for the next state
+            # 
+            next_memory_env_state = (memory_value, self.prev_observation, action)
+            memory_value = self.memory_agent.choose_action(
+                next_memory_env_state
+            )
+            
+            # 
+            # perform the action
+            # 
+            next_observation, reward, done, info = real_env.step(action)
+            
+            # 
+            # let agent decide what to do with latest memory and observation
+            # 
+            self.prev_observation = next_observation
+            next_state = tuple_to_dict_hack_fix((memory_value, next_observation)) # note: intentionally memory_value should not have access to the observation that was just computed
+            return next_state, reward, done, info
+    
+    return TransformedEnv()
+
 # 
 # definitions
 # 

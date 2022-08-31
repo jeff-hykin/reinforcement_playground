@@ -143,32 +143,35 @@ class TransformedWorld:
             def __init__(self):
                 self.real_env = real_env_factory()
                 self.memory_value = None
+                self.prev_observation = None
                 self.memory_agent = memory_agent_factory(
                     action_space      = MemoryEnv.action_space,
                     observation_space = MemoryEnv.observation_space,
                 )
             
             def reset(self, *args):
+                self.prev_observation = self.real_env.reset(*args)
                 self.memory_value = 0 # FIXME: probably need to make this a zeros_like(memory_shape) 
-                self.prev_state = tuple_to_dict_hack_fix((self.memory_value, self.real_env.reset(*args)))
+                self.prev_state = tuple_to_dict_hack_fix((self.memory_value, self.prev_observation))
                 return self.prev_state
             
             def step(self, action):
+                # 
+                # compute memory value for next timestep
+                # 
+                next_memory_env_state = (self.memory_value, self.prev_observation, action)
+                self.memory_value = self.memory_agent.choose_action(
+                    next_memory_env_state
+                )
                 # 
                 # perform the action
                 # 
                 next_observation, reward, done, info = self.real_env.step(action)
                 # 
-                # compute latest memory value
-                # 
-                next_memory_env_state = (self.memory_value, next_observation, action)
-                self.memory_value = self.memory_agent.choose_action(
-                    next_memory_env_state
-                )
-                # 
                 # let agent decide what to do next
                 # 
-                self.prev_state = tuple_to_dict_hack_fix((self.memory_value, next_observation))
+                self.prev_observation = next_observation
+                self.prev_state = tuple_to_dict_hack_fix((self.memory_value, next_observation)) # note: intentionally memory_value should not have access to the observation that was just computed
                 return self.prev_state, reward, done, info
         
         self.MemoryEnv             = MemoryEnv
