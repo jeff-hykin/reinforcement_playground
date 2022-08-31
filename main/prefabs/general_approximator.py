@@ -87,12 +87,7 @@ class GeneralApproximator:
         ).update(hyperparams or {})
     
     def preprocess(self, inputs):
-        try:
-            # flatten each input, 1 row = 1 input
-            return to_tensor([flatten(each) for each in inputs]).numpy()
-        except Exception as error:
-            import sys
-            sys.exit()
+        return to_tensor([flatten(each) for each in inputs]).numpy()
         
     def fit(self, inputs, correct_outputs):
         self.inputs  = self.preprocess(inputs         ) if type(self.inputs ) == type(None) else numpy.concatenate((self.inputs , self.preprocess(inputs          )), axis=0)

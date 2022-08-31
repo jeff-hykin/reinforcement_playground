@@ -182,7 +182,10 @@ if True:
         PrimaryAgent=random_agent_factory,
     )
     
-    timesteps_for_evaluation = 10_000
+    timesteps_for_evaluation = 1400
+    a2c_memory_actions_rewards = []
+    random_memory_actions_rewards = []
+    perfect_memory_agent_rewards = []
 
     # 
     # how bad is the predictor with trained A2C
@@ -246,12 +249,50 @@ if True:
                     print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
         random_memory_actions_rewards = list(reward_per_timestep_over_time)
     
+    # 
+    # how does the perfect agent do?
+    # 
+    with print.indent:
+        reward_total = 0
+        env = memory_env
+        def choose_action(state):
+            prev_memory, observation, primary_agent_action = state.values()
+            position_layer = observation[0]
+            top_row = position_layer[0]
+            left_cell = top_row[0]
+            memory_value = 1 if left_cell else 0
+            import numpy
+            return numpy.array([memory_value])
+        runtime = create_runtime(
+            agent=LazyDict(
+                choose_action=choose_action,
+            ),
+            env=env,
+            max_timestep_index=timesteps_for_evaluation,
+        )
+        number_of_timesteps = 0
+        should_log = countdown(size=200)
+        reward_per_timestep_over_time = []
+        with print.indent:
+            for episode_index, timestep in runtime:
+                reward_total += timestep.reward
+                number_of_timesteps += 1
+                if should_log():
+                    reward_per_timestep_over_time.append(reward_total/number_of_timesteps)
+                    print(f'''number_of_timesteps = {number_of_timesteps}''')
+                    print(f'''reward_total = {reward_total}''')
+                    print(f'''number_of_episodes = {episode_index + 1}''')
+                    print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
+                    print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
+        perfect_memory_agent_rewards = list(reward_per_timestep_over_time)
+    
     multi_plot(
         vertical_label="Mem Reward per timestep",
         horizonal_label="200 timesteps",
         data=dict(
-            random_memory_actions=reward_per_timestep_over_time,
+            random_memory_actions=random_memory_actions_rewards,
             a2c_memory_actions_rewards=a2c_memory_actions_rewards,
+            perfect_memory_agent_rewards=perfect_memory_agent_rewards,
         ),
     )
                 
