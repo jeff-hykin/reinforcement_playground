@@ -55,7 +55,7 @@ class TransformedWorld:
         
         class MemoryEnv:
             metadata          = base_env.metadata
-            action_space      = gym.spaces.MultiBinary(product(memory_shape))
+            action_space      = transformed_world.space_for.memory
             observation_space = transformed_world.space_for.memory_env
             
             def __init__(self, memory_reward_function=None):
