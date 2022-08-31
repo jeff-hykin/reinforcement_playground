@@ -27,8 +27,7 @@ def default_memory_reward_function(*, predicted_reward, real_reward):
 
 class TransformedWorld:
     def __init__(transformed_world, *, memory_shape, real_env_factory, reward_predictor_factory, primary_agent_factory, memory_agent_factory):
-        base_env = real_env_factory() 
-        transformed_world.memory_value = None
+        base_env = real_env_factory()
         transformed_world.space_for = LazyDict()
         transformed_world.space_for.memory             = gym.spaces.MultiBinary(product(memory_shape))
         transformed_world.space_for.wrapped_env        = gym.spaces.Dict( tuple_to_dict_hack_fix((transformed_world.space_for.memory, base_env.observation_space)) )
