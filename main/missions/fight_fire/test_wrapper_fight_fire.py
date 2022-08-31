@@ -19,7 +19,7 @@ verbose                = True
 world = World(
     grid_width=world_shape[0],
     grid_height=world_shape[1],
-    visualize=False,
+    visualize=True,
     # debug=True,
     fire_locations=[(-1,-1)],
     water_locations=[(0,0)],
@@ -30,9 +30,16 @@ real_env = world.Player()
 # 
 # Random agent
 # 
+def random_action_maker(action_space):
+    def random_action(*args, **kwargs):
+        action = action_space.sample()
+        print(f'''action = {action}''')
+        return action
+    return random_action
 def random_agent_factory(observation_space, action_space):
     return LazyDict(
-        choose_action= lambda state: action_space.sample(),
+        # choose_action= lambda state: action_space.sample(),
+        choose_action=random_action_maker(action_space),
     )
 
 # 
@@ -113,15 +120,15 @@ if True:
         env = memory_env
         runtime = create_runtime(
             agent=LazyDict(
-                choose_action= lambda state: env.action_space.sample(),
+                choose_action=random_action_maker(env.action_space),
             ),
             env=env,
         )
         number_of_timesteps = 0
         should_log = countdown(size=200)
         with print.indent:
-            for episode_index, agent_data.timestep in runtime:
-                reward_total += agent_data.timestep.reward
+            for episode_index, timestep in runtime:
+                reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
                     print(f'''reward_total = {reward_total}''')

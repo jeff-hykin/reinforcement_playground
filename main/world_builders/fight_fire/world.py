@@ -225,7 +225,7 @@ class World:
                 action = to_pure(action)
                 if isinstance(action, (list, tuple)):
                     # convert to boolean
-                    action = tuple(not not each for each in action)
+                    action = tuple((not not each if not isinstance(each, float) else each > 0.5) for each in action)
                     if action == (True, False):
                         action = "LEFT"
                     elif action == (False, True):
