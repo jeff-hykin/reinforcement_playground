@@ -2,7 +2,7 @@ from main.missions.fight_fire.brute_force_fight_fire import get_memory_env, get_
 from main.prefabs.general_approximator import GeneralApproximator
 from missions.hydra_oracle.a2c_exposed import A2C
 from missions.hydra_oracle.policies import ActorCriticCnnPolicy, MultiInputActorCriticPolicy
-from blissful_basics import flatten, is_iterable, product, print
+from blissful_basics import flatten, is_iterable, product, print, countdown
 from world_builders.fight_fire.world import World
 
 
@@ -108,26 +108,27 @@ if True:
     # 
     # how bad is the predictor with a random agent?
     #
-    if True: 
+    with print.indent:
         reward_total = 0
         env = memory_env
         runtime = create_runtime(
             agent=LazyDict(
                 choose_action= lambda state: env.action_space.sample(),
             ),
-            env=
+            env=env,
         )
         number_of_timesteps = 0
-        for episode_index, agent_data.timestep in runtime:
-            reward_total += agent_data.timestep.reward
-            number_of_timesteps += 1
-        number_of_episodes = episode_index + 1
+        should_log = countdown(size=200)
         with print.indent:
-            print(f'''reward_total = {reward_total}''')
-            print(f'''number_of_episodes = {number_of_episodes}''')
-            print(f'''reward_total/number_of_episodes = {(reward_total/number_of_episodes)}''')
-            print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
-    
+            for episode_index, agent_data.timestep in runtime:
+                reward_total += agent_data.timestep.reward
+                number_of_timesteps += 1
+                if should_log():
+                    print(f'''reward_total = {reward_total}''')
+                    print(f'''number_of_episodes = {episode_index + 1}''')
+                    print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
+                    print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
+                
     # model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
     # model.learn(total_timesteps=memory_agent_training_timesteps)
 
