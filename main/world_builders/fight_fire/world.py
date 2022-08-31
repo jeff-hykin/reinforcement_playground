@@ -179,6 +179,10 @@ class World:
             def __init__(self):
                 world.state.has_water[self] = False
                 world.state.position_of[self] = world.start_position
+                self.stats = LazyDict(
+                    reward_total=0,
+                    number_of_episodes=0,
+                )
                 self.previous_action = None
                 self.previous_observation = None
                 self.action = None
@@ -245,12 +249,14 @@ class World:
                 if world.visualize:
                     print(f'''player1 reward = {f"{reward}".rjust(3)}, done = {done}''')
                 
+                self.stats.reward_total += reward
                 return next_state, reward, done, debug_info
 
             def reset(self,):
                 # ask the world to reset
                 world.request_change(self, World.reset)
                 self.__init__()
+                self.stats.number_of_episodes += 1
                 return self.observation
             
             def close(self):

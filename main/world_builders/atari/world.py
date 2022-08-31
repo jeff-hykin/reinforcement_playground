@@ -131,7 +131,11 @@ class World:
                     self, game, mode, difficulty, obs_type, frameskip, repeat_action_probability
                 )
                 assert obs_type in ("ram", "image")
-
+                
+                self.stats = LazyDict(
+                    reward_total=0,
+                    number_of_episodes=0,
+                )
                 self.game = game
                 self.game_path = atari_py.get_game_path(game)
                 self.game_mode = mode
@@ -219,7 +223,8 @@ class World:
                 for _ in range(num_steps):
                     reward += self.ale.act(action)
                 ob = self._get_obs()
-
+                
+                self.stats.reward_total += reward
                 return ob, reward, self.ale.game_over(), {"ale.lives": self.ale.lives()}
 
             def _get_image(self):
@@ -242,6 +247,7 @@ class World:
             # return: (states, observations)
             @is_required_by(gym)
             def reset(self):
+                self.stats.number_of_episodes += 1
                 self.ale.reset_game()
                 return self._get_obs()
 
