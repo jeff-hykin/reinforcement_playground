@@ -1,4 +1,4 @@
-from main.missions.fight_fire.brute_force_fight_fire import get_memory_env, LazyDict
+from main.missions.fight_fire.brute_force_fight_fire import get_memory_env, get_transformed_env, LazyDict
 from main.prefabs.general_approximator import GeneralApproximator
 from missions.hydra_oracle.a2c_exposed import A2C
 from missions.hydra_oracle.policies import ActorCriticCnnPolicy, MultiInputActorCriticPolicy
@@ -28,7 +28,7 @@ env = world.Player()
 
 
 # Random agent
-def PrimaryAgent(observation_space, action_space):
+def random_agent_factory(observation_space, action_space):
     return LazyDict(
         choose_action= lambda state: action_space.sample(),
     )
@@ -43,21 +43,35 @@ def RewardPredictor(*args, **kwargs):
         update=lambda inputs, correct_outputs: approximator.fit(inputs, correct_outputs),
     )
 
-wrapped_env = get_memory_env(
-    real_env=env,
-    memory_shape=(1,),
-    RewardPredictor=RewardPredictor,
-    PrimaryAgent=PrimaryAgent,
-)
+# 
+# 
+# tests
+# 
+# 
+if True:
+    # Questions:
+        # how bad is the predictor with a random agent?
+        # can the memory agent help the predictor?
+        # how bad does A2C do without memory?
+    
+    transformed_env = get_transformed_env(
+        real_env=env,
+        memory_shape=(1,),
+        memory_agent_factory=random_agent_factory,
+    )
 
-model = A2C(MultiInputActorCriticPolicy, wrapped_env, verbose=1)
-model.learn(total_timesteps=memory_agent_training_timesteps)
+    memory_env = get_memory_env(
+        real_env=env,
+        memory_shape=(1,),
+        RewardPredictor=RewardPredictor,
+        PrimaryAgent=random_agent_factory,
+    )
 
-# model = A2C(ActorCriticCnnPolicy, env, verbose=1)
-# model.learn(total_timesteps=25_000)
+    model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
+    model.learn(total_timesteps=memory_agent_training_timesteps)
+
+    # model = A2C(ActorCriticCnnPolicy, env, verbose=1)
+    # model.learn(total_timesteps=25_000)
 
 
-# Questions:
-    # how bad is the predictor with a random agent?
-    # can the memory agent help the predictor?
-    # how bad does A2C do without memory?
+    
