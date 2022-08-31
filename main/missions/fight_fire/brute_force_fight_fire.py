@@ -32,6 +32,15 @@ observation_size       = product(world_shape) + action_length
 input_vector_size      = observation_size + memory_size
 verbose                = True
 
+class MultiBinary(gym.spaces.MultiBinary):
+    def __init__(self, *args, **kwargs):
+        gym.spaces.MultiBinary.__init__(self, *args, **kwargs)
+        self._shape = (1,)
+    
+    @property
+    def shape(self):
+        return self._shape
+
 def tuple_to_dict_hack_fix(data):
     return { f"{index}" : each for index, each in enumerate(data) }
 
@@ -44,7 +53,8 @@ from torch import tensor
 def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     
     memory_value = tensor(memory_shape)
-    memory_space = gym.spaces.MultiBinary(product(memory_shape))
+    memory_space = MultiBinary(product(memory_shape))
+    memory_space._shape = (product(memory_shape), )
     
     class RealEnvWithMemory:
         action_space = real_env.action_space
@@ -52,7 +62,8 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
         observation_space = gym.spaces.Dict({ "0": memory_space, "1": real_env.observation_space })
         def reset(self, *args):
             global memory_value
-            memory_value = 0
+            import numpy
+            memory_value = numpy.array((0,))
             observation = real_env.reset(*args)
             state = tuple_to_dict_hack_fix((memory_value, observation))
             return state
@@ -69,7 +80,7 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     
     class MemoryEnv:
         metadata = real_env.metadata
-        action_space = gym.spaces.MultiBinary(product(memory_shape))
+        action_space = memory_space
         observation_space = gym.spaces.Dict({"0":memory_space, "1":real_env.observation_space, "2":real_env.action_space, })
         
         def reset(self, *args):
@@ -122,7 +133,8 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
 
 def get_transformed_env(real_env, memory_shape, memory_agent_factory):
     memory_value = tensor(memory_shape)
-    memory_space = gym.spaces.MultiBinary(product(memory_shape))
+    memory_space = MultiBinary(product(memory_shape))
+    memory_space._shape = (product(memory_shape), )
     memory_agent = memory_agent_factory(
         action_space = memory_space,
         observation_space = gym.spaces.Dict({"0":memory_space, "1":real_env.observation_space, "2":real_env.action_space, }),
@@ -138,7 +150,8 @@ def get_transformed_env(real_env, memory_shape, memory_agent_factory):
         
         def reset(self, *args):
             global memory_value
-            memory_value = 0
+            import numpy
+            memory_value = numpy.array((0,))
             self.prev_observation = real_env.reset(*args)
             self.prev_state = tuple_to_dict_hack_fix((memory_value, self.prev_observation))
             return self.prev_state
