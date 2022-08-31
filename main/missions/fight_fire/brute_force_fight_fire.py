@@ -41,7 +41,7 @@ def tuple_to_dict_hack_fix(data):
 # 
 # 
 from torch import tensor
-def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
+def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
     
     memory_value = tensor(memory_shape)
     memory_space = gym.spaces.MultiBinary(product(memory_shape))
@@ -73,6 +73,7 @@ def wrap(real_env, memory_shape, RewardPredictor, PrimaryAgent):
         observation_space = gym.spaces.Dict({"0":memory_space, "1":real_env.observation_space, "2":real_env.action_space, })
         
         def reset(self, *args):
+            global memory_value
             (memory_value, observation) = real_env_with_memory.reset(*args).values()
             
             self.primary_agent = PrimaryAgent(
