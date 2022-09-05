@@ -107,6 +107,8 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
             
             if real_trajectory:
                 primary_action = real_trajectory[trajectory_timestep_index].reaction
+                print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
+                print(f'''reset:primary_action = {primary_action}''')
             else:
                 self.primary_agent = PrimaryAgent(
                     observation_space=RealEnvWithMemory.observation_space,
@@ -160,6 +162,8 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
             # 
             if real_trajectory:
                 self.primary_agent_action = real_trajectory[trajectory_timestep_index].reaction
+                print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
+                print(f'''set:primary_action = {self.primary_agent_action}''')
             else:
                 self.primary_agent_action = self.primary_agent.choose_action(
                     tuple_to_dict_hack_fix((memory_value, current_observation))

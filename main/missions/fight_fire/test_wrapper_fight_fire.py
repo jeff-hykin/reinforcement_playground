@@ -291,6 +291,7 @@ if True:
         # reset the reward predictor for evaluation
         env = memory_env = get_memory_env(
             real_env=real_env,
+            real_trajectory=trajectory,
             memory_shape=(1,),
             RewardPredictor=RewardPredictor,
             PrimaryAgent=random_agent_factory,

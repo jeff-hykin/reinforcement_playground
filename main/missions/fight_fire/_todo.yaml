@@ -1,51 +1,56 @@
 todo:
-    - create an efficient way of generating ideal trajectories for the reward predictor
-    - create a new perfect memory policy that doesn't use a table
-    - try to get a system working on a 10x10 grid
-    - try coding out the hypothesis testing update step:
-        - the reward prediction penalty shouldn't go into a reward-loss-function
-        - instead the state+action (ignore memory) that caused the incorrect reward prediciton is marked
-        - within some experience-replay buffer we look up those marked states and create mini-trajectories out of them
-        - then try to discriminate between the history of the correct and incorrect prediction:
-            - the memory agent prefers the minimum number of:
-                - timesteps away from the marked state+action
-                - memory slots
-                - triggers:
-                    - (number of triggers)
-                    - triggers that depend on the fewest number of input values
-                - note: |
-                    this could even be done with neural networks by giving them a score for how many inputs a particular output "listens" to.
-                    Having that score and optimizing it actually might be a large improvement to machine learning in general and help with overfitting and random bad edgecases
-                    At minimum it could be done as a black box method, generating multiple networks on the same training set, then only keeping the ones with the lower complexity scores
-                    it could be much better in theory though, allowing for learning/loss to be influenced by the complexity of the "hypothesis" that the network has.
-                    It could even be an iterative method, requiring the network to only have minimally complex hypotheses, and then slowing allowing more and more complex
-                    hypotheses over time. It would be an update step after backprop, that ranks the weights in each layer, and sets weak weights to 0. This means the network 
-                    would need a neuron-revivial method, such as making zero-weight connections occasionally be a small random value. This might hurt abstraction though since
-                    looking at a single pixel would be considered a "minmal" hypothesis. If done on a per-layer basis though it may still work well for abstraction
-            - a limited number of iterations of black box optimization:
-                - scales up those minimum numbers to check if they help
-                - scores higher if able to discriminate
-                - note: this doesn't optimize for the remebering "important" things, there will need to be an adjustment
-                
-        - once the memory agent has updated, then the reward predictor needs to be updated:
-            - all timesteps in the replay buffer should be recalculated using the new memory agent
-            - any timestep that has a different memory value should be shown to the reward agent with a typical supervised learning loss function, possibly use mulitple epochs to update it faster
-        
-        - this could all be a backward approach since really:
-            - the agent should be hypothosizing WHY something did happen, not why something failed
-            - for example, theres the real reward, and then there's paths to get that reward. The agent shouldn't just learn the default path, but rather learn how movement works, and what causes a reward
-            - having the agent be purely hypothesis based might be a more clean solution:
-                - attempt to predict some piece of the future state using the minimum values mentioned above (note the minimum memory size is actually 0)
-                - use incorrect state predictions the same as incorrect reward predictions, causing a hypothesis update
-                - then prioritize those triggers (triggers are used in the state and reward prediction) when forming new hypotheses
-                - effectively minimize the statespace towards relevent triggers, then hypothesis test those triggers when attempting to make rewards predictable
-                - give the model of rewards and state transitions to a normal RL agent to help it bootstrap
-            - how might it be possible to make an agent learn a hypothesis like "going down decreases the y value, unless there's a wall":
-                - |
-                    The trigger would just be the down action, but the output would need to be an operator of some kind.
-                    The agent would first need to learn a "going down" operation before it can abstract out that left makes X "go down" and down makes y "go down"
-                    More likely it is just going to learn them independently, which will be problematic for large state spaces.
-                    Definitely need a way to encouage reuse. Maybe a form of hebbian learning where parts of previous triggers are run and if the output repeatedly correlates, then its used
+    figure out why the reward predictor isn't doing as well for the perfect agent 
+    
+    
+    
+    bigger:
+        - create an efficient way of generating ideal trajectories for the reward predictor
+        - create a new perfect memory policy that doesn't use a table
+        - try to get a system working on a 10x10 grid
+        - try coding out the hypothesis testing update step:
+            - the reward prediction penalty shouldn't go into a reward-loss-function
+            - instead the state+action (ignore memory) that caused the incorrect reward prediciton is marked
+            - within some experience-replay buffer we look up those marked states and create mini-trajectories out of them
+            - then try to discriminate between the history of the correct and incorrect prediction:
+                - the memory agent prefers the minimum number of:
+                    - timesteps away from the marked state+action
+                    - memory slots
+                    - triggers:
+                        - (number of triggers)
+                        - triggers that depend on the fewest number of input values
+                    - note: |
+                        this could even be done with neural networks by giving them a score for how many inputs a particular output "listens" to.
+                        Having that score and optimizing it actually might be a large improvement to machine learning in general and help with overfitting and random bad edgecases
+                        At minimum it could be done as a black box method, generating multiple networks on the same training set, then only keeping the ones with the lower complexity scores
+                        it could be much better in theory though, allowing for learning/loss to be influenced by the complexity of the "hypothesis" that the network has.
+                        It could even be an iterative method, requiring the network to only have minimally complex hypotheses, and then slowing allowing more and more complex
+                        hypotheses over time. It would be an update step after backprop, that ranks the weights in each layer, and sets weak weights to 0. This means the network 
+                        would need a neuron-revivial method, such as making zero-weight connections occasionally be a small random value. This might hurt abstraction though since
+                        looking at a single pixel would be considered a "minmal" hypothesis. If done on a per-layer basis though it may still work well for abstraction
+                - a limited number of iterations of black box optimization:
+                    - scales up those minimum numbers to check if they help
+                    - scores higher if able to discriminate
+                    - note: this doesn't optimize for the remebering "important" things, there will need to be an adjustment
+                    
+            - once the memory agent has updated, then the reward predictor needs to be updated:
+                - all timesteps in the replay buffer should be recalculated using the new memory agent
+                - any timestep that has a different memory value should be shown to the reward agent with a typical supervised learning loss function, possibly use mulitple epochs to update it faster
+            
+            - this could all be a backward approach since really:
+                - the agent should be hypothosizing WHY something did happen, not why something failed
+                - for example, theres the real reward, and then there's paths to get that reward. The agent shouldn't just learn the default path, but rather learn how movement works, and what causes a reward
+                - having the agent be purely hypothesis based might be a more clean solution:
+                    - attempt to predict some piece of the future state using the minimum values mentioned above (note the minimum memory size is actually 0)
+                    - use incorrect state predictions the same as incorrect reward predictions, causing a hypothesis update
+                    - then prioritize those triggers (triggers are used in the state and reward prediction) when forming new hypotheses
+                    - effectively minimize the statespace towards relevent triggers, then hypothesis test those triggers when attempting to make rewards predictable
+                    - give the model of rewards and state transitions to a normal RL agent to help it bootstrap
+                - how might it be possible to make an agent learn a hypothesis like "going down decreases the y value, unless there's a wall":
+                    - |
+                        The trigger would just be the down action, but the output would need to be an operator of some kind.
+                        The agent would first need to learn a "going down" operation before it can abstract out that left makes X "go down" and down makes y "go down"
+                        More likely it is just going to learn them independently, which will be problematic for large state spaces.
+                        Definitely need a way to encouage reuse. Maybe a form of hebbian learning where parts of previous triggers are run and if the output repeatedly correlates, then its used
 done:
     - create memory trigger agent
     - generate results with larger sample sizes, maybe analyze slices of them if anything seems suspicious
