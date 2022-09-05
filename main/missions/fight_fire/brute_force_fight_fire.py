@@ -50,7 +50,8 @@ def tuple_to_dict_hack_fix(data):
 # 
 # 
 from torch import tensor
-def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
+def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_trajectory=None):
+    trajectory_timestep_index = 0
     
     memory_value = tensor(memory_shape)
     memory_space = MultiBinary(product(memory_shape))
@@ -61,15 +62,32 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
         metadata = real_env.metadata
         observation_space = gym.spaces.Dict({ "0": memory_space, "1": real_env.observation_space })
         def reset(self, *args):
-            global memory_value
+            global memory_value, trajectory_timestep_index
             import numpy
             memory_value = numpy.array((0,))
-            observation = real_env.reset(*args)
+            if real_trajectory:
+                trajectory_timestep_index = 0
+                observation = real_trajectory[trajectory_timestep_index].observation
+            else:
+                observation = real_env.reset(*args)
             state = tuple_to_dict_hack_fix((memory_value, observation))
             return state
         
         def step(self, action):
-            next_observation, reward, done, info = real_env.step(action)
+            global trajectory_timestep_index
+            if real_trajectory:
+                timestep = real_trajectory[trajectory_timestep_index]
+                reward = timestep.reward
+                done   = timestep.is_last_step
+                info   = timestep.hidden_info
+                if not done:
+                    next_observation = real_trajectory[trajectory_timestep_index+1].observation
+                else:
+                    # repeat the previous observation
+                    next_observation = timestep.observation
+                trajectory_timestep_index += 1
+            else:
+                next_observation, reward, done, info = real_env.step(action)
             next_state = tuple_to_dict_hack_fix((memory_value, next_observation))
             return next_state, reward, done, info
     
@@ -84,47 +102,73 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent):
         observation_space = gym.spaces.Dict({"0":memory_space, "1":real_env.observation_space, "2":real_env.action_space, })
         
         def reset(self, *args):
-            global memory_value
+            global memory_value, trajectory_timestep_index
             (memory_value, observation) = real_env_with_memory.reset(*args).values()
             
-            self.primary_agent = PrimaryAgent(
-                observation_space=RealEnvWithMemory.observation_space,
-                action_space=RealEnvWithMemory.action_space,
-            )
+            if real_trajectory:
+                primary_action = real_trajectory[trajectory_timestep_index].reaction
+            else:
+                self.primary_agent = PrimaryAgent(
+                    observation_space=RealEnvWithMemory.observation_space,
+                    action_space=RealEnvWithMemory.action_space,
+                )
+                
+                primary_action = self.primary_agent.choose_action(
+                    (memory_value, observation)
+                )
             
-            primary_action = self.primary_agent.choose_action(
-                (memory_value, observation)
-            )
+            
             self.prev_observation = observation
             self.primary_agent_action = primary_action
-            
             memory_state = tuple_to_dict_hack_fix((memory_value, observation, primary_action))
             return memory_state
         
         def step(self, updated_memory_value):
-            global memory_value
+            global memory_value, trajectory_timestep_index
+            # 
+            # get latest memory
+            # 
             memory_value = updated_memory_value
             
+            # 
+            # get real_reward
+            # 
+            state, reward, done, info = real_env_with_memory.step(self.primary_agent_action)
+            (_, current_observation) = state.values()
+            
+            # 
+            # compute loss
+            # 
             inputs = [
                 (self.prev_observation, self.primary_agent_action, updated_memory_value)
             ]
             predicted_reward = reward_predictor.predict(inputs)
-            state, reward, done, info = real_env_with_memory.step(self.primary_agent_action)
-            (_, observation) = state.values()
             memory_reward = -( (predicted_reward - reward)**2 )
+            
+            # 
+            # train reward prediction
+            # 
             reward_predictor.update(
-                inputs=[
-                    (self.prev_observation, self.primary_agent_action, updated_memory_value)
-                ],
+                inputs=inputs,
                 correct_outputs=[
                     reward
                 ]
             )
             
-            self.prev_observation = observation
-            self.primary_agent_action = self.primary_agent.choose_action(
-                tuple_to_dict_hack_fix((memory_value, observation))
-            )
+            # 
+            # compute current action
+            # 
+            if real_trajectory:
+                self.primary_agent_action = real_trajectory[trajectory_timestep_index].reaction
+            else:
+                self.primary_agent_action = self.primary_agent.choose_action(
+                    tuple_to_dict_hack_fix((memory_value, current_observation))
+                )
+            
+            # 
+            # update prev_observation
+            # 
+            self.prev_observation = current_observation
             
             memory_state = tuple_to_dict_hack_fix((memory_value, self.prev_observation, self.primary_agent_action))
             return memory_state, memory_reward, done, info

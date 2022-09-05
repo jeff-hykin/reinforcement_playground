@@ -190,13 +190,23 @@ if True:
             PrimaryAgent=random_agent_factory,
         )
         def choose_action(state):
-            prev_memory, observation, primary_agent_action = state.values()
-            position_layer = observation[0]
-            top_row = position_layer[0]
-            left_cell = top_row[0]
-            memory_value = 1 if left_cell else 0
             import numpy
-            return numpy.array([memory_value])
+            prev_memory, observation, primary_agent_action = state.values()
+            print(f'''prev_memory = {prev_memory}''')
+            print(f'''observation = {observation}''')
+            # preserve a positive memory value
+            if flatten(prev_memory)[0] == 1:
+                output = numpy.array([1]) 
+                print(f'''output = {output}''')
+                return numpy.array([1]) 
+            else:
+                position_layer = observation[0]
+                top_row = position_layer[0]
+                left_cell = top_row[0]
+                memory_value = 1 if left_cell else 0
+                output = numpy.array([memory_value]) 
+                print(f'''output = {output}''')
+                return output
         runtime = create_runtime(
             agent=LazyDict(
                 choose_action=choose_action,
