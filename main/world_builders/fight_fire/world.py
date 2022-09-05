@@ -11,7 +11,7 @@ from time import sleep, time
 
 import numpy as np
 import torch
-from blissful_basics import Object, product
+from blissful_basics import Object, product, print
 from super_map import LazyDict
 from torch import tensor
 from super_hash import super_hash
@@ -155,10 +155,11 @@ class Discrete(spaces.Discrete):
 
 reward_scale = 0.001
 class World:
-    def __init__(world, *, grid_width, grid_height, fire_locations=None, water_locations=None, visualize=False, debug=False, random_seed=None, corridor_mode=False):
+    def __init__(world, *, grid_width, grid_height, fire_locations=None, water_locations=None, visualize=False, debug=False, random_seed=None, corridor_mode=False, fast_as_possible=None):
         world._random_seed = time() if random_seed == None else random_seed
         world.visualize = visualize
         world.debug = debug
+        world.fast_as_possible = fast_as_possible
         world.grid_width, world.grid_height = int(grid_width), int(grid_height)
         world.corridor_mode = corridor_mode
         world.user_given_fire_locations = fire_locations or []
@@ -250,14 +251,14 @@ class World:
                     print(f'''player1 reward = {f"{reward}".rjust(3)}, done = {done}''')
                 
                 self.stats.reward_total += reward
-                return next_state, reward, done, debug_info
+                return deepcopy(next_state), reward, done, debug_info
 
             def reset(self,):
                 # ask the world to reset
                 world.request_change(self, World.reset)
                 self.__init__()
                 self.stats.number_of_episodes += 1
-                return self.observation
+                return deepcopy(self.observation)
             
             def close(self):
                 pass
@@ -389,9 +390,9 @@ class World:
         if world.debug: print(f'''new_position = {new_position}''')
         if world.debug: print(f'''has_water = {has_water}''')
         if world.debug: print(f'''fire_status = {fire_status}''')
-        if world.debug: sleep(0.5)
+        if world.debug and not world.fast_as_possible: sleep(0.5)
         
-        if world.visualize:
+        if world.visualize and not world.fast_as_possible:
             print(world)
             sleep(0.7)
         # request granted

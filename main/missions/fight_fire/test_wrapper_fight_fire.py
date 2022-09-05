@@ -21,8 +21,9 @@ verbose                = True
 world = World(
     grid_width=world_shape[0],
     grid_height=world_shape[1],
-    visualize=False,
+    # visualize=True,
     # debug=True,
+    # fast_as_possible=True,
     fire_locations=[(-1,-1)],
     water_locations=[(0,0)],
 )
@@ -125,27 +126,30 @@ if True:
     # 
     # create trajectory
     # 
-    timesteps_for_evaluation = 1400
-    from tools.universe.timestep import Timestep
-    trajectory = []
-    done = True
-    for index in range(timesteps_for_evaluation):
-        if done:
-            observation = real_env.reset()
-        reaction = real_env.action_space.sample()
-        next_observation, reward, done, info = real_env.step(reaction)
-        trajectory.append(Timestep(
-            index=index,
-            observation=observation,
-            reaction=reaction,
-            reward=reward,
-            is_last_step=done,
-            hidden_info=info,
-        ))
-        observation = next_observation
-        
+    with print.indent:
+        import torch
+        from copy import deepcopy
+        timesteps_for_evaluation = 1400
+        from tools.universe.timestep import Timestep
+        trajectory = []
+        done = True
+        for index in range(timesteps_for_evaluation):
+            if done:
+                observation = real_env.reset()
+            reaction = real_env.action_space.sample()
+            next_observation, reward, done, info = real_env.step(reaction)
+            trajectory.append(Timestep(
+                index=deepcopy(index),
+                observation=deepcopy(observation),
+                reaction=deepcopy(reaction),
+                reward=deepcopy(reward),
+                is_last_step=deepcopy(done),
+                hidden_info=deepcopy(info),
+            ))
+            observation = next_observation
     
-    
+    trajectory = tuple(trajectory)
+            
     a2c_memory_actions_rewards = []
     random_memory_actions_rewards = []
     perfect_memory_agent_rewards = []
@@ -199,6 +203,7 @@ if True:
                 reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
+                    print(f'''timestep = {timestep}''')
                     reward_per_timestep = reward_total/number_of_timesteps
                     reward_per_timestep_over_time.append(reward_per_timestep)
                     multi_plot.send(dict(
@@ -254,6 +259,7 @@ if True:
                 reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
+                    print(f'''timestep = {timestep}''')
                     reward_per_timestep = reward_total/number_of_timesteps
                     reward_per_timestep_over_time.append(reward_per_timestep)
                     multi_plot.send(dict(
@@ -306,6 +312,7 @@ if True:
                 reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
+                    print(f'''timestep = {timestep}''')
                     reward_per_timestep = reward_total/number_of_timesteps
                     reward_per_timestep_over_time.append(reward_per_timestep)
                     multi_plot.send(dict(
