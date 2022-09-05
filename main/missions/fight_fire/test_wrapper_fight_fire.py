@@ -122,7 +122,30 @@ if True:
         PrimaryAgent=random_agent_factory,
     )
     
+    # 
+    # create trajectory
+    # 
     timesteps_for_evaluation = 1400
+    from tools.universe.timestep import Timestep
+    trajectory = []
+    done = True
+    for index in range(timesteps_for_evaluation):
+        if done:
+            observation = real_env.reset()
+        reaction = real_env.action_space.sample()
+        next_observation, reward, done, info = real_env.step(reaction)
+        trajectory.append(Timestep(
+            index=index,
+            observation=observation,
+            reaction=reaction,
+            reward=reward,
+            is_last_step=done,
+            hidden_info=info,
+        ))
+        observation = next_observation
+        
+    
+    
     a2c_memory_actions_rewards = []
     random_memory_actions_rewards = []
     perfect_memory_agent_rewards = []
@@ -137,21 +160,33 @@ if True:
             horizonal_label="timesteps",
         ),
     )
-
+    
+    def log_action_function(function_being_wrapped):
+        def wrapper(state):
+            prev_memory, observation, primary_agent_action = state.values()
+            print(f'''prev_memory = {prev_memory}''')
+            print(f'''observation = {observation}''')
+            print(f'''primary_agent_action = {primary_agent_action}''')
+            output = function_being_wrapped(state)
+            print(f'''output = {output}''')
+            return output
+        return wrapper
+    
     # 
     # how bad is the predictor with a random agent?
     # 
-    with print.indent:
+    with print.indent.block("### Random Agent"):
         reward_total = 0
         env = memory_env = get_memory_env(
             real_env=real_env,
+            real_trajectory=trajectory,
             memory_shape=(1,),
             RewardPredictor=RewardPredictor,
             PrimaryAgent=random_agent_factory,
         )
         runtime = create_runtime(
             agent=LazyDict(
-                choose_action=random_action_maker(env.action_space),
+                choose_action=log_action_function(random_action_maker(env.action_space)),
             ),
             env=env,
             max_timestep_index=timesteps_for_evaluation,
@@ -181,10 +216,11 @@ if True:
     # 
     # how does the perfect agent do?
     # 
-    with print.indent:
+    with print.indent.block("### Perfect agent"):
         reward_total = 0
         env = memory_env = get_memory_env(
             real_env=real_env,
+            real_trajectory=trajectory,
             memory_shape=(1,),
             RewardPredictor=RewardPredictor,
             PrimaryAgent=random_agent_factory,
@@ -192,12 +228,9 @@ if True:
         def choose_action(state):
             import numpy
             prev_memory, observation, primary_agent_action = state.values()
-            print(f'''prev_memory = {prev_memory}''')
-            print(f'''observation = {observation}''')
             # preserve a positive memory value
             if flatten(prev_memory)[0] == 1:
                 output = numpy.array([1]) 
-                print(f'''output = {output}''')
                 return numpy.array([1]) 
             else:
                 position_layer = observation[0]
@@ -205,11 +238,10 @@ if True:
                 left_cell = top_row[0]
                 memory_value = 1 if left_cell else 0
                 output = numpy.array([memory_value]) 
-                print(f'''output = {output}''')
                 return output
         runtime = create_runtime(
             agent=LazyDict(
-                choose_action=choose_action,
+                choose_action=log_action_function(choose_action),
             ),
             env=env,
             max_timestep_index=timesteps_for_evaluation,
@@ -239,10 +271,11 @@ if True:
     # 
     # how bad is the predictor with trained A2C
     #
-    with print.indent:
+    with print.indent.block("### A2C"):
         reward_total = 0
         env = memory_env = get_memory_env(
             real_env=real_env,
+            real_trajectory=trajectory,
             memory_shape=(1,),
             RewardPredictor=RewardPredictor,
             PrimaryAgent=random_agent_factory,
@@ -260,7 +293,7 @@ if True:
             return model.predict(state)[0]
         runtime = create_runtime(
             agent=LazyDict(
-                choose_action=choose_action,
+                choose_action=log_action_function(choose_action),
             ),
             env=env,
             max_timestep_index=timesteps_for_evaluation,
