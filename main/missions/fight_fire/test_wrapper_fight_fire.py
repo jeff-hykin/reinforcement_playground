@@ -1,8 +1,10 @@
+import silver_spectacle as ss
+from blissful_basics import flatten, is_iterable, product, print, countdown
+
 from main.missions.fight_fire.brute_force_fight_fire import get_memory_env, get_transformed_env, LazyDict
 from main.prefabs.general_approximator import GeneralApproximator
 from missions.hydra_oracle.a2c_exposed import A2C
 from missions.hydra_oracle.policies import ActorCriticCnnPolicy, MultiInputActorCriticPolicy
-from blissful_basics import flatten, is_iterable, product, print, countdown
 from world_builders.fight_fire.world import World
 
 
@@ -98,68 +100,6 @@ def create_runtime(agent, env, max_timestep_index=math.inf, max_episode_index=ma
 
 # 
 # 
-# visual tool
-# 
-# 
-def multi_plot(data, vertical_label=None, horizonal_label=None, title=None, color_key={}):
-    import silver_spectacle as ss
-    datasets = []
-    labels = {}
-    for each_key, each_line in data.items():
-        values = []
-        for x, y in enumerate(each_line):
-            labels[x] = None
-            values.append(y)
-        
-        datasets.append(dict(
-            label=each_key,
-            data=values,
-            fill=False,
-            tension=0.4,
-            cubicInterpolationMode='monotone',
-            backgroundColor=color_key.get(each_key, 'rgb(0, 292, 192, 0.5)'),
-            borderColor=color_key.get(each_key, 'rgb(0, 292, 192, 0.5)'),
-            color=color_key.get(each_key, 'rgb(0, 292, 192, 0.5)'),
-        ))
-        
-    
-    labels = list(labels.keys())
-    return ss.DisplayCard("chartjs", {
-        "type": 'line',
-        "data": {
-            "labels": labels,
-            "datasets": datasets,
-        },
-        "options": {
-            "plugins": {
-                "title": {
-                    "display": (not (not title)),
-                    "text": title,
-                }
-            },
-            "pointRadius": 3, # the size of the dots
-            "scales": {
-                "x": {
-                    "title": {
-                        "display": horizonal_label,
-                        "text": horizonal_label,
-                    },
-                },
-                "y": {
-                    "title": {
-                        "display": vertical_label,
-                        "text": vertical_label,
-                    },
-                    # "min": 50,
-                    # "max": 100,
-                },
-            }
-        }
-    })
-
-
-# 
-# 
 # tests
 # 
 # 
@@ -186,46 +126,29 @@ if True:
     a2c_memory_actions_rewards = []
     random_memory_actions_rewards = []
     perfect_memory_agent_rewards = []
+    multi_plot = ss.DisplayCard("multiLine", 
+        dict(
+            random_memory_actions_rewards=random_memory_actions_rewards,
+            a2c_memory_actions_rewards=a2c_memory_actions_rewards,
+            perfect_memory_agent_rewards=perfect_memory_agent_rewards,
+        ),
+        dict(
+            vertical_label="Mem Reward per timestep",
+            horizonal_label="timesteps",
+        ),
+    )
 
-    # 
-    # how bad is the predictor with trained A2C
-    #
-    with print.indent:
-        reward_total = 0
-        env = memory_env
-        model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
-        model.learn(total_timesteps=timesteps_for_evaluation)
-        def choose_action(state):
-            return model.predict(state)[0]
-        runtime = create_runtime(
-            agent=LazyDict(
-                choose_action=choose_action,
-            ),
-            env=env,
-            max_timestep_index=timesteps_for_evaluation,
-        )
-        number_of_timesteps = 0
-        should_log = countdown(size=200)
-        reward_per_timestep_over_time = []
-        with print.indent:
-            for episode_index, timestep in runtime:
-                reward_total += timestep.reward
-                number_of_timesteps += 1
-                if should_log():
-                    reward_per_timestep_over_time.append(reward_total/number_of_timesteps)
-                    print(f'''number_of_timesteps = {number_of_timesteps}''')
-                    print(f'''reward_total = {reward_total}''')
-                    print(f'''number_of_episodes = {episode_index + 1}''')
-                    print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
-                    print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
-        a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
-    
     # 
     # how bad is the predictor with a random agent?
     # 
     with print.indent:
         reward_total = 0
-        env = memory_env
+        env = memory_env = get_memory_env(
+            real_env=real_env,
+            memory_shape=(1,),
+            RewardPredictor=RewardPredictor,
+            PrimaryAgent=random_agent_factory,
+        )
         runtime = create_runtime(
             agent=LazyDict(
                 choose_action=random_action_maker(env.action_space),
@@ -237,16 +160,22 @@ if True:
         should_log = countdown(size=200)
         reward_per_timestep_over_time = []
         with print.indent:
-            for episode_index, timestep in runtime:
+            for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
                 reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
-                    reward_per_timestep_over_time.append(reward_total/number_of_timesteps)
+                    reward_per_timestep = reward_total/number_of_timesteps
+                    reward_per_timestep_over_time.append(reward_per_timestep)
+                    multi_plot.send(dict(
+                        random_memory_actions_rewards=[
+                            [ trajectory_timestep_index, reward_per_timestep ],
+                        ]  
+                    ))
                     print(f'''number_of_timesteps = {number_of_timesteps}''')
                     print(f'''reward_total = {reward_total}''')
                     print(f'''number_of_episodes = {episode_index + 1}''')
                     print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
-                    print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
+                    print(f'''reward_per_timestep = {(reward_per_timestep)}''')
         random_memory_actions_rewards = list(reward_per_timestep_over_time)
     
     # 
@@ -254,7 +183,12 @@ if True:
     # 
     with print.indent:
         reward_total = 0
-        env = memory_env
+        env = memory_env = get_memory_env(
+            real_env=real_env,
+            memory_shape=(1,),
+            RewardPredictor=RewardPredictor,
+            PrimaryAgent=random_agent_factory,
+        )
         def choose_action(state):
             prev_memory, observation, primary_agent_action = state.values()
             position_layer = observation[0]
@@ -274,25 +208,84 @@ if True:
         should_log = countdown(size=200)
         reward_per_timestep_over_time = []
         with print.indent:
-            for episode_index, timestep in runtime:
+            for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
                 reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
-                    reward_per_timestep_over_time.append(reward_total/number_of_timesteps)
+                    reward_per_timestep = reward_total/number_of_timesteps
+                    reward_per_timestep_over_time.append(reward_per_timestep)
+                    multi_plot.send(dict(
+                        perfect_memory_agent_rewards=[
+                            [ trajectory_timestep_index, reward_per_timestep ],
+                        ]  
+                    ))
                     print(f'''number_of_timesteps = {number_of_timesteps}''')
                     print(f'''reward_total = {reward_total}''')
                     print(f'''number_of_episodes = {episode_index + 1}''')
                     print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
-                    print(f'''reward_total/number_of_timesteps = {(reward_total/number_of_timesteps)}''')
+                    print(f'''reward_per_timestep = {(reward_per_timestep)}''')
         perfect_memory_agent_rewards = list(reward_per_timestep_over_time)
     
-    multi_plot(
-        vertical_label="Mem Reward per timestep",
-        horizonal_label="200 timesteps",
-        data=dict(
-            random_memory_actions=random_memory_actions_rewards,
+    # 
+    # how bad is the predictor with trained A2C
+    #
+    with print.indent:
+        reward_total = 0
+        env = memory_env = get_memory_env(
+            real_env=real_env,
+            memory_shape=(1,),
+            RewardPredictor=RewardPredictor,
+            PrimaryAgent=random_agent_factory,
+        )
+        model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
+        model.learn(total_timesteps=timesteps_for_evaluation)
+        # reset the reward predictor for evaluation
+        env = memory_env = get_memory_env(
+            real_env=real_env,
+            memory_shape=(1,),
+            RewardPredictor=RewardPredictor,
+            PrimaryAgent=random_agent_factory,
+        )
+        def choose_action(state):
+            return model.predict(state)[0]
+        runtime = create_runtime(
+            agent=LazyDict(
+                choose_action=choose_action,
+            ),
+            env=env,
+            max_timestep_index=timesteps_for_evaluation,
+        )
+        number_of_timesteps = 0
+        should_log = countdown(size=200)
+        reward_per_timestep_over_time = []
+        with print.indent:
+            for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
+                reward_total += timestep.reward
+                number_of_timesteps += 1
+                if should_log():
+                    reward_per_timestep = reward_total/number_of_timesteps
+                    reward_per_timestep_over_time.append(reward_per_timestep)
+                    multi_plot.send(dict(
+                        a2c_memory_actions_rewards=[
+                            [ trajectory_timestep_index, reward_per_timestep ],
+                        ]  
+                    ))
+                    print(f'''number_of_timesteps = {number_of_timesteps}''')
+                    print(f'''reward_total = {reward_total}''')
+                    print(f'''number_of_episodes = {episode_index + 1}''')
+                    print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
+                    print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+        a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
+    
+    multi_plot = ss.DisplayCard("multiLine", 
+        dict(
+            random_memory_actions_rewards=random_memory_actions_rewards,
             a2c_memory_actions_rewards=a2c_memory_actions_rewards,
             perfect_memory_agent_rewards=perfect_memory_agent_rewards,
+        ),
+        dict(
+            vertical_label="Mem Reward per timestep",
+            horizonal_label="200 timesteps",
         ),
     )
                 
