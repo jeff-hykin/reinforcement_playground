@@ -100,12 +100,17 @@ class GeneralApproximator:
             
             # reuse useful ones
             self._recently_used_indicies = self._recently_used_indicies[-half_max:]
-            recently_used_inputs  = numpy.concatenate(tuple(self.inputs[ each_index] for each_index in self._recently_used_indicies))
-            recently_used_outputs = numpy.concatenate(tuple(self.outputs[each_index] for each_index in self._recently_used_indicies))
-            
-            # drop old points that have not been used recently for prediction
-            self.inputs  = numpy.concatenate(self.inputs,  recently_used_inputs )[-self.max_number_of_points:]
-            self.outputs = numpy.concatenate(self.outputs, recently_used_outputs)[-self.max_number_of_points:]
+            if self._recently_used_indicies:
+                values = tuple(self.inputs[ each_index] for each_index in self._recently_used_indicies)
+                recently_used_inputs  = numpy.stack(tuple(self.inputs[ each_index] for each_index in self._recently_used_indicies), axis=0)
+                recently_used_outputs = numpy.stack(tuple(self.outputs[each_index] for each_index in self._recently_used_indicies), axis=0)
+                
+                # drop old points that have not been used recently for prediction
+                self.inputs  = numpy.concatenate((self.inputs,  recently_used_inputs ), axis=0)[-self.max_number_of_points:]
+                self.outputs = numpy.concatenate((self.outputs, recently_used_outputs), axis=0)[-self.max_number_of_points:]
+            else:
+                self.inputs  = self.inputs[-self.max_number_of_points:]
+                self.outputs = self.outputs[-self.max_number_of_points:]
         self.model = NearestNeighbors(**self.hyperparams).fit(self.inputs)
     
     def predict(self, inputs):
