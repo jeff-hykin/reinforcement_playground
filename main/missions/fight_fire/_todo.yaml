@@ -1,5 +1,5 @@
 todo:
-    figure out why the reward predictor isn't doing as well for the perfect agent 
+    figure out why the reward predictor isn't doing as well for the perfect agent: I think whats happening is A2C is using the memory to improve the prediction of running into the wall again. The reward approximator is too stupid (or rather the position is too much weight compared to the action)
     
     
     

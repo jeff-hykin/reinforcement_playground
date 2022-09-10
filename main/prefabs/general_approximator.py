@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
+from blissful_basics import print
 from trivial_torch_tools import Sequential, init, convert_each_arg, to_tensor
 from trivial_torch_tools.generics import product, to_pure, flatten
 from super_map import LazyDict
@@ -76,9 +77,10 @@ import numpy
 numpy.float = float # workaround for DeprecationWarning: `np.float` is a deprecated alias for the builtin `float`. To silence this warning, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.
 from sklearn.neighbors import NearestNeighbors
 class GeneralApproximator:
-    def __init__(self, input_shape, output_shape, hyperparams=None):
+    def __init__(self, input_shape, output_shape, max_number_of_points=None, hyperparams=None):
         self.input_shape = input_shape
         self.output_shape = output_shape
+        self.max_number_of_points = max_number_of_points
         self.inputs = None
         self.outputs = None
         self.hyperparams = LazyDict(
@@ -92,29 +94,73 @@ class GeneralApproximator:
     def fit(self, inputs, correct_outputs):
         self.inputs  = self.preprocess(inputs         ) if type(self.inputs ) == type(None) else numpy.concatenate((self.inputs , self.preprocess(inputs          )), axis=0)
         self.outputs = self.preprocess(correct_outputs) if type(self.outputs) == type(None) else numpy.concatenate((self.outputs, self.preprocess(correct_outputs )), axis=0)
+        if self.max_number_of_points:
+            # drop old points (TODO: switch this to being more of an LRU)
+            self.inputs  = self.inputs[0:self.max_number_of_points]
+            self.outputs = self.outputs[0:self.max_number_of_points]
+        self.model = NearestNeighbors(**self.hyperparams).fit(self.inputs)
     
     def predict(self, inputs):
-        # if no data has been gathered, just return random outputs
+        # if no data has been gathered, just return zeros
         # TODO: this should maybe show a warning
         if type(self.inputs) == type(None) or len(self.inputs) <= self.hyperparams.n_neighbors:
-            return torch.rand((len(inputs), *self.output_shape))
+            return torch.zeros((len(inputs), *self.output_shape))
         
-        self.model = NearestNeighbors(**self.hyperparams).fit(self.inputs)
-        distances_for_inputs, indices_for_inputs = self.model.kneighbors( self.preprocess(inputs) )
+        preprocessed_inputs = self.preprocess(inputs)
+        distances_for_inputs, indices_for_inputs = self.model.kneighbors(preprocessed_inputs)
+                
         outputs = []
-        for each_input, each_distances, each_indices in zip(inputs, distances_for_inputs, indices_for_inputs):
+        for each_input, each_distances, neighbor_indices in zip(inputs, distances_for_inputs, indices_for_inputs):
             distances = to_pure(each_distances)
+            with print.indent.block("kneighbors"):
+                print(LazyDict({
+                    loop_index: LazyDict(
+                        each_distance=each_distance,
+                        neighbor_index=each_neighbor_index,
+                        input=to_pure(self.inputs[each_neighbor_index]),
+                        output=self.outputs[each_neighbor_index]
+                    )
+                        for loop_index, (each_neighbor_index, each_distance) in enumerate(zip(neighbor_indices, distances))
+                }))
+            
             # if there is an exact overlap, dont average the neighbors
-            for neighbor_index, each_distance in enumerate(distances):
+            exact_match = False
+            for neighbor_index, each_distance in zip(neighbor_indices, distances):
                 if each_distance == 0:
-                    outputs.append(self.outputs[neighbor_index])
-                    continue
-            values    = tuple( to_pure(self.outputs[each_index]) for each_index in each_indices )
-            values_as_array = to_tensor(values).numpy()
-            average_value = numpy.mean(values_as_array, axis=0)
-            outputs.append(average_value)
-            # TODO: normalize and weight by distance
+                    exact_match = True
+                    break
+            if exact_match:
+                print(f'''exact_match = {exact_match}''')
+                outputs.append(to_pure(self.outputs[neighbor_index]))
+                continue
+            else:
+                min_contribution = 0.1 # 0.1=>10%
+                # equivlent to:
+                    # distance_weights = [ (1/(distance**2)) for distance in distances ]
+                    # normalized_weights = [ each+min_contribution for each in self._normalize(distance_weights)]
+                    # total = sum(normalized_weights)
+                    # sum_to_1_weights = [ each/total for each in normalized_weights ]
+                    
+                distance_weights   = 1/(each_distances ** 2)
+                normalized_weights = self.normalize_numpy_array(distance_weights) + min_contribution
+                values = tuple(self.outputs[each_index] for each_index in neighbor_indices )
+                values_as_array = numpy.concatenate(values, axis=0)
+                # average value often isnt a scalar because of self.output_shape
+                average_value = numpy.average(values_as_array, axis=0, weights=normalized_weights)
+                outputs.append(average_value)
+                
         return to_pure(outputs)
+    
+    @staticmethod
+    def normalize_numpy_array(array):
+        import numpy
+        the_max = array.max()
+        the_min = array.min()
+        if the_max == the_min:
+            return numpy.zeros_like(array)
+        else:
+            the_range = the_max - the_min
+            return (array - the_min)/the_range
 
 
 def test_the_approximator():

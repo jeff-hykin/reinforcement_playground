@@ -145,7 +145,14 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
                 (self.prev_observation, self.primary_agent_action, updated_memory_value)
             ]
             predicted_reward = reward_predictor.predict(inputs)
-            memory_reward = -( (predicted_reward - reward)**2 )
+            print(f'''step: inputs           = {inputs}''')
+            # memory_reward = -( (predicted_reward - reward)**2 )
+            memory_reward = - abs(predicted_reward - reward)
+            print(f'''step: reward           = {reward}''')
+            print(f'''step: predicted_reward = {predicted_reward}''')
+            print(f'''step: loss             = {-memory_reward}''')
+            print(f'''step: memory_reward    = {memory_reward}''')
+            print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
             
             # 
             # train reward prediction
@@ -156,6 +163,8 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
                     reward
                 ]
             )
+            predicted_reward = reward_predictor.predict(inputs)
+            print(f'''step: predicted_reward2 = {predicted_reward}''')
             
             # 
             # compute current action

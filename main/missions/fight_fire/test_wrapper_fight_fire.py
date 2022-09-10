@@ -1,5 +1,6 @@
 import silver_spectacle as ss
 from blissful_basics import flatten, is_iterable, product, print, countdown
+from trivial_torch_tools.generics import to_pure
 
 from main.missions.fight_fire.brute_force_fight_fire import get_memory_env, get_transformed_env, LazyDict
 from main.prefabs.general_approximator import GeneralApproximator
@@ -36,7 +37,13 @@ real_env = world.Player()
 def random_action_maker(action_space):
     def random_action(*args, **kwargs):
         action = action_space.sample()
-        # print(f'''action = {action}''')
+        # make it binary
+        for index in range(len(action)):
+            if action[index] > 0.5:
+                action[index] = 1.0
+            else:
+                action[index] = 0.0
+        print(f'''action = {action}''')
         return action
     return random_action
 def random_agent_factory(observation_space, action_space):
@@ -48,15 +55,42 @@ def random_agent_factory(observation_space, action_space):
 # 
 # reward predictor
 # 
-def RewardPredictor(*args, **kwargs):
-    approximator = GeneralApproximator(
-        input_shape=(-1,), # this approximator doesn't need/use input_shape
-        output_shape=(1,),
-    )
-    return LazyDict(
-        predict=lambda *args: flatten(approximator.predict(*args))[0],
-        update=lambda inputs, correct_outputs: approximator.fit(inputs, correct_outputs),
-    )
+class RewardPredictor:
+    latest = None
+    def __init__(self, input_space):
+        RewardPredictor.latest = self
+        self.approximator = GeneralApproximator(
+            input_shape=(-1,), # this approximator doesn't need/use input_shape
+            output_shape=(1,),
+        )
+        self.losses = []
+        self.major_losses = []
+        self.table = LazyDict()
+    
+    def predict(self, *args):
+        print(f'''predict: args   = {args}''')
+        output = flatten(self.approximator.predict(*args))[0]
+        print(f'''predict: output = {output}''')
+        return output
+    
+    def update(self, inputs, correct_outputs):
+        *data, action_bit_1, action_bit_2, memory_bit = flatten(to_pure(inputs))
+        if len(inputs) == 1:
+            output = self.predict(inputs)
+            difference = abs(output - correct_outputs[0])
+            print(f'''update:predicted reward {output}''')
+            print(f'''update:correct reward   {correct_outputs[0]}''')
+            print(f'''update:loss:            {difference}''')
+            self.losses.append(difference)
+            if difference > 0.0001: # NOTE: Hardcoded to a specific env
+                self.major_losses.append(LazyDict(
+                    difference=difference,
+                    input=inputs[0],
+                    output=output,
+                    correct_output=correct_outputs[0],
+                ))
+            
+        return self.approximator.fit(inputs, correct_outputs)
 
 # 
 # runtime
@@ -97,14 +131,26 @@ def create_runtime(agent, env, max_timestep_index=math.inf, max_episode_index=ma
         
         if max_timestep_index < timestep_index:
             break
-            
+
+# 
+# helpers
+# 
+def accumulated_list(a_list):
+    value = 0
+    new_list = []
+    for each in a_list:
+        value = value + to_pure(each)
+        new_list.append(value)
+    return new_list
 
 # 
 # 
 # tests
 # 
 # 
+print.disable.always = False
 if True:
+    from copy import deepcopy
     # Questions:
         # how bad is the predictor with a random agent?
         # can the memory agent help the predictor?
@@ -126,10 +172,10 @@ if True:
     # 
     # create trajectory
     # 
+    timesteps_for_evaluation = 1400
     with print.indent:
         import torch
         from copy import deepcopy
-        timesteps_for_evaluation = 1400
         from tools.universe.timestep import Timestep
         trajectory = []
         done = True
@@ -137,6 +183,13 @@ if True:
             if done:
                 observation = real_env.reset()
             reaction = real_env.action_space.sample()
+            # force to be binary because action-space is just a hack for A2C to work
+            for index in range(len(reaction)):
+                if reaction[index] > 0.5:
+                    reaction[index] = 1.0
+                else:
+                    reaction[index] = 0.0
+            
             next_observation, reward, done, info = real_env.step(reaction)
             trajectory.append(Timestep(
                 index=deepcopy(index),
@@ -164,15 +217,21 @@ if True:
             horizonal_label="timesteps",
         ),
     )
+    loss_data = LazyDict(
+        random=[],
+        perfect=[],
+        a2c=[],
+    )
+    
     
     def log_action_function(function_being_wrapped):
         def wrapper(state):
             prev_memory, observation, primary_agent_action = state.values()
-            print(f'''prev_memory = {prev_memory}''')
-            print(f'''observation = {observation}''')
-            print(f'''primary_agent_action = {primary_agent_action}''')
+            # print(f'''prev_memory = {prev_memory}''')
+            # print(f'''observation = {observation}''')
+            # print(f'''primary_agent_action = {primary_agent_action}''')
             output = function_being_wrapped(state)
-            print(f'''output = {output}''')
+            # print(f'''output = {output}''')
             return output
         return wrapper
     
@@ -216,7 +275,9 @@ if True:
                     print(f'''number_of_episodes = {episode_index + 1}''')
                     print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
                     print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+        print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
         random_memory_actions_rewards = list(reward_per_timestep_over_time)
+    loss_data.random = deepcopy(accumulated_list(RewardPredictor.latest.losses))
     
     # 
     # how does the perfect agent do?
@@ -272,7 +333,9 @@ if True:
                     print(f'''number_of_episodes = {episode_index + 1}''')
                     print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
                     print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+        print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
         perfect_memory_agent_rewards = list(reward_per_timestep_over_time)
+    loss_data.perfect = deepcopy(accumulated_list(RewardPredictor.latest.losses))
     
     # 
     # how bad is the predictor with trained A2C
@@ -326,24 +389,29 @@ if True:
                     print(f'''number_of_episodes = {episode_index + 1}''')
                     print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
                     print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+        print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
         a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
+    loss_data.a2c = deepcopy(accumulated_list(RewardPredictor.latest.losses))
     
     multi_plot = ss.DisplayCard("multiLine", 
         dict(
             random_memory_actions_rewards=random_memory_actions_rewards,
-            a2c_memory_actions_rewards=a2c_memory_actions_rewards,
             perfect_memory_agent_rewards=perfect_memory_agent_rewards,
+            a2c_memory_actions_rewards=a2c_memory_actions_rewards,
         ),
         dict(
+            title="Reward Over Time",
             vertical_label="Mem Reward per timestep",
             horizonal_label="200 timesteps",
         ),
     )
-                
-    # model = A2C(ActorCriticCnnPolicy, env, verbose=1)
-    # model.learn(total_timesteps=25_000)
-
-    
-    
-    
-    
+    loss_plots = ss.DisplayCard("multiLine", 
+        loss_data,
+        dict(
+            title="Prediction Gap",
+            vertical_label="Accumulated Loss",
+            horizonal_label="timesteps",
+        ),
+    )
+    from main.tools.afrl_tools import save_all_charts_to
+    save_all_charts_to("./main/missions/fight_fire/test_get_memory_env.html")
