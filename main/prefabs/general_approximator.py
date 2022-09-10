@@ -87,6 +87,7 @@ class GeneralApproximator:
             n_neighbors=3,
             algorithm='ball_tree',
         ).update(hyperparams or {})
+        self._recently_used_indicies = []
     
     def preprocess(self, inputs):
         return to_tensor([flatten(each) for each in inputs]).numpy()
@@ -95,9 +96,16 @@ class GeneralApproximator:
         self.inputs  = self.preprocess(inputs         ) if type(self.inputs ) == type(None) else numpy.concatenate((self.inputs , self.preprocess(inputs          )), axis=0)
         self.outputs = self.preprocess(correct_outputs) if type(self.outputs) == type(None) else numpy.concatenate((self.outputs, self.preprocess(correct_outputs )), axis=0)
         if self.max_number_of_points:
-            # drop old points (TODO: switch this to being more of an LRU)
-            self.inputs  = self.inputs[0:self.max_number_of_points]
-            self.outputs = self.outputs[0:self.max_number_of_points]
+            half_max = int(self.max_number_of_points/2)
+            
+            # reuse useful ones
+            self._recently_used_indicies = self._recently_used_indicies[-half_max:]
+            recently_used_inputs  = numpy.concatenate(tuple(self.inputs[ each_index] for each_index in self._recently_used_indicies))
+            recently_used_outputs = numpy.concatenate(tuple(self.outputs[each_index] for each_index in self._recently_used_indicies))
+            
+            # drop old points that have not been used recently for prediction
+            self.inputs  = numpy.concatenate(self.inputs,  recently_used_inputs )[-self.max_number_of_points:]
+            self.outputs = numpy.concatenate(self.outputs, recently_used_outputs)[-self.max_number_of_points:]
         self.model = NearestNeighbors(**self.hyperparams).fit(self.inputs)
     
     def predict(self, inputs):
@@ -111,8 +119,9 @@ class GeneralApproximator:
                 
         outputs = []
         for each_input, each_distances, neighbor_indices in zip(inputs, distances_for_inputs, indices_for_inputs):
+            self._update_used_indicies(neighbor_indices)
             distances = to_pure(each_distances)
-            with print.indent.block("kneighbors"):
+            with print.indent.block("kneighbors", disable=True):
                 print(LazyDict({
                     loop_index: LazyDict(
                         each_distance=each_distance,
@@ -130,7 +139,6 @@ class GeneralApproximator:
                     exact_match = True
                     break
             if exact_match:
-                print(f'''exact_match = {exact_match}''')
                 outputs.append(to_pure(self.outputs[neighbor_index]))
                 continue
             else:
@@ -150,6 +158,15 @@ class GeneralApproximator:
                 outputs.append(average_value)
                 
         return to_pure(outputs)
+    
+    def _update_used_indicies(self, indicies):
+        # only keep track if trucation is going to happen
+        if self.max_number_of_points:
+            for each in indicies:
+                try:
+                    self._recently_used_indicies.remove(each)
+                except ValueError:
+                    self._recently_used_indicies.append(each)
     
     @staticmethod
     def normalize_numpy_array(array):
