@@ -466,7 +466,7 @@ def multi_variance_plot(data, deviations=None, vertical_label=None, horizonal_la
         ))
         # lowerbound
         datasets.append(dict(
-            data=tuple(each_average-each_deviation, for each_average, each_deviation zip(averages, deviations)),
+            data=tuple(each_average-each_deviation for each_average, each_deviation in zip(averages, deviations)),
             tension=tension,
             label= '',
             fill= '-1',
@@ -479,7 +479,7 @@ def multi_variance_plot(data, deviations=None, vertical_label=None, horizonal_la
         ))
         # UpperBound
         datasets.append(dict(
-            data=tuple(each_average+each_deviation, for each_average, each_deviation zip(averages, deviations)),
+            data=tuple(each_average+each_deviation for each_average, each_deviation in zip(averages, deviations)),
             tension=tension,
             label= '',
             fill= '-2',
