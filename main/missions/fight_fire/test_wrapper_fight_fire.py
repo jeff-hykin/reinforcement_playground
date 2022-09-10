@@ -43,7 +43,6 @@ def random_action_maker(action_space):
                 action[index] = 1.0
             else:
                 action[index] = 0.0
-        print(f'''action = {action}''')
         return action
     return random_action
 def random_agent_factory(observation_space, action_space):
@@ -62,15 +61,14 @@ class RewardPredictor:
         self.approximator = GeneralApproximator(
             input_shape=(-1,), # this approximator doesn't need/use input_shape
             output_shape=(1,),
+            max_number_of_points=2000,
         )
         self.losses = []
         self.major_losses = []
         self.table = LazyDict()
     
     def predict(self, *args):
-        print(f'''predict: args   = {args}''')
         output = flatten(self.approximator.predict(*args))[0]
-        print(f'''predict: output = {output}''')
         return output
     
     def update(self, inputs, correct_outputs):
@@ -78,9 +76,6 @@ class RewardPredictor:
         if len(inputs) == 1:
             output = self.predict(inputs)
             difference = abs(output - correct_outputs[0])
-            print(f'''update:predicted reward {output}''')
-            print(f'''update:correct reward   {correct_outputs[0]}''')
-            print(f'''update:loss:            {difference}''')
             self.losses.append(difference)
             if difference > 0.0001: # NOTE: Hardcoded to a specific env
                 self.major_losses.append(LazyDict(
@@ -148,7 +143,6 @@ def accumulated_list(a_list):
 # tests
 # 
 # 
-print.disable.always = False
 if True:
     from copy import deepcopy
     # Questions:
@@ -173,7 +167,7 @@ if True:
     # create trajectory
     # 
     timesteps_for_evaluation = 1400
-    with print.indent:
+    with print.indent.block("Creating Trajectory", disable=True):
         import torch
         from copy import deepcopy
         from tools.universe.timestep import Timestep
@@ -257,7 +251,7 @@ if True:
         number_of_timesteps = 0
         should_log = countdown(size=200)
         reward_per_timestep_over_time = []
-        with print.indent:
+        with print.indent.block(disable=True):
             for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
                 reward_total += timestep.reward
                 number_of_timesteps += 1
