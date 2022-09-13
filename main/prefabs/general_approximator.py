@@ -6,6 +6,7 @@ from blissful_basics import print
 from trivial_torch_tools import Sequential, init, convert_each_arg, to_tensor
 from trivial_torch_tools.generics import product, to_pure, flatten
 from super_map import LazyDict
+from super_hash import super_hash
 
 mse_loss = nn.MSELoss()
 class GeneralApproximator(nn.Module): # NOTE: this thing is broken! it should work but for some reason fails to learn abstractions
@@ -77,10 +78,11 @@ import numpy
 numpy.float = float # workaround for DeprecationWarning: `np.float` is a deprecated alias for the builtin `float`. To silence this warning, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.
 from sklearn.neighbors import NearestNeighbors
 class GeneralApproximator:
-    def __init__(self, input_shape, output_shape, max_number_of_points=None, hyperparams=None):
+    def __init__(self, input_shape, output_shape, max_number_of_points=None, enable_exact_match_cache=False, exact_match_cache_size=1_000_000, hyperparams=None):
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.max_number_of_points = max_number_of_points
+        self.enable_exact_match_cache = enable_exact_match_cache
         self.inputs = None
         self.outputs = None
         self.hyperparams = LazyDict(
@@ -88,6 +90,9 @@ class GeneralApproximator:
             algorithm='ball_tree',
         ).update(hyperparams or {})
         self._recently_used_indicies = []
+        if self.enable_exact_match_cache:
+            self._cache = {}
+            self._cache_size = exact_match_cache_size
     
     def preprocess(self, inputs):
         return to_tensor([flatten(each) for each in inputs]).numpy()
@@ -119,6 +124,23 @@ class GeneralApproximator:
         if type(self.inputs) == type(None) or len(self.inputs) <= self.hyperparams.n_neighbors:
             return torch.zeros((len(inputs), *self.output_shape))
         
+        # 
+        # cache check
+        # 
+        if self.enable_exact_match_cache:
+            outputs = []
+            for each in inputs:
+                each_hash = super_hash(each)
+                if each_hash not in self._cache:
+                    break
+                output = self._cache[each_hash]
+                # reset the index (for least-recently-used algorithm)
+                del self._cache[each_hash]
+                self._cache[each_hash] = output
+                outputs.append(output)
+            if len(outputs) == len(inputs):
+                return outputs
+        
         preprocessed_inputs = self.preprocess(inputs)
         distances_for_inputs, indices_for_inputs = self.model.kneighbors(preprocessed_inputs)
                 
@@ -144,7 +166,21 @@ class GeneralApproximator:
                     exact_match = True
                     break
             if exact_match:
-                outputs.append(to_pure(self.outputs[neighbor_index]))
+                output = to_pure(self.outputs[neighbor_index])
+                
+                # 
+                # add to cache (and keep within bounds)
+                # 
+                if self.enable_exact_match_cache:
+                    self._cache[super_hash(each_input)] = output
+                    keys = self._cache.keys()
+                    too_many_key_count = len(keys) - self._cache_size
+                    if too_many_key_count > 0:
+                        keys_to_delete = tuple(keys)[0:too_many_key_count]
+                        for each_key in keys_to_delete:
+                            del self._cache[each_key]
+                    
+                outputs.append(output)
                 continue
             else:
                 min_contribution = 0.1 # 0.1=>10%

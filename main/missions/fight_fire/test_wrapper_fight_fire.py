@@ -61,7 +61,7 @@ class RewardPredictor:
         self.approximator = GeneralApproximator(
             input_shape=(-1,), # this approximator doesn't need/use input_shape
             output_shape=(1,),
-            max_number_of_points=2000,
+            # max_number_of_points=2000,
         )
         self.losses = []
         self.major_losses = []
@@ -166,7 +166,7 @@ if True:
     # 
     # create trajectory
     # 
-    timesteps_for_evaluation = 1400
+    timesteps_for_evaluation = 2000
     with print.indent.block("Creating Trajectory", disable=True):
         import torch
         from copy import deepcopy
