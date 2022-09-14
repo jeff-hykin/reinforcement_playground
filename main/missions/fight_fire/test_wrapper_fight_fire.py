@@ -9,8 +9,7 @@ from missions.hydra_oracle.policies import ActorCriticCnnPolicy, MultiInputActor
 from world_builders.fight_fire.world import World
 
 
-memory_agent_training_timesteps    = 200
-world_shape            = (3, 3)
+world_shape            = (3, 1)
 action_length          = 2
 memory_size            = 1
 possible_memory_values = [0,1] # each bit is 1 or 0 
@@ -202,9 +201,9 @@ if True:
     perfect_memory_agent_rewards = []
     multi_plot = ss.DisplayCard("multiLine", 
         dict(
-            random_memory_actions_rewards=random_memory_actions_rewards,
-            a2c_memory_actions_rewards=a2c_memory_actions_rewards,
-            perfect_memory_agent_rewards=perfect_memory_agent_rewards,
+            random=random_memory_actions_rewards,
+            perfect=perfect_memory_agent_rewards,
+            a2c=a2c_memory_actions_rewards,
         ),
         dict(
             vertical_label="Mem Reward per timestep",
@@ -389,9 +388,9 @@ if True:
     
     multi_plot = ss.DisplayCard("multiLine", 
         dict(
-            random_memory_actions_rewards=random_memory_actions_rewards,
-            perfect_memory_agent_rewards=perfect_memory_agent_rewards,
-            a2c_memory_actions_rewards=a2c_memory_actions_rewards,
+            random=random_memory_actions_rewards,
+            perfect=perfect_memory_agent_rewards,
+            a2c=a2c_memory_actions_rewards,
         ),
         dict(
             title="Reward Over Time",
