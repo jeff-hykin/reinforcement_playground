@@ -78,7 +78,7 @@ import numpy
 numpy.float = float # workaround for DeprecationWarning: `np.float` is a deprecated alias for the builtin `float`. To silence this warning, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.
 from sklearn.neighbors import NearestNeighbors
 class GeneralApproximator:
-    def __init__(self, input_shape, output_shape, max_number_of_points=None, enable_exact_match_cache=False, exact_match_cache_size=1_000_000, hyperparams=None):
+    def __init__(self, input_shape, output_shape, max_number_of_points=None, enable_exact_match_cache=False, hyperparams=None):
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.max_number_of_points = max_number_of_points
@@ -92,14 +92,16 @@ class GeneralApproximator:
         self._recently_used_indicies = []
         if self.enable_exact_match_cache:
             self._cache = {}
-            self._cache_size = exact_match_cache_size
     
     def preprocess(self, inputs):
         return to_tensor([flatten(each) for each in inputs]).numpy()
         
     def fit(self, inputs, correct_outputs):
-        self.inputs  = self.preprocess(inputs         ) if type(self.inputs ) == type(None) else numpy.concatenate((self.inputs , self.preprocess(inputs          )), axis=0)
-        self.outputs = self.preprocess(correct_outputs) if type(self.outputs) == type(None) else numpy.concatenate((self.outputs, self.preprocess(correct_outputs )), axis=0)
+        preprocessed_inputs  = self.preprocess(inputs)
+        preprocessed_outputs = self.preprocess(correct_outputs)
+        self._update_exact_match_cache(preprocessed_inputs, preprocessed_outputs) # always have the cache use the latest values
+        self.inputs  = preprocessed_inputs  if type(self.inputs ) == type(None) else numpy.concatenate((self.inputs , preprocessed_inputs ), axis=0)
+        self.outputs = preprocessed_outputs if type(self.outputs) == type(None) else numpy.concatenate((self.outputs, preprocessed_outputs), axis=0)
         if self.max_number_of_points:
             half_max = int(self.max_number_of_points/2)
             
@@ -167,19 +169,6 @@ class GeneralApproximator:
                     break
             if exact_match:
                 output = to_pure(self.outputs[neighbor_index])
-                
-                # 
-                # add to cache (and keep within bounds)
-                # 
-                if self.enable_exact_match_cache:
-                    self._cache[super_hash(each_input)] = output
-                    keys = self._cache.keys()
-                    too_many_key_count = len(keys) - self._cache_size
-                    if too_many_key_count > 0:
-                        keys_to_delete = tuple(keys)[0:too_many_key_count]
-                        for each_key in keys_to_delete:
-                            del self._cache[each_key]
-                    
                 outputs.append(output)
                 continue
             else:
@@ -199,6 +188,12 @@ class GeneralApproximator:
                 outputs.append(average_value)
                 
         return to_pure(outputs)
+    
+    def _update_exact_match_cache(self, inputs, outputs):
+        if self.enable_exact_match_cache:
+            for each_input, each_output in zip(inputs, outputs):
+                hash_value = super_hash(each_input)
+                self._cache[hash_value] = output
     
     def _update_used_indicies(self, indicies):
         # only keep track if trucation is going to happen
