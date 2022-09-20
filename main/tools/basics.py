@@ -8,6 +8,13 @@ from collections import Counter # frequency count
 from time import time as now
 from random import random, sample, choices
 
+try:
+    import json_fix
+    import numpy
+    json.fallback_table[numpy.ndarray] = lambda array: array.tolist()
+except Exception as error:
+    pass
+
 def is_iterable(thing):
     # https://stackoverflow.com/questions/1952464/in-python-how-do-i-determine-if-an-object-is-iterable
     try:

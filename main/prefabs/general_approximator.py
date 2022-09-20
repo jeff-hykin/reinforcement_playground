@@ -1,4 +1,5 @@
 import math
+import json
 
 import torch
 import torch.nn as nn
@@ -78,7 +79,7 @@ import numpy
 numpy.float = float # workaround for DeprecationWarning: `np.float` is a deprecated alias for the builtin `float`. To silence this warning, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.
 from sklearn.neighbors import NearestNeighbors
 class GeneralApproximator:
-    def __init__(self, input_shape, output_shape, max_number_of_points=None, enable_exact_match_cache=False, hyperparams=None):
+    def __init__(self, input_shape, output_shape, max_number_of_points=None, enable_exact_match_cache=True, hyperparams=None):
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.max_number_of_points = max_number_of_points
@@ -129,21 +130,17 @@ class GeneralApproximator:
         # 
         # cache check
         # 
+        preprocessed_inputs = self.preprocess(inputs)
         if self.enable_exact_match_cache:
             outputs = []
-            for each in inputs:
-                each_hash = super_hash(each)
+            for each in preprocessed_inputs:
+                each_hash = hash(json.dumps(to_pure(each)))
                 if each_hash not in self._cache:
                     break
-                output = self._cache[each_hash]
-                # reset the index (for least-recently-used algorithm)
-                del self._cache[each_hash]
-                self._cache[each_hash] = output
-                outputs.append(output)
+                outputs.append(self._cache[each_hash])
             if len(outputs) == len(inputs):
                 return outputs
         
-        preprocessed_inputs = self.preprocess(inputs)
         distances_for_inputs, indices_for_inputs = self.model.kneighbors(preprocessed_inputs)
                 
         outputs = []
@@ -192,8 +189,8 @@ class GeneralApproximator:
     def _update_exact_match_cache(self, inputs, outputs):
         if self.enable_exact_match_cache:
             for each_input, each_output in zip(inputs, outputs):
-                hash_value = super_hash(each_input)
-                self._cache[hash_value] = output
+                hash_value = hash(json.dumps(to_pure(each_input)))
+                self._cache[hash_value] = each_output
     
     def _update_used_indicies(self, indicies):
         # only keep track if trucation is going to happen

@@ -398,8 +398,14 @@ if True:
             horizonal_label="200 timesteps",
         ),
     )
-    loss_plots = ss.DisplayCard("multiLine", 
-        loss_data,
+    from tools.stat_tools import bundle, average
+    
+    loss_plots = ss.DisplayCard("multiLine",
+        {
+            # apply some smoothing
+            each_key : tuple(average(to_pure(each_values)) for each_values in bundle(data, bundle_size=100))
+                for each_key, each_values in loss_data.items()
+        },
         dict(
             title="Prediction Gap",
             vertical_label="Accumulated Loss",

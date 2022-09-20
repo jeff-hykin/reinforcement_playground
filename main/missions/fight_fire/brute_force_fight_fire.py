@@ -107,8 +107,8 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
             
             if real_trajectory:
                 primary_action = real_trajectory[trajectory_timestep_index].reaction
-                print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
-                print(f'''reset:primary_action = {primary_action}''')
+                # print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
+                # print(f'''reset:primary_action = {primary_action}''')
             else:
                 self.primary_agent = PrimaryAgent(
                     observation_space=RealEnvWithMemory.observation_space,
@@ -145,14 +145,14 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
                 (self.prev_observation, self.primary_agent_action, updated_memory_value)
             ]
             predicted_reward = reward_predictor.predict(inputs)
-            print(f'''step: inputs           = {inputs}''')
+            # print(f'''step: inputs           = {inputs}''')
             # memory_reward = -( (predicted_reward - reward)**2 )
             memory_reward = - abs(predicted_reward - reward)
-            print(f'''step: reward           = {reward}''')
-            print(f'''step: predicted_reward = {predicted_reward}''')
-            print(f'''step: loss             = {-memory_reward}''')
-            print(f'''step: memory_reward    = {memory_reward}''')
-            print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
+            # print(f'''step: reward           = {reward}''')
+            # print(f'''step: predicted_reward = {predicted_reward}''')
+            # print(f'''step: loss             = {-memory_reward}''')
+            # print(f'''step: memory_reward    = {memory_reward}''')
+            # print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
             
             # 
             # train reward prediction
@@ -164,15 +164,15 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
                 ]
             )
             predicted_reward = reward_predictor.predict(inputs)
-            print(f'''step: predicted_reward2 = {predicted_reward}''')
+            # print(f'''step: predicted_reward2 = {predicted_reward}''')
             
             # 
             # compute current action
             # 
             if real_trajectory:
                 self.primary_agent_action = real_trajectory[trajectory_timestep_index].reaction
-                print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
-                print(f'''set:primary_action = {self.primary_agent_action}''')
+                # print(f'''trajectory_timestep_index = {trajectory_timestep_index}''')
+                # print(f'''set:primary_action = {self.primary_agent_action}''')
             else:
                 self.primary_agent_action = self.primary_agent.choose_action(
                     tuple_to_dict_hack_fix((memory_value, current_observation))
