@@ -118,7 +118,7 @@ def create_runtime(agent, env, max_timestep_index=math.inf, max_episode_index=ma
             
             observation, reward, is_last_step, agent_data.timestep.hidden_info = env.step(action)
             agent_data.next_timestep.observation = deepcopy(observation)
-            agent_data.timestep.reward           = deepcopy(reward)
+            agent_data.timestep.reward           = deepcopy(reward*1000)
             agent_data.timestep.is_last_step     = deepcopy(is_last_step)
             
             yield episode_index, agent_data.timestep
@@ -165,7 +165,7 @@ if True:
     # 
     # create trajectory
     # 
-    timesteps_for_evaluation = 2000
+    timesteps_for_evaluation = 10000
     with print.indent.block("Creating Trajectory", disable=True):
         import torch
         from copy import deepcopy
@@ -229,50 +229,6 @@ if True:
         return wrapper
     
     # 
-    # how bad is the predictor with a random agent?
-    # 
-    with print.indent.block("### Random Agent"):
-        reward_total = 0
-        env = memory_env = get_memory_env(
-            real_env=real_env,
-            real_trajectory=trajectory,
-            memory_shape=(1,),
-            RewardPredictor=RewardPredictor,
-            PrimaryAgent=random_agent_factory,
-        )
-        runtime = create_runtime(
-            agent=LazyDict(
-                choose_action=log_action_function(random_action_maker(env.action_space)),
-            ),
-            env=env,
-            max_timestep_index=timesteps_for_evaluation,
-        )
-        number_of_timesteps = 0
-        should_log = countdown(size=200)
-        reward_per_timestep_over_time = []
-        with print.indent.block(disable=True):
-            for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
-                reward_total += timestep.reward
-                number_of_timesteps += 1
-                if should_log():
-                    print(f'''timestep = {timestep}''')
-                    reward_per_timestep = reward_total/number_of_timesteps
-                    reward_per_timestep_over_time.append(reward_per_timestep)
-                    multi_plot.send(dict(
-                        random_memory_actions_rewards=[
-                            [ trajectory_timestep_index, reward_per_timestep ],
-                        ]  
-                    ))
-                    print(f'''number_of_timesteps = {number_of_timesteps}''')
-                    print(f'''reward_total = {reward_total}''')
-                    print(f'''number_of_episodes = {episode_index + 1}''')
-                    print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
-                    print(f'''reward_per_timestep = {(reward_per_timestep)}''')
-        print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
-        random_memory_actions_rewards = list(reward_per_timestep_over_time)
-    loss_data.random = deepcopy(accumulated_list(RewardPredictor.latest.losses))
-    
-    # 
     # how does the perfect agent do?
     # 
     with print.indent.block("### Perfect agent"):
@@ -317,7 +273,7 @@ if True:
                     reward_per_timestep = reward_total/number_of_timesteps
                     reward_per_timestep_over_time.append(reward_per_timestep)
                     multi_plot.send(dict(
-                        perfect_memory_agent_rewards=[
+                        perfect=[
                             [ trajectory_timestep_index, reward_per_timestep ],
                         ]  
                     ))
@@ -334,6 +290,64 @@ if True:
     # how bad is the predictor with trained A2C
     #
     with print.indent.block("### A2C"):
+        epochs = 1
+        reward_total = 0
+        for each in range(epochs):
+            env = memory_env = get_memory_env(
+                real_env=real_env,
+                real_trajectory=trajectory,
+                memory_shape=(1,),
+                RewardPredictor=RewardPredictor,
+                PrimaryAgent=random_agent_factory,
+            )
+            model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
+            model.learn(total_timesteps=timesteps_for_evaluation)
+            # reset the reward predictor for evaluation
+            env = memory_env = get_memory_env(
+                real_env=real_env,
+                real_trajectory=trajectory,
+                memory_shape=(1,),
+                RewardPredictor=RewardPredictor,
+                PrimaryAgent=random_agent_factory,
+            )
+            def choose_action(state):
+                return model.predict(state)[0]
+            runtime = create_runtime(
+                agent=LazyDict(
+                    choose_action=log_action_function(choose_action),
+                ),
+                env=env,
+                max_timestep_index=timesteps_for_evaluation,
+            )
+            number_of_timesteps = 0
+            should_log = countdown(size=200)
+            reward_per_timestep_over_time = []
+            with print.indent:
+                for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
+                    reward_total += timestep.reward
+                    number_of_timesteps += 1
+                    if should_log():
+                        # print(f'''timestep = {timestep}''')
+                        reward_per_timestep = reward_total/number_of_timesteps
+                        reward_per_timestep_over_time.append(reward_per_timestep)
+                        multi_plot.send(dict(
+                            a2c=[
+                                [ trajectory_timestep_index, reward_per_timestep ],
+                            ]  
+                        ))
+                        # print(f'''number_of_timesteps = {number_of_timesteps}''')
+                        # print(f'''reward_total = {reward_total}''')
+                        # print(f'''number_of_episodes = {episode_index + 1}''')
+                        # print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
+                        # print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+            print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
+            a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
+    loss_data.a2c = deepcopy(accumulated_list(RewardPredictor.latest.losses))
+    
+    # 
+    # how bad is the predictor with a random agent?
+    # 
+    with print.indent.block("### Random Agent"):
         reward_total = 0
         env = memory_env = get_memory_env(
             real_env=real_env,
@@ -342,21 +356,9 @@ if True:
             RewardPredictor=RewardPredictor,
             PrimaryAgent=random_agent_factory,
         )
-        model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
-        model.learn(total_timesteps=timesteps_for_evaluation)
-        # reset the reward predictor for evaluation
-        env = memory_env = get_memory_env(
-            real_env=real_env,
-            real_trajectory=trajectory,
-            memory_shape=(1,),
-            RewardPredictor=RewardPredictor,
-            PrimaryAgent=random_agent_factory,
-        )
-        def choose_action(state):
-            return model.predict(state)[0]
         runtime = create_runtime(
             agent=LazyDict(
-                choose_action=log_action_function(choose_action),
+                choose_action=log_action_function(random_action_maker(env.action_space)),
             ),
             env=env,
             max_timestep_index=timesteps_for_evaluation,
@@ -364,27 +366,27 @@ if True:
         number_of_timesteps = 0
         should_log = countdown(size=200)
         reward_per_timestep_over_time = []
-        with print.indent:
+        with print.indent.block(disable=True):
             for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
                 reward_total += timestep.reward
                 number_of_timesteps += 1
                 if should_log():
-                    print(f'''timestep = {timestep}''')
+                    # print(f'''timestep = {timestep}''')
                     reward_per_timestep = reward_total/number_of_timesteps
                     reward_per_timestep_over_time.append(reward_per_timestep)
                     multi_plot.send(dict(
-                        a2c_memory_actions_rewards=[
+                        random=[
                             [ trajectory_timestep_index, reward_per_timestep ],
                         ]  
                     ))
-                    print(f'''number_of_timesteps = {number_of_timesteps}''')
-                    print(f'''reward_total = {reward_total}''')
-                    print(f'''number_of_episodes = {episode_index + 1}''')
-                    print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
-                    print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+                    # print(f'''number_of_timesteps = {number_of_timesteps}''')
+                    # print(f'''reward_total = {reward_total}''')
+                    # print(f'''number_of_episodes = {episode_index + 1}''')
+                    # print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
+                    # print(f'''reward_per_timestep = {(reward_per_timestep)}''')
         print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
-        a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
-    loss_data.a2c = deepcopy(accumulated_list(RewardPredictor.latest.losses))
+        random_memory_actions_rewards = list(reward_per_timestep_over_time)
+    loss_data.random = deepcopy(accumulated_list(RewardPredictor.latest.losses))
     
     multi_plot = ss.DisplayCard("multiLine", 
         dict(
@@ -403,7 +405,7 @@ if True:
     loss_plots = ss.DisplayCard("multiLine",
         {
             # apply some smoothing
-            each_key : tuple(average(to_pure(each_values)) for each_values in bundle(data, bundle_size=100))
+            each_key : tuple(average(to_pure(each_bundle)) for each_bundle in bundle(each_values, bundle_size=100))
                 for each_key, each_values in loss_data.items()
         },
         dict(

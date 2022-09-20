@@ -147,16 +147,16 @@ class GeneralApproximator:
         for each_input, each_distances, neighbor_indices in zip(inputs, distances_for_inputs, indices_for_inputs):
             self._update_used_indicies(neighbor_indices)
             distances = to_pure(each_distances)
-            with print.indent.block("kneighbors", disable=True):
-                print(LazyDict({
-                    loop_index: LazyDict(
-                        each_distance=each_distance,
-                        neighbor_index=each_neighbor_index,
-                        input=to_pure(self.inputs[each_neighbor_index]),
-                        output=self.outputs[each_neighbor_index]
-                    )
-                        for loop_index, (each_neighbor_index, each_distance) in enumerate(zip(neighbor_indices, distances))
-                }))
+            # with print.indent.block("kneighbors", disable=True):
+            #     print(LazyDict({
+            #         loop_index: LazyDict(
+            #             each_distance=each_distance,
+            #             neighbor_index=each_neighbor_index,
+            #             input=to_pure(self.inputs[each_neighbor_index]),
+            #             output=self.outputs[each_neighbor_index]
+            #         )
+            #             for loop_index, (each_neighbor_index, each_distance) in enumerate(zip(neighbor_indices, distances))
+            #     }))
             
             # if there is an exact overlap, dont average the neighbors
             exact_match = False
