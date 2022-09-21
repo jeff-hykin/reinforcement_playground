@@ -184,7 +184,7 @@ def get_memory_env(real_env, memory_shape, RewardPredictor, PrimaryAgent, real_t
             self.prev_observation = current_observation
             
             memory_state = tuple_to_dict_hack_fix((memory_value, self.prev_observation, self.primary_agent_action))
-            return memory_state, memory_reward, done, info
+            return memory_state, memory_reward, done, LazyDict(real_reward=reward, info=info)
     
     return MemoryEnv()
 
