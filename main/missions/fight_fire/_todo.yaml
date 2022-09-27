@@ -1,7 +1,13 @@
 todo:
-    figure out why the reward predictor isn't doing as well for the perfect agent: I think whats happening is A2C is using the memory to improve the prediction of running into the wall again. The reward approximator is too stupid (or rather the position is too much weight compared to the action)
-    
-    
+    - add the ideal demonstrator
+    - figure out why the metrics are wrong between A2C and perfect
+    - try to use the reward predictor with a fixed lookback to see if it can be fully optimal
+    - memory:
+        - main systems:
+            - predictions are necessary for memory. If predictions are not necessary, neither is memory
+            - the memory system can never confirm that some data is useless, it will only ever know what was confirmed useful. (think fire extinguisher that never gets used; is it useful?)
+            - the perfect memory agent knows how important it is to remember each piece of data
+            - a memory value is useful if including it improves a predictors performance
     
     bigger:
         - create an efficient way of generating ideal trajectories for the reward predictor

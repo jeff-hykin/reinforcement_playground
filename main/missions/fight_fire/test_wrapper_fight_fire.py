@@ -1,9 +1,15 @@
+from copy import deepcopy
+
 import silver_spectacle as ss
 from blissful_basics import flatten, is_iterable, product, print, countdown
 from trivial_torch_tools.generics import to_pure
 
 from main.missions.fight_fire.brute_force_fight_fire import get_memory_env, get_transformed_env, LazyDict
 from main.prefabs.general_approximator import GeneralApproximator
+from main.tools.basics import numbers_to_accumulated_numbers
+from main.tools.universe.runtimes import basic as basic_runtime
+from main.tools.universe.agent import Skeleton, Enhancement, enhance_with
+from main.agent_builders.universal_random import Agent as RandomAgent
 from missions.hydra_oracle.a2c_exposed import A2C
 from missions.hydra_oracle.policies import ActorCriticCnnPolicy, MultiInputActorCriticPolicy
 from world_builders.fight_fire.world import World
@@ -29,29 +35,23 @@ world = World(
 )
 real_env = world.Player()
 
-
 # 
-# Random agent
+# Customize Agents to Env
 # 
-def random_action_maker(action_space):
-    def random_action(*args, **kwargs):
-        action = action_space.sample()
-        # make it binary
-        for index in range(len(action)):
-            if action[index] > 0.5:
-                action[index] = 1.0
-            else:
-                action[index] = 0.0
-        return action
-    return random_action
-def random_agent_factory(observation_space, action_space):
-    return LazyDict(
-        # choose_action= lambda state: action_space.sample(),
-        choose_action=random_action_maker(action_space),
-    )
-
+if True:
+    class CustomRandomAgent(RandomAgent):
+        def when_timestep_starts(self):
+            action = self.reaction_space.sample()
+            # make it binary
+            for index in range(len(action)):
+                if action[index] > 0.5:
+                    action[index] = 1.0
+                else:
+                    action[index] = 0.0
+            self.timestep.reaction = action
+    
 # 
-# reward predictor
+# Customize Reward Predictor
 # 
 class RewardPredictor:
     latest = None
@@ -87,85 +87,21 @@ class RewardPredictor:
         return self.approximator.fit(inputs, correct_outputs)
 
 # 
-# runtime
-# 
-import itertools
-import math
-from copy import deepcopy
-from tools.universe.timestep import Timestep
-
-def create_runtime(agent, env, max_timestep_index=math.inf, max_episode_index=math.inf):
-    agent_data = LazyDict()
-    timestep_index = -1
-    for episode_index in itertools.count(0): # starting at 0
-        agent_data.previous_timestep = Timestep(index=-2,)
-        agent_data.timestep = Timestep(index=-1)
-        agent_data.next_timestep = Timestep(
-            index=0,
-            observation=deepcopy(env.reset()),
-            is_last_step=False,
-        )
-        while not agent_data.timestep.is_last_step:
-            timestep_index += 1
-            if max_timestep_index < timestep_index:
-                break
-            
-            agent_data.previous_timestep = agent_data.timestep
-            agent_data.timestep          = agent_data.next_timestep
-            agent_data.next_timestep     = Timestep(index=agent_data.next_timestep.index+1)
-            
-            agent_data.timestep.reaction = agent.choose_action(agent_data.timestep.observation)
-            
-            observation, reward, is_last_step, agent_data.timestep.hidden_info = env.step(agent_data.timestep.reaction)
-            agent_data.next_timestep.observation = deepcopy(observation)
-            agent_data.timestep.reward           = deepcopy(reward*1000)
-            agent_data.timestep.is_last_step     = deepcopy(is_last_step)
-            
-            yield episode_index, agent_data.timestep
-        
-        if max_timestep_index < timestep_index:
-            break
-
-# 
-# helpers
-# 
-def accumulated_list(a_list):
-    value = 0
-    new_list = []
-    for each in a_list:
-        value = value + to_pure(each)
-        new_list.append(value)
-    return new_list
-
-# 
 # 
 # tests
 # 
 # 
 if True:
-    from copy import deepcopy
     # Questions:
         # how bad is the predictor with a random agent?
         # can the memory agent help the predictor?
         # how bad does A2C do without memory?
     
-    transformed_env = get_transformed_env(
-        real_env=real_env,
-        memory_shape=(1,),
-        memory_agent_factory=random_agent_factory,
-    )
-
-    memory_env = get_memory_env(
-        real_env=real_env,
-        memory_shape=(1,),
-        RewardPredictor=RewardPredictor,
-        PrimaryAgent=random_agent_factory,
-    )
-    
     # 
     # create trajectory
     # 
-    timesteps_for_evaluation = 1400
+    timesteps_for_evaluation = 200
+    log_rate = 10
     with print.indent.block("Creating Trajectory", disable=True):
         import torch
         from copy import deepcopy
@@ -175,6 +111,7 @@ if True:
         for index in range(timesteps_for_evaluation):
             if done:
                 observation = real_env.reset()
+            
             reaction = real_env.action_space.sample()
             # force to be binary because action-space is just a hack for A2C to work
             for index in range(len(reaction)):
@@ -196,9 +133,9 @@ if True:
     
     trajectory = tuple(trajectory)
             
-    a2c_memory_actions_rewards = []
+    a2c_memory_actions_rewards    = []
     random_memory_actions_rewards = []
-    perfect_memory_agent_rewards = []
+    perfect_memory_agent_rewards  = []
     multi_plot = ss.DisplayCard("multiLine", 
         dict(
             random=random_memory_actions_rewards,
@@ -217,23 +154,10 @@ if True:
     )
     
     
-    def log_action_function(function_being_wrapped):
-        def wrapper(state):
-            prev_memory, observation, primary_agent_action = state.values()
-            # print(f'''prev_memory = {prev_memory}''')
-            # print(f'''observation = {observation}''')
-            # print(f'''primary_agent_action = {primary_agent_action}''')
-            output = function_being_wrapped(state)
-            # print(f'''output = {output}''')
-            return output
-        return wrapper
-    
     # 
     # how bad is the predictor with trained A2C
     #
-    log_rate = 10
     with print.indent.block("### A2C"):
-        epochs = 1
         reward_total = 0
         model = None
         # TODO: change the reward predictor, where every prediction involves re-running the A2C model through the known trajectory (generating new memory values), then use those as the new inputs/outputs
@@ -282,89 +206,98 @@ if True:
                 # update with entirely new values
                 return self.approximator.fit(inputs, correct_outputs)
         
-        for each in range(epochs):
-            env = memory_env = get_memory_env(
-                real_env=real_env,
-                real_trajectory=trajectory,
-                memory_shape=(1,),
-                RewardPredictor=ExpensivePredictor,
-                PrimaryAgent=random_agent_factory,
-            )
-            model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
-            model.learn(total_timesteps=timesteps_for_evaluation)
-            # reset the reward predictor for evaluation
-            env = memory_env = get_memory_env(
-                real_env=real_env,
-                real_trajectory=trajectory,
-                memory_shape=(1,),
-                RewardPredictor=ExpensivePredictor,
-                PrimaryAgent=random_agent_factory,
-            )
-            def choose_action(state):
-                return model.predict(state)[0]
-            runtime = create_runtime(
-                agent=LazyDict(
-                    choose_action=log_action_function(choose_action),
-                ),
-                env=env,
-                max_timestep_index=timesteps_for_evaluation,
-            )
-            number_of_timesteps = 0
-            should_log = countdown(size=log_rate)
-            reward_per_timestep_over_time = []
-            with print.indent:
-                for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
-                    reward_total += timestep.reward
-                    number_of_timesteps += 1
-                    if should_log():
-                        # print(f'''timestep = {timestep}''')
-                        reward_per_timestep = reward_total/number_of_timesteps
-                        reward_per_timestep_over_time.append(reward_per_timestep)
-                        multi_plot.send(dict(
-                            a2c=[
-                                [ trajectory_timestep_index, reward_per_timestep ],
-                            ]  
-                        ))
-                        # print(f'''number_of_timesteps = {number_of_timesteps}''')
-                        # print(f'''reward_total = {reward_total}''')
-                        # print(f'''number_of_episodes = {episode_index + 1}''')
-                        # print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
-                        # print(f'''reward_per_timestep = {(reward_per_timestep)}''')
-            print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
-            a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
-    loss_data.a2c = deepcopy(accumulated_list(RewardPredictor.latest.losses))
+        memory_env = get_memory_env(
+            real_env=real_env,
+            real_trajectory=trajectory,
+            memory_shape=(1,),
+            RewardPredictor=ExpensivePredictor,
+            PrimaryAgent=random_agent_factory,
+        )
+        model = A2C(MultiInputActorCriticPolicy, memory_env, verbose=1)
+        class A2cAgent(Skeleton):
+            def when_timestep_starts(self):
+                self.timestep.reaction = model.predict(self.timestep.observation)[0]
+        model.learn(total_timesteps=timesteps_for_evaluation)
+        
+        # reset the reward predictor for evaluation
+        memory_env = get_memory_env(
+            real_env=real_env,
+            real_trajectory=trajectory,
+            memory_shape=(1,),
+            RewardPredictor=ExpensivePredictor,
+            PrimaryAgent=random_agent_factory,
+        )
+        runtime = basic_runtime(
+            agent=A2cAgent(
+                reaction_space=memory_env.action_space,
+                observation_space=memory_env.observation_space,
+            ),
+            env=memory_env,
+            max_timestep_index=timesteps_for_evaluation,
+        )
+        number_of_timesteps = 0
+        should_log = countdown(size=log_rate)
+        reward_per_timestep_over_time = []
+        with print.indent:
+            for trajectory_timestep_index, (episode_index, timestep) in enumerate(runtime):
+                reward_total += timestep.reward
+                number_of_timesteps += 1
+                if should_log():
+                    # print(f'''timestep = {timestep}''')
+                    reward_per_timestep = reward_total/number_of_timesteps
+                    reward_per_timestep_over_time.append(reward_per_timestep)
+                    multi_plot.send(dict(
+                        a2c=[
+                            [ trajectory_timestep_index, reward_per_timestep ],
+                        ]  
+                    ))
+                    print(f'''number_of_timesteps = {number_of_timesteps}''')
+                    print(f'''reward_total = {reward_total}''')
+                    print(f'''number_of_episodes = {episode_index + 1}''')
+                    print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
+                    print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+        print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
+        a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
+    loss_data.a2c = deepcopy(numbers_to_accumulated_numbers(RewardPredictor.latest.losses))
     
     # 
     # how does the perfect agent do?
     # 
     with print.indent.block("### Perfect agent"):
         reward_total = 0
-        env = memory_env = get_memory_env(
+        memory_env = get_memory_env(
             real_env=real_env,
             real_trajectory=trajectory,
             memory_shape=(1,),
             RewardPredictor=RewardPredictor,
             PrimaryAgent=random_agent_factory,
         )
-        def choose_action(state):
-            import numpy
-            prev_memory, observation, primary_agent_action = state.values()
-            # preserve a positive memory value
-            if flatten(prev_memory)[0] == 1:
-                output = numpy.array([1]) 
-                return numpy.array([1]) 
-            else:
-                position_layer = observation[0]
-                top_row = position_layer[0]
-                left_cell = top_row[0]
-                memory_value = 1 if left_cell else 0
-                output = numpy.array([memory_value]) 
-                return output
-        runtime = create_runtime(
-            agent=LazyDict(
-                choose_action=log_action_function(choose_action),
+        
+        class PerfectAgent(Skeleton):
+            def when_timestep_starts(self):
+                self.timestep.reaction = self.choose_action(self.timestep.observation)
+            
+            def choose_action(self, state):
+                import numpy
+                prev_memory, observation, primary_agent_action = state.values()
+                # preserve a positive memory value
+                if flatten(prev_memory)[0] == 1:
+                    output = numpy.array([1]) 
+                    return numpy.array([1]) 
+                else:
+                    position_layer = observation[0]
+                    top_row = position_layer[0]
+                    left_cell = top_row[0]
+                    memory_value = 1 if left_cell else 0
+                    output = numpy.array([memory_value]) 
+                    return output
+            
+        runtime = basic_runtime(
+            agent=PerfectAgent(
+                reaction_space=memory_env.action_space,
+                observation_space=memory_env.observation_space,
             ),
-            env=env,
+            env=memory_env,
             max_timestep_index=timesteps_for_evaluation,
         )
         number_of_timesteps = 0
@@ -390,25 +323,26 @@ if True:
                     print(f'''reward_per_timestep = {(reward_per_timestep)}''')
         print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
         perfect_memory_agent_rewards = list(reward_per_timestep_over_time)
-    loss_data.perfect = deepcopy(accumulated_list(RewardPredictor.latest.losses))
+    loss_data.perfect = deepcopy(numbers_to_accumulated_numbers(RewardPredictor.latest.losses))
     
     # 
     # how bad is the predictor with a random agent?
     # 
     with print.indent.block("### Random Agent"):
         reward_total = 0
-        env = memory_env = get_memory_env(
+        memory_env = get_memory_env(
             real_env=real_env,
             real_trajectory=trajectory,
             memory_shape=(1,),
             RewardPredictor=RewardPredictor,
             PrimaryAgent=random_agent_factory,
         )
-        runtime = create_runtime(
-            agent=LazyDict(
-                choose_action=log_action_function(random_action_maker(env.action_space)),
+        runtime = basic_runtime(
+            agent=CustomRandomAgent(
+                reaction_space=memory_env.action_space,
+                observation_space=memory_env.observation_space,
             ),
-            env=env,
+            env=memory_env,
             max_timestep_index=timesteps_for_evaluation,
         )
         number_of_timesteps = 0
@@ -434,7 +368,7 @@ if True:
                     # print(f'''reward_per_timestep = {(reward_per_timestep)}''')
         print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
         random_memory_actions_rewards = list(reward_per_timestep_over_time)
-    loss_data.random = deepcopy(accumulated_list(RewardPredictor.latest.losses))
+    loss_data.random = deepcopy(numbers_to_accumulated_numbers(RewardPredictor.latest.losses))
     
     multi_plot = ss.DisplayCard("multiLine", 
         dict(

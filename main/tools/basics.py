@@ -201,6 +201,13 @@ def bundle(iterable, bundle_size):
     if len(next_bundle) > 0:
         yield tuple(next_bundle)
 
+def numbers_to_accumulated_numbers(a_list):
+    value = 0
+    new_list = []
+    for each in a_list:
+        value = value + to_pure(each)
+        new_list.append(value)
+    return new_list
 
 def recursively_map(an_object, function, is_key=False):
     from tools.basics import is_iterable
