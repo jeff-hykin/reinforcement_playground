@@ -165,7 +165,7 @@ if True:
     # 
     # create trajectory
     # 
-    timesteps_for_evaluation = 1400
+    timesteps_for_evaluation = 200
     with print.indent.block("Creating Trajectory", disable=True):
         import torch
         from copy import deepcopy
@@ -325,11 +325,11 @@ if True:
                                 [ trajectory_timestep_index, reward_per_timestep ],
                             ]  
                         ))
-                        # print(f'''number_of_timesteps = {number_of_timesteps}''')
-                        # print(f'''reward_total = {reward_total}''')
-                        # print(f'''number_of_episodes = {episode_index + 1}''')
-                        # print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
-                        # print(f'''reward_per_timestep = {(reward_per_timestep)}''')
+                        print(f'''number_of_timesteps = {number_of_timesteps}''')
+                        print(f'''reward_total = {reward_total}''')
+                        print(f'''number_of_episodes = {episode_index + 1}''')
+                        print(f'''reward_total/number_of_episodes = {(reward_total/(episode_index + 1))}''')
+                        print(f'''reward_per_timestep = {(reward_per_timestep)}''')
             print(f'''reward_per_timestep_over_time = {reward_per_timestep_over_time}''')
             a2c_memory_actions_rewards = list(reward_per_timestep_over_time)
     loss_data.a2c = deepcopy(accumulated_list(RewardPredictor.latest.losses))
