@@ -54,11 +54,13 @@ class Agent(Skeleton):
         # decide on an action
         # 
         self.random_seed += 1
+        _randomizer_state = random.getstate()
         random.seed(self.random_seed)
         try:
             self.timestep.reaction = self.reaction_space.sample()
         finally:
-            random.seed(time.time()) # go back to actual random for other things
+            # go back to whatever it used to be
+            random.setstate(_randomizer_state)
         
         return self.timestep.reaction
     
