@@ -930,10 +930,10 @@ def run_many_evaluations(iterations=3, competition_size=100, genetic_method="mut
 # 
 # sample generator
 # 
-def generate_samples(number_of_timesteps):
+def generate_samples(number_of_timesteps, world=None):
     offline_timesteps = []
     
-    world = World(
+    world = world or World(
         grid_width=world_shape[0],
         grid_height=world_shape[1],
         visualize=False,
@@ -1141,6 +1141,8 @@ def generate_samples(number_of_timesteps):
     for each_epsilon in [ 1.0 ]:
         mr_bond.epsilon = each_epsilon
         for progress, (episode_index, timestep) in ProgressBar(basic(agent=mr_bond, env=env), iterations=number_of_timesteps, title=" creating timesteps"):
+            if progress.index >= number_of_timesteps:
+                break
             timestep.hidden_info = dict(episode_index=episode_index)
             
             # make action numeric

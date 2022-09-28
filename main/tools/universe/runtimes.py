@@ -14,7 +14,7 @@ def basic(*, agent, env, max_timestep_index=math.inf, max_episode_index=math.inf
     if reward_modifier      is None: reward_modifier      = lambda each: each
     
     agent.when_mission_starts()
-    
+    timestep_count = 0
     for episode_index in itertools.count(0): # starting at 0
         
         agent.previous_timestep = Timestep(
@@ -30,6 +30,9 @@ def basic(*, agent, env, max_timestep_index=math.inf, max_episode_index=math.inf
         )
         agent.when_episode_starts()
         while not agent.timestep.is_last_step:
+            timestep_count += 1
+            if timestep_count >= max_timestep_index:
+                break
             
             agent.previous_timestep = agent.timestep
             agent.timestep          = agent.next_timestep
@@ -48,5 +51,7 @@ def basic(*, agent, env, max_timestep_index=math.inf, max_episode_index=math.inf
             
             yield episode_index, agent.timestep
         
+        if timestep_count >= max_timestep_index:
+            break
         agent.when_episode_ends()
     agent.when_mission_ends()

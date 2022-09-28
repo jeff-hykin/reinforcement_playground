@@ -1,6 +1,6 @@
 todo:
     - DONE: add the ideal demonstrator
-    - FIXME: pretrain the reward predictor on the whole trajectory
+    - DONE (actually just partial-pretrain): pretrain the reward predictor on the whole trajectory
     - figure out why the metrics are wrong between A2C and perfect
     - try to use the reward predictor with a fixed lookback to see if it can be fully optimal
     - memory:

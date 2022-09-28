@@ -97,9 +97,9 @@ if True:
     # 
     # create trajectory
     # 
+    timesteps_for_evaluation = 50
     from missions.fight_fire.brute_force_fight_fire import generate_samples
-    timesteps_for_evaluation = 200
-    trajectory = generate_samples(200)
+    trajectory = generate_samples(timesteps_for_evaluation, world=world)
     
     # 
     # setup logging
