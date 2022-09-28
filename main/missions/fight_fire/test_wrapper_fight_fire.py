@@ -97,34 +97,14 @@ if True:
     # 
     # create trajectory
     # 
+    from missions.fight_fire.brute_force_fight_fire import generate_samples
     timesteps_for_evaluation = 200
-    log_rate = 10
-    with print.indent.block("Creating Trajectory", disable=True):
-        from missions.fight_fire.optimal_demonstrator import Agent as PrimaryAgent
-        runtime = basic_runtime(
-            agent=PrimaryAgent(
-                observation_space=real_env.observation_space,
-                reaction_space=real_env.action_space,
-                reactions=env.actions.values(),
-            ),
-            env=real_env,
-            max_timestep_index=timesteps_for_evaluation,
-        )
-        trajectory = tuple(
-            Timestep(
-                index=        deepcopy(each_timestep.index),
-                observation=  deepcopy(each_timestep.observation),
-                reaction=     round_reaction_values(deepcopy(each_timestep.reaction)),
-                reward=       deepcopy(each_timestep.reward),
-                is_last_step= deepcopy(each_timestep.is_last_step),
-                hidden_info=  deepcopy(each_timestep.hidden_info),
-            )
-                for episode_index, each_timestep in runtime
-        )
+    trajectory = generate_samples(200)
     
     # 
     # setup logging
     # 
+    log_rate = 10
     a2c_memory_actions_rewards    = []
     random_memory_actions_rewards = []
     perfect_memory_agent_rewards  = []

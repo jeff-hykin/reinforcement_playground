@@ -1142,12 +1142,33 @@ def generate_samples(number_of_timesteps):
         mr_bond.epsilon = each_epsilon
         for progress, (episode_index, timestep) in ProgressBar(basic(agent=mr_bond, env=env), iterations=number_of_timesteps, title=" creating timesteps"):
             timestep.hidden_info = dict(episode_index=episode_index)
-            offline_timesteps.append(timestep)
+            
+            # make action numeric
+            if isinstance(timestep.reaction, str):
+                if   timestep.reaction == "LEFT" : reaction = [1.0, 0.0]
+                elif timestep.reaction == "RIGHT": reaction = [0.0, 1.0]
+                elif timestep.reaction == "UP"   : reaction = [1.0, 1.0]
+                elif timestep.reaction == "DOWN" : reaction = [0.0, 0.0]
+                
+            reaction = deepcopy(reaction)
+            for index in range(len(reaction)):
+                if reaction[index] > 0.5:
+                    reaction[index] = 1
+                else:
+                    reaction[index] = 0
+            
+            offline_timesteps.append(Timestep(
+                index=deepcopy(timestep.index),
+                observation=deepcopy(timestep.observation),
+                reaction=reaction,
+                reward=deepcopy(timestep.reward),
+                is_last_step=deepcopy(timestep.is_last_step),
+                hidden_info=deepcopy(timestep.hidden_info),
+            ))
             world.random_seed = 1 # same world every time
             progress.text = f"""average_reward:{align(mr_bond.per_episode.average.reward, pad=4, decimals=0)}, reward: {align(mr_bond.episode.reward, digits=5, decimals=0)}, episode:{align(episode_index,pad=5)}, {align(mr_bond.epsilon*100, pad=3, decimals=0)}% random,\n{mr_bond.debug}"""
         
     return offline_timesteps
-
 
 # 
 # helpers
