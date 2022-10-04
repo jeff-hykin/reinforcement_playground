@@ -44,31 +44,28 @@ fi
 # 
 # check for python-poetry first
 # 
-__temp_var__should_use_poetry="false"
-if [ -f "$FORNIX_FOLDER/pyproject.toml" ]
-then
-    # if poetry exists
-    if [ -n "$(command -v "poetry")" ]
-    then
-        __temp_var__should_use_poetry="true"
-    fi
-fi
-if [ "$__temp_var__should_use_poetry" = "true" ]
+if [ -f "$FORNIX_FOLDER/pyproject.toml" ] && [ -n "$(command -v "poetry")" ]
 then
     # main inputs
     __temp_var__command_name="tools/python/check_pip_modules"
     __temp_var__file_to_watch="$FORNIX_FOLDER/pyproject.toml"
     __temp_var__hash_check_name="pip_poetry_modules"
     failed_check_command () {
+        # for newer versions of poetry tell them to use the existing virtual env
+        poetry config virtualenvs.path --unset 2>/dev/null
+        poetry config virtualenvs.in-project true 2>/dev/null
+
         # what to do when node modules haven't been installed yet
         poetry install
         # if successful
         if [ $? -eq 0 ] 
         then
             echo "[$__temp_var__command_name] Check finished (dependencies installed)"
+            return 0
         # if failed
         else
             echo "[$__temp_var__command_name] Check failed: issues with install"
+            return 1
         fi
     }
 
@@ -93,8 +90,7 @@ then
         __temp_var__new_hash="$(cat "$__temp_var__file_to_watch" | md5sum)"
         # if something changed since last time; install!
         if [ "$__temp_var__old_hash" != "$__temp_var__new_hash" ]; then
-            echo "$__temp_var__new_hash" > "$__temp_var__location_of_hash"
-            failed_check_command
+            failed_check_command && echo "$__temp_var__new_hash" > "$__temp_var__location_of_hash"
         else
             echo "[$__temp_var__command_name] Check Passed => assuming packages are installed"
         fi
@@ -108,11 +104,13 @@ then
     unset __temp_var__command_name
     unset __temp_var__file_to_watch
     unset __temp_var__hash_check_name
+fi
+
 # 
-# if no poetry then use normal python install
+# check for requirements.txt
 # 
-else
-    
+if [ -f "$FORNIX_FOLDER/requirements.txt" ]
+then
     # main inputs
     __temp_var__command_name="tools/python/check_pip_modules"
     __temp_var__file_to_watch="$FORNIX_FOLDER/requirements.txt"
@@ -124,9 +122,11 @@ else
         if [ $? -eq 0 ] 
         then
             echo "[$__temp_var__command_name] Check finished (dependencies installed)"
+            return 0
         # if failed
         else
             echo "[$__temp_var__command_name] Check failed: issues with install"
+            return 1
         fi
     }
 
@@ -151,8 +151,7 @@ else
         __temp_var__new_hash="$(cat "$__temp_var__file_to_watch" | md5sum)"
         # if something changed since last time; install!
         if [ "$__temp_var__old_hash" != "$__temp_var__new_hash" ]; then
-            echo "$__temp_var__new_hash" > "$__temp_var__location_of_hash"
-            failed_check_command
+            failed_check_command && echo "$__temp_var__new_hash" > "$__temp_var__location_of_hash"
         else
             echo "[$__temp_var__command_name] Check Passed => assuming packages are installed"
         fi

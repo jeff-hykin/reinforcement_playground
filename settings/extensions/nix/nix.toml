@@ -3,10 +3,10 @@
 # 
     # you can search for them here: https://search.nixos.org/packages
     #
-    # if you find a package like: nixpkg.python38Packages.setuptools
+    # if you find a package like: nixpkg.python39Packages.setuptools
     # then add a section like this:
     #    [[packages]]
-    #    load = [ "python38Packages", "setuptools",]
+    #    load = [ "python39Packages", "setuptools",]
     # 
     # if you need a specific version 
     # search for the package (e.g. "setuptools") on here: https://lazamar.co.uk/nix-versions/
@@ -15,7 +15,7 @@
     # once you copy the hash, you can add the package below like
     # 
     #    [[packages]]
-    #    load = [ "python38Packages", "setuptools",]
+    #    load = [ "python39Packages", "setuptools",]
     #    from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 
 # 
@@ -52,24 +52,39 @@ load = [ "curl",]
 
 [[packages]]
 load = [ "poetry",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
 
 [[packages]]
-load = [ "python38",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+load = [ "python39",]
 
 [[packages]]
-load = [ "python38Packages", "setuptools",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+load = [ "openblas",]
 
-# 
-# Nvidia
-# 
 [[packages]]
-load = [ "nixGLNvidia",]
-onlyIf = [ [ "stdenv", "isLinux",],]
-# see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-from = { fetchGit = { url = "https://github.com/guibou/nixGL", rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e" }, }
+load = [ "python39Packages", "setuptools",]
+
+[[packages]]
+load = [ "python39Packages", "numpy",]
+
+[[packages]]
+load = [ "python39Packages", "opencv4",]
+
+[[packages]]
+load = [ "python39Packages", "pandas",]
+
+[[packages]]
+load = [ "python39Packages", "pygame",]
+
+[[packages]]
+load = [ "python39Packages", "matplotlib",]
+
+# # 
+# # Nvidia
+# # 
+# [[packages]]
+# load = [ "nixGLNvidia",]
+# onlyIf = [ [ "stdenv", "isLinux",],]
+# # see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
+# from = { fetchGit = { url = "https://github.com/guibou/nixGL", rev = "7d6bc1b21316bab6cf4a6520c2639a11c25a220e" } }
 
 # 
 # opencv
@@ -78,31 +93,156 @@ from = { fetchGit = { url = "https://github.com/guibou/nixGL", rev = "7d6bc1b213
 [[packages]]
 onlyIf = [ [ "stdenv", "isLinux",],]
 load = [ "opencv4",]
-override = { enableGtk3 = true, enableFfmpeg = true, enableCuda = true, enableUnfree = true, }
+override = { enableGtk3 = true, enableFfmpeg = true, enableCuda = true, enableUnfree = true }
 # see https://discourse.nixos.org/t/opencv-with-cuda-in-nix-shell/7358/5
-from = { fetchGit = { url = "https://github.com/NixOS/nixpkgs/", rev = "a332da8588aeea4feb9359d23f58d95520899e3c" }, options = { config = { allowUnfree = true } }, }
+from = { fetchGit = { url = "https://github.com/NixOS/nixpkgs/", rev = "a332da8588aeea4feb9359d23f58d95520899e3c" }, options = { config = { allowUnfree = true } } }
 
 [[packages]]
-load = [ "python38Packages", "pip",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+load = [ "python39Packages", "pip",]
 
 [[packages]]
-load = [ "python38Packages", "virtualenv",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+load = [ "python39Packages", "virtualenv",]
 
 [[packages]]
-load = [ "python38Packages", "wheel",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+load = [ "python39Packages", "wheel",]
+
+# [[packages]]
+# load = [ "python39Packages", "shap",]
+
+# 
+# for .so errors on linux with opencv+ffmpeg
+# 
 
 [[packages]]
-load = [ "python38Packages", "shap",]
-from = "3f50332bc4913a56ad216ca01f5d0bd24277a6b2"
+onlyIf = [ [ "stdenv", "isLinux",],]
+load = [ "glib",]
+asNativeBuildInput = true
+from = "528d35bec0cb976a06cc0e8487c6e5136400b16b"
 
 [[packages]]
-load = [ "ncurses",]
+onlyIf = [ [ "stdenv", "isLinux",],]
+load = [ "libglvnd",]
+asNativeBuildInput = true
+from = "559cf76fa3642106d9f23c9e845baf4d354be682"
+
+# 
+# 
+# 
+# Need-to-build-from-source tools
+#
+# 
+# 
+# Note: most projects need these, 
+# and if you need them for one project nix has a shared-memory across projects
+# comment these out in a situation such as deploying a project to a minimal server
+
+# 
+# Linux
+# 
+[[packages]]
+load = [ "pkgconfig",]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isLinux",],]
+
+[[packages]]
+load = [ "libconfig",]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isLinux",],]
+
+[[packages]]
+load = [ "stdenv", "cc",]
+onlyIf = [ [ "stdenv", "isLinux",],]
+
+# 
+# Mac
+# 
+[[packages]]
+load = [ "xcbuild",]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "xcodebuild",]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "libobjc", ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "CoreServices" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "CoreFoundation" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "Foundation" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "AVKit" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "AVFoundation" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "AppKit" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "WebKit" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "Accounts" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+[[packages]]
+load = [ "darwin", "apple_sdk", "frameworks", "Security" ]
+asNativeBuildInput = true
+onlyIf = [ [ "stdenv", "isDarwin",],]
+
+# 
+# both often need
+# 
+[[packages]]
+load = [ "cmake",]
+asNativeBuildInput = true
+
+[[packages]]
+load = [ "gcc",]
+
+[[packages]]
+load = [ "libkrb5",]
+
+# 
+# 
+# common dependencies
+# 
+# 
+
+[[packages]]
+load = [ "ncurses5",]
 
 [[packages]]
 load = [ "openssh",]
+
+[[packages]]
+load = [ "fd",]
 
 [[packages]]
 load = [ "sd",]
@@ -114,8 +254,7 @@ load = [ "dua",]
 load = [ "tealdeer",]
 
 [[packages]]
-load = [ "ytop",]
-from = "a332da8588aeea4feb9359d23f58d95520899e3c"
+load = [ "bottom",]
 
 [[packages]]
 load = [ "exa",]
@@ -136,20 +275,12 @@ load = [ "zsh-autosuggestions",]
 load = [ "spaceship-prompt",]
 
 [[packages]]
-load = [ "nnn",]
-
-[[packages]]
 load = [ "pkgconfig",]
 asNativeBuildInput = true
 onlyIf = [ [ "stdenv", "isLinux",],]
 
 [[packages]]
 load = [ "libconfig",]
-asNativeBuildInput = true
-onlyIf = [ [ "stdenv", "isLinux",],]
-
-[[packages]]
-load = [ "cmake",]
 asNativeBuildInput = true
 onlyIf = [ [ "stdenv", "isLinux",],]
 
@@ -168,6 +299,15 @@ onlyIf = [ [ "stdenv", "isLinux",],]
 [[packages]]
 load = [ "stdenv", "cc",]
 onlyIf = [ [ "stdenv", "isLinux",],]
+
+[[packages]]
+load = [ "git-subrepo",]
+
+# #
+# #
+# # Basic Commandline tools
+# #
+# #
 
 [[packages]]
 load = [ "man",]
@@ -206,88 +346,125 @@ load = [ "zip",]
 load = [ "findutils",]
 
 [[packages]]
+load = [ "wget",]
+
+[[packages]]
 load = [ "curl",]
 
 [[packages]]
 load = [ "unixtools", "arp",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "ifconfig",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "netstat",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "ping",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "route",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "col",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "column",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "fdisk",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "fsck",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "getconf",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "getent",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "getopt",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "hexdump",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "hostname",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "killall",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "locale",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "more",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "mount",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "ps",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "quota",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "script",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "sysctl",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "top",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "umount",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "whereis",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "write",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
 
 [[packages]]
 load = [ "unixtools", "xxd",]
+from = "c00039f697caa02208a01e7712bfe11c484cceca"
+
+# 
+# core
+# 
+[[packages]]
+load = [ "deno",]
+from = "c82b46413401efa740a0b994f52e9903a4f6dcd5"
 
 [[packages]]
 load = [ "jq",]
