@@ -39,7 +39,7 @@ class LazyList:
     def __getitem__(self, key):
         # allow negative indexing
         if key < 0:
-            key = len(self) - key
+            key = len(self) + key
         
         # if key is bigger than whats in memory
         while key+1 > len(self.memory):
