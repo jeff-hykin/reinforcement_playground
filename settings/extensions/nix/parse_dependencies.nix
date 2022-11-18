@@ -24,7 +24,9 @@
         )
         (builtins) # <- for import, fetchTarball, etc 
     );
-    pathToThisFile = builtins.getEnv "__FORNIX_NIX_MAIN_CODE_PATH";
+    pathToThisFile = (builtins.getEnv
+        "__FORNIX_NIX_MAIN_CODE_PATH"
+    );
     # 
     # pull info from the config files
     # 
