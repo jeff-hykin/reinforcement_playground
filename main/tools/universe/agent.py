@@ -5,6 +5,11 @@ class Skeleton:
     previous_timestep = None
     timestep          = None
     next_timestep     = None
+    # self.timestep.observation
+    # self.timestep.is_last_step
+    # self.timestep.reward
+    # self.timestep.hidden_info
+    # self.timestep.reaction
     
     def __init__(self, observation_space, reaction_space, **config):
         self.observation_space = observation_space
@@ -16,13 +21,13 @@ class Skeleton:
         pass
     def when_timestep_starts(self):
         """
-        read: self.observation
-        write: self.reaction = something
+        read: self.timestep.observation
+        write: self.timestep.reaction = something
         """
         pass
     def when_timestep_ends(self):
         """
-        read: self.reward
+        read: self.timestep.reward
         """
         pass
     def when_episode_ends(self):
